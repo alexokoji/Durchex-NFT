@@ -1,0 +1,128 @@
+@import "tailwindcss";
+
+@theme inline {
+  --font-display: "Clash Display", var(--font-inter), sans-serif;
+  --font-sans: var(--font-inter), "Inter", sans-serif;
+
+  --color-void: #0b0a10;
+  --color-surface: #15121e;
+  --color-surface-2: #1e1930;
+  --color-surface-3: #241d38;
+
+  --color-purple-900: #3b0a85;
+  --color-purple-700: #7c3aed;
+  --color-purple-600: #8b4feb;
+  --color-purple-500: #a78bfa;
+  --color-purple-300: #c4b5fd;
+  --color-pink-purple: #c084fc;
+
+  --color-text-onlight: #1a1523;
+  --color-text-muted: #8a82a0;
+  --color-line: #2a2440;
+
+  --color-success: #22c55e;
+  --color-danger: #f43f5e;
+
+  --shadow-card: 0 8px 24px rgba(124, 58, 237, 0.18);
+  --shadow-card-hover: 0 20px 45px rgba(124, 58, 237, 0.38);
+  --shadow-glow: 0 0 0 1px rgba(167, 139, 250, 0.25), 0 0 32px rgba(124, 58, 237, 0.35);
+}
+
+:root {
+  color-scheme: dark;
+}
+
+html,
+body {
+  height: 100%;
+}
+
+body {
+  background: var(--color-void);
+  color: #f4f2fb;
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+::selection {
+  background: var(--color-purple-700);
+  color: white;
+}
+
+/* ---------- scrollbar ---------- */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-track {
+  background: var(--color-void);
+}
+::-webkit-scrollbar-thumb {
+  background: var(--color-surface-3);
+  border-radius: 999px;
+  border: 2px solid var(--color-void);
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-purple-700);
+}
+
+/* ---------- reusable 3D surface system ---------- */
+.surface-card {
+  background: linear-gradient(180deg, var(--color-surface-2) 0%, var(--color-surface) 100%);
+  border: 1px solid rgba(167, 139, 250, 0.12);
+  box-shadow: var(--shadow-card), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  border-radius: 1rem;
+  transition: transform 0.35s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.35s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.35s ease;
+}
+
+.surface-card-hover:hover {
+  transform: translateY(-6px) scale(1.015);
+  box-shadow: var(--shadow-card-hover), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  border-color: rgba(167, 139, 250, 0.35);
+}
+
+.glass-panel {
+  background: rgba(21, 18, 30, 0.72);
+  backdrop-filter: blur(20px) saturate(140%);
+  -webkit-backdrop-filter: blur(20px) saturate(140%);
+  border: 1px solid rgba(167, 139, 250, 0.14);
+}
+
+.glow-ring {
+  box-shadow: var(--shadow-glow);
+}
+
+.text-gradient-purple {
+  background: linear-gradient(92deg, #ffffff 0%, var(--color-purple-300) 55%, var(--color-pink-purple) 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.bg-mesh {
+  background-image:
+    radial-gradient(60% 50% at 15% 20%, rgba(124, 58, 237, 0.35) 0%, transparent 60%),
+    radial-gradient(45% 40% at 85% 15%, rgba(192, 132, 252, 0.28) 0%, transparent 60%),
+    radial-gradient(55% 45% at 50% 100%, rgba(59, 10, 133, 0.5) 0%, transparent 60%),
+    linear-gradient(180deg, #0b0a10 0%, #0b0a10 100%);
+}
+
+@keyframes pulse-glow {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(124, 58, 237, 0.55), var(--shadow-card); }
+  50% { box-shadow: 0 0 0 8px rgba(124, 58, 237, 0), var(--shadow-card); }
+}
+.animate-pulse-glow {
+  animation: pulse-glow 2.4s ease-in-out infinite;
+}
+
+@keyframes float-y {
+  0%, 100% { transform: translateY(0px); }
+  50% { transform: translateY(-14px); }
+}
+.animate-float {
+  animation: float-y 6s ease-in-out infinite;
+}
+
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
+}

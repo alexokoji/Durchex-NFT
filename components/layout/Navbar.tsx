@@ -1,0 +1,96 @@
+"use client";
+
+import Link from "next/link";
+import { useState } from "react";
+import { Menu, X, Sparkles } from "lucide-react";
+import { Button } from "@/components/ui/Button";
+import { ConnectWalletButton } from "@/components/wallet/ConnectWalletButton";
+import { NetworkSwitcher } from "@/components/wallet/NetworkSwitcher";
+import { NotificationBell } from "@/components/notifications/NotificationBell";
+import { SearchBox } from "@/components/layout/SearchBox";
+
+const NAV_LINKS = [
+  { href: "/explore", label: "Explore" },
+  { href: "/rankings", label: "Rankings" },
+  { href: "/drops", label: "Drops" },
+  { href: "/stats", label: "Stats" },
+];
+
+export function Navbar() {
+  const [open, setOpen] = useState(false);
+
+  return (
+    <header className="sticky top-0 z-50">
+      <div className="w-full bg-gradient-to-r from-purple-900 via-purple-700 to-pink-purple/80 text-center text-xs sm:text-sm py-1.5 px-4 text-white/90">
+        <Sparkles className="inline w-3.5 h-3.5 mb-0.5 mr-1.5 text-purple-300" />
+        New drop: <span className="font-semibold text-white">Neon Ronin</span> mints live now — real lazy-minted, zero gas to list.
+      </div>
+      <nav className="glass-panel border-b border-white/5">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between gap-4">
+          <Link href="/" className="flex items-center gap-2 shrink-0">
+            <span className="w-8 h-8 rounded-lg bg-gradient-to-br from-purple-500 to-purple-800 grid place-items-center shadow-[0_4px_14px_rgba(124,58,237,0.55)]">
+              <span className="w-3 h-3 rounded-sm bg-white/90 rotate-45" />
+            </span>
+            <span className="font-display font-semibold text-lg tracking-tight text-white">
+              Durchex
+            </span>
+          </Link>
+
+          <div className="hidden md:flex items-center gap-1 flex-1 max-w-md">
+            <SearchBox />
+          </div>
+
+          <div className="hidden lg:flex items-center gap-1">
+            {NAV_LINKS.map((l) => (
+              <Link
+                key={l.href}
+                href={l.href}
+                className="px-3.5 py-2 text-sm font-medium text-white/70 hover:text-white rounded-lg hover:bg-white/5 transition"
+              >
+                {l.label}
+              </Link>
+            ))}
+          </div>
+
+          <div className="hidden sm:flex items-center gap-2">
+            <Button href="/create" variant="secondary" size="sm">
+              Create
+            </Button>
+            <NetworkSwitcher compact />
+            <NotificationBell />
+            <ConnectWalletButton />
+          </div>
+
+          <button
+            className="lg:hidden text-white/80 p-2"
+            onClick={() => setOpen((v) => !v)}
+            aria-label="Toggle menu"
+          >
+            {open ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+          </button>
+        </div>
+
+        {open && (
+          <div className="lg:hidden px-4 pb-4 flex flex-col gap-1 border-t border-white/5 pt-3">
+            {NAV_LINKS.map((l) => (
+              <Link
+                key={l.href}
+                href={l.href}
+                className="px-3 py-2.5 text-sm font-medium text-white/80 hover:text-white rounded-lg hover:bg-white/5"
+              >
+                {l.label}
+              </Link>
+            ))}
+            <div className="flex items-center gap-2 mt-2">
+              <Button href="/create" variant="secondary" size="sm" className="flex-1">
+                Create
+              </Button>
+              <NetworkSwitcher />
+              <ConnectWalletButton />
+            </div>
+          </div>
+        )}
+      </nav>
+    </header>
+  );
+}

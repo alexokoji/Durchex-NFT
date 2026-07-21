@@ -1,0 +1,20 @@
+import { Activity } from "@/lib/models/Activity";
+import { Types } from "mongoose";
+
+export async function recordActivity(params: {
+  type: "mint" | "list" | "sale" | "transfer" | "bid" | "offer" | "cancel";
+  item: string | Types.ObjectId;
+  from?: string | Types.ObjectId | null;
+  to?: string | Types.ObjectId | null;
+  priceEth?: number | null;
+  txHash?: string | null;
+}) {
+  return Activity.create({
+    type: params.type,
+    item: params.item,
+    from: params.from ?? undefined,
+    to: params.to ?? undefined,
+    priceEth: params.priceEth ?? null,
+    txHash: params.txHash ?? null,
+  });
+}
