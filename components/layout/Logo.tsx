@@ -7,13 +7,16 @@ export function LogoMark({ className = "w-7 h-7" }: { className?: string }) {
         strokeWidth="5.5"
         strokeLinejoin="round"
       />
-      <g transform="translate(30 22)">
-        <rect x="18" y="0" width="6" height="6" fill="white" />
-        <rect x="12" y="6" width="6" height="6" fill="#C084FC" />
-        <rect x="6" y="12" width="6" height="6" fill="#C084FC" />
-        <rect x="12" y="18" width="6" height="6" fill="#C084FC" />
-        <rect x="18" y="24" width="6" height="6" fill="white" />
-        <rect x="0" y="18" width="6" height="6" fill="white" />
+      <g transform="translate(28 18)">
+        <rect x="0" y="0" width="6" height="6" fill="white" />
+        <rect x="6" y="6" width="6" height="6" fill="#C084FC" />
+        <rect x="12" y="12" width="6" height="6" fill="#C084FC" />
+        <rect x="18" y="18" width="6" height="6" fill="#C084FC" />
+        <rect x="24" y="24" width="6" height="6" fill="white" />
+        <rect x="24" y="0" width="6" height="6" fill="white" />
+        <rect x="18" y="6" width="6" height="6" fill="#C084FC" />
+        <rect x="6" y="18" width="6" height="6" fill="#C084FC" />
+        <rect x="0" y="24" width="6" height="6" fill="white" />
       </g>
     </svg>
   );
