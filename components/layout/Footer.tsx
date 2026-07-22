@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { Send, MessageCircle, Globe, Rss } from "lucide-react";
+import { LogoMark } from "@/components/layout/Logo";
 
 const COLUMNS = [
   {
@@ -35,14 +36,13 @@ export function Footer() {
       <div className="max-w-7xl mx-auto px-6 py-14 grid grid-cols-2 md:grid-cols-5 gap-10">
         <div className="col-span-2">
           <div className="flex items-center gap-2 mb-3">
-            <span className="w-7 h-7 rounded-lg bg-gradient-to-br from-purple-500 to-purple-800 grid place-items-center">
-              <span className="w-2.5 h-2.5 rounded-sm bg-white/90 rotate-45" />
-            </span>
+            <LogoMark className="w-7 h-7" />
             <span className="font-display font-semibold text-lg text-white">Durchex</span>
           </div>
           <p className="text-sm text-white/50 max-w-xs leading-relaxed">
-            The purple x black NFT marketplace with real lazy minting — list instantly,
-            mint on first sale.
+            Durchex is a digital marketplace for discovering, creating, and trading
+            NFTs, built on secure lazy-minting infrastructure so creators can list
+            instantly with zero upfront gas.
           </p>
           <div className="flex items-center gap-3 mt-5">
             {[Send, MessageCircle, Globe, Rss].map((Icon, i) => (
@@ -76,10 +76,6 @@ export function Footer() {
       <div className="border-t border-white/5">
         <div className="max-w-7xl mx-auto px-6 py-5 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-white/40">
           <span>© {new Date().getFullYear()} Durchex. All rights reserved.</span>
-          <span className="flex items-center gap-2">
-            <span className="w-1.5 h-1.5 rounded-full bg-purple-500 animate-pulse" />
-            Live on Polygon
-          </span>
         </div>
       </div>
     </footer>

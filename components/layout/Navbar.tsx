@@ -8,6 +8,7 @@ import { ConnectWalletButton } from "@/components/wallet/ConnectWalletButton";
 import { NetworkSwitcher } from "@/components/wallet/NetworkSwitcher";
 import { NotificationBell } from "@/components/notifications/NotificationBell";
 import { SearchBox } from "@/components/layout/SearchBox";
+import { LogoMark } from "@/components/layout/Logo";
 
 const NAV_LINKS = [
   { href: "/explore", label: "Explore" },
@@ -28,9 +29,7 @@ export function Navbar() {
       <nav className="glass-panel border-b border-white/5">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between gap-4">
           <Link href="/" className="flex items-center gap-2 shrink-0">
-            <span className="w-8 h-8 rounded-lg bg-gradient-to-br from-purple-500 to-purple-800 grid place-items-center shadow-[0_4px_14px_rgba(124,58,237,0.55)]">
-              <span className="w-3 h-3 rounded-sm bg-white/90 rotate-45" />
-            </span>
+            <LogoMark className="w-8 h-8" />
             <span className="font-display font-semibold text-lg tracking-tight text-white">
               Durchex
             </span>

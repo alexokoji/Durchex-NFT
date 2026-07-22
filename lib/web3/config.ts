@@ -17,7 +17,7 @@ import {
 // still work fine without one — only the WalletConnect QR/relay path needs it.
 // Get a real one at https://cloud.walletconnect.com for production.
 const WALLETCONNECT_PROJECT_ID =
-  process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID || "00000000000000000000000000000000";
+  process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID || "caa9727fd26fe72353d75ddc7fcde24c";
 
 // Every EVM network from the deployment-cost estimate. `DurchexNFT` +
 // `DurchexMarketplace` are plain Solidity, so the same contracts deploy
