@@ -30,6 +30,12 @@ async function main() {
   await setMarketplaceTx.wait();
   console.log(`DurchexNFT.marketplace set to ${marketplaceAddress}`);
 
+  const DurchexPass = await ethers.getContractFactory("DurchexPass");
+  const pass = await DurchexPass.deploy();
+  await pass.waitForDeployment();
+  const passAddress = await pass.getAddress();
+  console.log(`DurchexPass deployed to ${passAddress}`);
+
   const deploymentsPath = join(__dirname, "..", "deployments.json");
   const existing = existsSync(deploymentsPath)
     ? JSON.parse(readFileSync(deploymentsPath, "utf-8"))
@@ -39,6 +45,7 @@ async function main() {
     chainId: Number((await ethers.provider.getNetwork()).chainId),
     DurchexNFT: nftAddress,
     DurchexMarketplace: marketplaceAddress,
+    DurchexPass: passAddress,
     feeRecipient,
     deployedAt: new Date().toISOString(),
   };

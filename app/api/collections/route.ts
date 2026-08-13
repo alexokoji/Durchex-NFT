@@ -15,6 +15,13 @@ const CATEGORIES: CategoryKey[] = [
   "collectibles",
 ];
 
+type MintPhaseInput = { enabled?: boolean; priceEth?: number; allocation?: number; walletLimit?: number; allowlist?: string[] };
+function normalizePhase(input: MintPhaseInput | undefined, requiresAllowlist = false) {
+  const enabled = !!input?.enabled;
+  const allowlist = [...new Set((input?.allowlist ?? []).map((address) => String(address).trim().toLowerCase()).filter((address) => /^0x[a-f0-9]{40}$/.test(address)))];
+  return { enabled, priceEth: Math.max(0, Number(input?.priceEth ?? 0)), allocation: Math.max(0, Math.floor(Number(input?.allocation ?? 0))), walletLimit: Math.max(0, Math.floor(Number(input?.walletLimit ?? 0))), allowlist: requiresAllowlist ? allowlist : [] };
+}
+
 function slugify(name: string) {
   return name
     .toLowerCase()
@@ -26,7 +33,7 @@ function slugify(name: string) {
 export async function GET() {
   await connectDB();
   const docs = await Collection.find()
-    .select("slug name category contractAddress chainId royaltyBps verified stats.items")
+    .select("slug name category contractAddress contractType chainId royaltyBps maxSupply verified stats.items")
     .sort({ name: 1 })
     .lean();
 
@@ -37,8 +44,10 @@ export async function GET() {
       name: c.name,
       category: c.category,
       contractAddress: c.contractAddress,
+      contractType: c.contractType,
       chainId: c.chainId,
       royaltyBps: c.royaltyBps,
+      maxSupply: c.maxSupply,
       verified: c.verified,
       items: c.stats?.items ?? 0,
     })),
@@ -56,12 +65,27 @@ export async function POST(req: NextRequest) {
   const category = body.category as CategoryKey;
   const description = String(body.description ?? "").trim();
   const royaltyBps = Math.min(Math.max(Number(body.royaltyBps ?? 500), 0), 1000);
+  const mintPhases = {
+    whitelist: normalizePhase(body.mintPhases?.whitelist, true),
+    og: normalizePhase(body.mintPhases?.og, true),
+    public: normalizePhase(body.mintPhases?.public),
+  };
+  const maxSupply = Math.max(0, Math.floor(Number(body.maxSupply ?? 0)));
+  const payoutRecipients = (Array.isArray(body.payoutRecipients) ? body.payoutRecipients : [])
+    .map((p: { address?: string; shareBps?: number }) => ({ address: String(p.address ?? "").trim().toLowerCase(), shareBps: Math.max(0, Math.floor(Number(p.shareBps ?? 0))) }))
+    .filter((p: { address: string; shareBps: number }) => /^0x[a-f0-9]{40}$/.test(p.address) && p.shareBps > 0);
 
   if (!name || name.length < 2) {
     return NextResponse.json({ error: "Collection name is required" }, { status: 400 });
   }
   if (!CATEGORIES.includes(category)) {
     return NextResponse.json({ error: "Invalid category" }, { status: 400 });
+  }
+  if ([mintPhases.whitelist, mintPhases.og, mintPhases.public].some((phase) => phase.enabled && phase.allocation === 0)) {
+    return NextResponse.json({ error: "Each enabled mint phase needs a supply allocation." }, { status: 400 });
+  }
+  if ((mintPhases.whitelist.enabled && mintPhases.whitelist.allowlist.length === 0) || (mintPhases.og.enabled && mintPhases.og.allowlist.length === 0)) {
+    return NextResponse.json({ error: "Whitelist and OG phases need at least one valid wallet address." }, { status: 400 });
   }
 
   await connectDB();
@@ -80,6 +104,10 @@ export async function POST(req: NextRequest) {
     creator: user._id,
     royaltyBps,
     contractAddress: "",
+    contractType: "lazy",
+    maxSupply,
+    payoutRecipients,
+    mintPhases,
   });
 
   return NextResponse.json(
@@ -89,8 +117,10 @@ export async function POST(req: NextRequest) {
       name: collection.name,
       category: collection.category,
       contractAddress: collection.contractAddress,
+      contractType: collection.contractType,
       chainId: collection.chainId,
       royaltyBps: collection.royaltyBps,
+      maxSupply: collection.maxSupply,
       verified: false,
       items: 0,
     },

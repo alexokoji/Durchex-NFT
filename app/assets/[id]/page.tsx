@@ -43,7 +43,7 @@ export default async function ItemDetailPage({ params }: PageProps) {
 
       <div className="grid lg:grid-cols-2 gap-10">
         <div>
-          <MediaPanel seedKey={item.id} />
+          <MediaPanel seedKey={item.id} url={item.mediaUrl} type={item.mediaType} alt={item.name} />
         </div>
 
         <div>

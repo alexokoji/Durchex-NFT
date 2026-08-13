@@ -9,6 +9,10 @@ const ItemSchema = new Schema(
     creator: { type: Schema.Types.ObjectId, ref: "User" },
     name: { type: String, required: true },
     description: { type: String, default: "" },
+    mediaUrl: { type: String, default: "" },
+    mediaType: { type: String, default: "" },
+    mediaName: { type: String, default: "" },
+    mediaSize: { type: Number, default: 0 },
     metadataUri: { type: String, default: "" },
     traits: [
       {

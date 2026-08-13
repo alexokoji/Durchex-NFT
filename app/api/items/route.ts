@@ -10,13 +10,14 @@ interface CreateItemBody {
   collectionId: string;
   name: string;
   description?: string;
+  media?: { url: string; type: string; name: string; size: number };
   traits?: { traitType: string; value: string }[];
   pricingMode: "fixed_price" | "auction" | "not_listed";
   priceEth: number;
   auctionDurationHours?: number;
   tokenId: string;
   metadataUri: string;
-  voucher: {
+  voucher?: {
     tokenId: string;
     uri: string;
     minPrice: string;
@@ -24,7 +25,7 @@ interface CreateItemBody {
     royaltyBps: number;
     nonce: number;
   };
-  signature: string;
+  signature?: string;
 }
 
 export async function POST(req: NextRequest) {
@@ -38,10 +39,13 @@ export async function POST(req: NextRequest) {
   if (!name || name.length < 2) {
     return NextResponse.json({ error: "Item name is required" }, { status: 400 });
   }
-  if (!body.collectionId || !body.voucher || !body.signature) {
-    return NextResponse.json({ error: "Missing collection, voucher or signature" }, { status: 400 });
+  if (!body.collectionId) {
+    return NextResponse.json({ error: "Missing collection" }, { status: 400 });
   }
-  if (body.voucher.nonce !== (user.nextVoucherNonce ?? 0)) {
+  if (!!body.voucher !== !!body.signature) {
+    return NextResponse.json({ error: "A lazy-mint voucher needs both a signature and voucher data" }, { status: 400 });
+  }
+  if (body.voucher && body.voucher.nonce !== (user.nextVoucherNonce ?? 0)) {
     return NextResponse.json(
       { error: "Voucher nonce is stale — refresh and try again" },
       { status: 409 }
@@ -53,27 +57,32 @@ export async function POST(req: NextRequest) {
   if (!collection) {
     return NextResponse.json({ error: "Collection not found" }, { status: 404 });
   }
-  if (await Item.exists({ collection: collection._id, tokenId: body.tokenId })) {
+  if (body.voucher && await Item.exists({ collection: collection._id, tokenId: body.tokenId })) {
     return NextResponse.json(
       { error: "That token id was just taken — refresh and try again" },
       { status: 409 }
     );
   }
 
-  const isAuction = body.pricingMode === "auction";
-  const status = body.pricingMode === "not_listed" ? "not_listed" : body.pricingMode;
+  const isAuction = !!body.voucher && body.pricingMode === "auction";
+  // A collection without a deployed compatible contract is a media draft, not a live listing.
+  const status = body.voucher && body.pricingMode !== "not_listed" ? body.pricingMode : "not_listed";
   const auctionEndsAt = isAuction
     ? new Date(Date.now() + (body.auctionDurationHours ?? 24) * 60 * 60 * 1000)
     : null;
 
   const item = await Item.create({
     collection: collection._id,
-    tokenId: null,
+    tokenId: body.voucher ? body.tokenId : null,
     isMinted: false,
     owner: user._id,
     creator: user._id,
     name,
     description: body.description ?? "",
+    mediaUrl: body.media?.url ?? "",
+    mediaType: body.media?.type ?? "",
+    mediaName: body.media?.name ?? "",
+    mediaSize: body.media?.size ?? 0,
     metadataUri: body.metadataUri,
     traits: (body.traits ?? [])
       .filter((t) => t.traitType.trim() && t.value.trim())
@@ -84,11 +93,11 @@ export async function POST(req: NextRequest) {
     auctionEndsAt,
     favoriteCount: 0,
     viewCount: 0,
-    voucher: body.voucher,
+    voucher: body.voucher ? { ...body.voucher, signature: body.signature } : undefined,
   });
 
   await Promise.all([
-    User.updateOne({ _id: user._id }, { $inc: { nextVoucherNonce: 1 } }),
+    body.voucher ? User.updateOne({ _id: user._id }, { $inc: { nextVoucherNonce: 1 } }) : Promise.resolve(),
     recordActivity({
       type: "list",
       item: item._id,

@@ -4,6 +4,8 @@ export interface ItemView {
   id: string;
   name: string;
   imageUrl: string;
+  mediaUrl?: string;
+  mediaType?: string;
   collectionName: string;
   collectionSlug: string;
   collectionVerified: boolean;
@@ -42,6 +44,20 @@ export interface CollectionDetailView extends CollectionView {
   volume7dEth: number;
   totalVolumeEth: number;
   sales: number;
+  contractType: "lazy" | "drop";
+  maxSupply: number;
+  mintPhases: {
+    whitelist: MintPhaseView;
+    og: MintPhaseView;
+    public: MintPhaseView;
+  };
+}
+
+export interface MintPhaseView {
+  enabled: boolean;
+  priceEth: number;
+  allocation: number;
+  walletLimit: number;
 }
 
 export interface UserRef {
@@ -71,6 +87,9 @@ export interface ItemDetailView extends ItemView {
   description: string;
   tokenId: string | null;
   metadataUri: string;
+  mediaUrl?: string;
+  mediaType?: string;
+  mediaName?: string;
   chainId: number;
   contractAddress: string;
   viewCount: number;

@@ -36,6 +36,9 @@ interface ItemLike {
   auctionEndsAt: Date | string | null;
   favoriteCount: number;
   createdAt: Date | string;
+  mediaUrl?: string;
+  mediaType?: string;
+  mediaName?: string;
   collection: CollectionLike;
 }
 
@@ -45,6 +48,13 @@ interface CollectionDetailLike extends CollectionLike {
   chainId: number;
   standard: string;
   royaltyBps: number;
+  contractType?: "lazy" | "drop";
+  maxSupply?: number;
+  mintPhases?: {
+    whitelist?: { enabled?: boolean; priceEth?: number; allocation?: number; walletLimit?: number };
+    og?: { enabled?: boolean; priceEth?: number; allocation?: number; walletLimit?: number };
+    public?: { enabled?: boolean; priceEth?: number; allocation?: number; walletLimit?: number };
+  };
   stats: CollectionLike["stats"] & { volume7dEth: number; totalVolumeEth: number; sales: number };
 }
 
@@ -102,7 +112,9 @@ export function toItemView(item: ItemLike): ItemView {
   return {
     id: String(item._id),
     name: item.name,
-    imageUrl: "",
+    imageUrl: item.mediaUrl || "",
+    mediaUrl: item.mediaUrl || undefined,
+    mediaType: item.mediaType || undefined,
     collectionName: item.collection.name,
     collectionSlug: item.collection.slug,
     collectionVerified: item.collection.verified,
@@ -119,6 +131,12 @@ export function toItemView(item: ItemLike): ItemView {
 }
 
 export function toCollectionDetailView(c: CollectionDetailLike): CollectionDetailView {
+  const phase = (value: { enabled?: boolean; priceEth?: number; allocation?: number; walletLimit?: number } | undefined) => ({
+    enabled: !!value?.enabled,
+    priceEth: value?.priceEth ?? 0,
+    allocation: value?.allocation ?? 0,
+    walletLimit: value?.walletLimit ?? 0,
+  });
   return {
     ...toCollectionView(c),
     description: c.description,
@@ -129,6 +147,13 @@ export function toCollectionDetailView(c: CollectionDetailLike): CollectionDetai
     volume7dEth: c.stats.volume7dEth,
     totalVolumeEth: c.stats.totalVolumeEth,
     sales: c.stats.sales,
+    contractType: c.contractType ?? "lazy",
+    maxSupply: c.maxSupply ?? 0,
+    mintPhases: {
+      whitelist: phase(c.mintPhases?.whitelist),
+      og: phase(c.mintPhases?.og),
+      public: phase(c.mintPhases?.public),
+    },
   };
 }
 
@@ -139,6 +164,9 @@ export function toItemDetailView(item: ItemDetailLike): ItemDetailView {
     description: item.description,
     tokenId: item.tokenId,
     metadataUri: item.metadataUri,
+    mediaUrl: item.mediaUrl || undefined,
+    mediaType: item.mediaType || undefined,
+    mediaName: item.mediaName || undefined,
     chainId: item.collection.chainId,
     contractAddress: item.collection.contractAddress,
     viewCount: item.viewCount,

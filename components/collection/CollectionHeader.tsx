@@ -1,6 +1,7 @@
 import { BadgeCheck } from "lucide-react";
 import { GeneratedArt } from "@/components/nft/GeneratedArt";
 import { CollectionDetailView } from "@/lib/types";
+import { DropMintPanel } from "@/components/drop/DropMintPanel";
 
 export function CollectionHeader({ collection }: { collection: CollectionDetailView }) {
   return (
@@ -32,6 +33,11 @@ export function CollectionHeader({ collection }: { collection: CollectionDetailV
         <Stat label="Items" value={collection.items.toLocaleString()} />
         <Stat label="Owners" value={collection.owners.toLocaleString()} />
       </div>
+      {collection.contractType === "drop" && (
+        <div className="px-4 sm:px-8">
+          <DropMintPanel drop={{ collectionId: collection.id, contractAddress: collection.contractAddress, chainId: collection.chainId, phases: collection.mintPhases }} />
+        </div>
+      )}
     </div>
   );
 }

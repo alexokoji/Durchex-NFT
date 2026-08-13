@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAccount, useSignTypedData } from "wagmi";
+import { isAddress } from "viem";
 import { ArrowLeft, ArrowRight, Loader2, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { GeneratedArt } from "@/components/nft/GeneratedArt";
@@ -11,6 +12,7 @@ import { StepIndicator } from "@/components/create/StepIndicator";
 import { CollectionPicker, CollectionOption } from "@/components/create/CollectionPicker";
 import { TraitsEditor, TraitInput } from "@/components/create/TraitsEditor";
 import { PricingForm, PricingMode } from "@/components/create/PricingForm";
+import { AssetUploader, UploadedAsset } from "@/components/create/AssetUploader";
 import { ConnectWalletButton } from "@/components/wallet/ConnectWalletButton";
 import { useSession } from "@/hooks/useSession";
 import { buildVoucherTypedData } from "@/lib/web3/voucher";
@@ -19,13 +21,14 @@ const STEP_COUNT = 4;
 
 export default function CreatePage() {
   const router = useRouter();
-  const { address, isConnected } = useAccount();
+  const { address, isConnected, chainId } = useAccount();
   const { user } = useSession();
   const { signTypedDataAsync } = useSignTypedData();
 
   const [step, setStep] = useState(0);
   const [collection, setCollection] = useState<CollectionOption | null>(null);
   const [name, setName] = useState("");
+  const [asset, setAsset] = useState<UploadedAsset | null>(null);
   const [description, setDescription] = useState("");
   const [traits, setTraits] = useState<TraitInput[]>([]);
   const [mode, setMode] = useState<PricingMode>("fixed_price");
@@ -35,21 +38,21 @@ export default function CreatePage() {
   const [error, setError] = useState<string | null>(null);
 
   const canProceed = [
-    !!collection && name.trim().length >= 2,
+    !!collection && !!asset && name.trim().length >= 2,
     true,
     mode === "not_listed" || Number(priceEth) > 0,
     true,
   ][step];
 
   async function handleSubmit() {
-    if (!collection || !address || !user) return;
+    if (!collection || !address || !user || !asset) return;
     setSubmitting(true);
     setError(null);
     try {
       const tokenId = collection.items + 1;
-      const metadataUri = `internal://durchex/${collection.slug}/${tokenId}.json`;
-
-      const typedData = buildVoucherTypedData({
+      const metadataUri = `${window.location.origin}/api/metadata/${collection.slug}/${tokenId}`;
+      const canLazyMint = isAddress(collection.contractAddress) && chainId === collection.chainId;
+      const typedData = canLazyMint ? buildVoucherTypedData({
         chainId: collection.chainId,
         verifyingContract: collection.contractAddress,
         tokenId,
@@ -58,9 +61,8 @@ export default function CreatePage() {
         creator: address,
         royaltyBps: collection.royaltyBps,
         nonce: user.nextVoucherNonce,
-      });
-
-      const signature = await signTypedDataAsync(typedData);
+      }) : null;
+      const signature = typedData ? await signTypedDataAsync(typedData) : undefined;
 
       const res = await fetch("/api/items", {
         method: "POST",
@@ -69,20 +71,21 @@ export default function CreatePage() {
           collectionId: collection.id,
           name,
           description,
+          media: asset,
           traits,
           pricingMode: mode,
           priceEth: Number(priceEth),
           auctionDurationHours,
           tokenId: String(tokenId),
           metadataUri,
-          voucher: {
+          voucher: typedData ? {
             tokenId: String(tokenId),
             uri: metadataUri,
             minPrice: typedData.message.minPrice.toString(),
             creator: address,
             royaltyBps: collection.royaltyBps,
             nonce: user.nextVoucherNonce,
-          },
+          } : undefined,
           signature,
         }),
       });
@@ -113,6 +116,10 @@ export default function CreatePage() {
             <p className="text-sm text-white/45 mb-5">Pick a collection and describe your item.</p>
             <CollectionPicker selected={collection} onSelect={setCollection} />
             <div className="mt-6 space-y-4">
+              <div>
+                <label className="text-xs font-medium text-white/50 mb-1.5 block">NFT asset <span className="text-purple-300">required</span></label>
+                <AssetUploader value={asset} onChange={setAsset} />
+              </div>
               <div>
                 <label className="text-xs font-medium text-white/50 mb-1.5 block">Item name</label>
                 <input
@@ -172,8 +179,8 @@ export default function CreatePage() {
             </p>
 
             <div className="flex gap-4 mb-6">
-              <div className="w-28 h-28 rounded-xl overflow-hidden shrink-0 surface-card">
-                <GeneratedArt seedKey={name || "preview"} className="w-full h-full" />
+              <div className="w-28 h-28 rounded-xl overflow-hidden shrink-0 surface-card bg-black">
+                {asset?.type.startsWith("video/") ? <video src={asset.url} className="w-full h-full object-cover" /> : asset?.type.startsWith("audio/") ? <div className="h-full grid place-items-center text-purple-300">♫</div> : asset ? <img src={asset.url} alt="NFT preview" className="w-full h-full object-cover" /> : <GeneratedArt seedKey={name || "preview"} className="w-full h-full" />}
               </div>
               <div className="min-w-0">
                 <div className="flex items-center gap-1.5 text-xs text-purple-300 mb-1">
@@ -200,15 +207,22 @@ export default function CreatePage() {
                 <ConnectWalletButton />
               </div>
             ) : (
-              <Button size="lg" onClick={handleSubmit} disabled={submitting || !collection}>
+              <>
+                {(!collection?.contractAddress || !isAddress(collection.contractAddress) || chainId !== collection.chainId) && (
+                  <div className="mb-4 p-3 rounded-xl bg-amber-400/10 border border-amber-300/20 text-xs text-amber-100">
+                    This collection is not connected to a deployed contract on your active network. Your media and metadata will be saved as a draft; deploy or attach the collection contract before enabling lazy-mint listings.
+                  </div>
+                )}
+              <Button size="lg" onClick={handleSubmit} disabled={submitting || !collection || !asset}>
                 {submitting ? (
                   <>
                     <Loader2 className="w-4 h-4 animate-spin" /> Confirm in your wallet…
                   </>
                 ) : (
-                  "Sign & List"
+                  collection?.contractAddress && isAddress(collection.contractAddress) && chainId === collection.chainId ? "Sign & List" : "Save NFT draft"
                 )}
               </Button>
+              </>
             )}
             {error && <p className="text-xs text-danger mt-3">{error}</p>}
           </div>

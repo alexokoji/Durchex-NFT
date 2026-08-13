@@ -19,10 +19,7 @@ export function NFTCard({ item }: { item: ItemView }) {
       style={{ perspective: "1000px" }}
     >
       <div className="relative aspect-square overflow-hidden rounded-t-2xl">
-        <GeneratedArt
-          seedKey={item.id}
-          className="w-full h-full transition-transform duration-500 ease-out group-hover:scale-110"
-        />
+        {item.mediaUrl && !item.mediaType?.startsWith("audio/") ? item.mediaType?.startsWith("video/") ? <video src={item.mediaUrl} muted playsInline preload="metadata" className="w-full h-full object-cover transition-transform duration-500 ease-out group-hover:scale-110" /> : <img src={item.mediaUrl} alt={item.name} className="w-full h-full object-cover transition-transform duration-500 ease-out group-hover:scale-110" /> : <GeneratedArt seedKey={item.id} className="w-full h-full transition-transform duration-500 ease-out group-hover:scale-110" />}
 
         <div className="absolute top-2.5 left-2.5 flex flex-col gap-1.5">
           {!item.isMinted && (

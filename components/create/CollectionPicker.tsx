@@ -28,7 +28,11 @@ export function CollectionPicker({
 }) {
   const [collections, setCollections] = useState<CollectionOption[] | null>(null);
   const [creating, setCreating] = useState(false);
-  const [form, setForm] = useState({ name: "", category: "art" as CategoryKey, royaltyBps: 500 });
+  const [form, setForm] = useState({ name: "", category: "art" as CategoryKey, royaltyBps: 500, maxSupply: 0, payoutAddress: "", mintPhases: {
+    whitelist: { enabled: false, priceEth: 0, allocation: 0, walletLimit: 0, allowlist: "" },
+    og: { enabled: false, priceEth: 0, allocation: 0, walletLimit: 0, allowlist: "" },
+    public: { enabled: false, priceEth: 0, allocation: 0, walletLimit: 0, allowlist: "" },
+  } });
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -49,7 +53,11 @@ export function CollectionPicker({
       const res = await fetch("/api/collections", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(form),
+        body: JSON.stringify({ ...form, payoutRecipients: form.payoutAddress.trim() ? [{ address: form.payoutAddress.trim(), shareBps: 10000 }] : [], mintPhases: {
+          whitelist: { ...form.mintPhases.whitelist, allowlist: form.mintPhases.whitelist.allowlist.split(/[\s,]+/).filter(Boolean) },
+          og: { ...form.mintPhases.og, allowlist: form.mintPhases.og.allowlist.split(/[\s,]+/).filter(Boolean) },
+          public: form.mintPhases.public,
+        } }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Failed to create collection");
@@ -120,6 +128,36 @@ export function CollectionPicker({
               placeholder="e.g. Neon Ronin"
               className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white placeholder:text-white/30 focus:outline-none focus:border-purple-500/60"
             />
+          </div>
+
+          <div className="grid sm:grid-cols-2 gap-3">
+            <div>
+              <label className="text-xs font-medium text-white/50 mb-1.5 block">Collection supply</label>
+              <input type="number" min="0" value={form.maxSupply || ""} onChange={(e) => setForm((current) => ({ ...current, maxSupply: Number(e.target.value) }))} placeholder="0 = unlimited" className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white placeholder:text-white/30 focus:outline-none focus:border-purple-500/60" />
+              <p className="text-[10px] text-white/30 mt-1">Leave blank for no contract-level cap.</p>
+            </div>
+            <div>
+              <label className="text-xs font-medium text-white/50 mb-1.5 block">Primary sale recipient</label>
+              <input value={form.payoutAddress} onChange={(e) => setForm((current) => ({ ...current, payoutAddress: e.target.value }))} placeholder="0x… (defaults to creator)" className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white placeholder:text-white/30 focus:outline-none focus:border-purple-500/60" />
+              <p className="text-[10px] text-white/30 mt-1">Receives drop mint proceeds on deployment.</p>
+            </div>
+          </div>
+
+          <div className="pt-1">
+            <div className="text-xs font-medium text-white/50 mb-2">Optional mint phases</div>
+            <p className="text-[11px] text-white/35 mb-3">Configure your launch now. These become enforceable when the collection is deployed with the Durchex Drop contract.</p>
+            <div className="space-y-2">
+              {(["whitelist", "og", "public"] as const).map((phase) => {
+                const config = form.mintPhases[phase];
+                const label = phase === "og" ? "OG mint" : phase === "whitelist" ? "Whitelist mint" : "Public mint";
+                const hasAllowlist = phase !== "public";
+                const allowlist = config.allowlist;
+                return <div key={phase} className="rounded-lg border border-white/10 p-3 bg-white/[0.02]">
+                  <label className="flex items-center justify-between text-sm font-medium text-white/75 cursor-pointer"><span>{label}</span><input type="checkbox" checked={config.enabled} onChange={(e) => setForm((current) => ({ ...current, mintPhases: { ...current.mintPhases, [phase]: { ...current.mintPhases[phase], enabled: e.target.checked } } }))} className="accent-purple-500" /></label>
+                  {config.enabled && <div className="grid sm:grid-cols-3 gap-2 mt-3"><input type="number" min="0" step="0.001" value={config.priceEth} onChange={(e) => setForm((current) => ({ ...current, mintPhases: { ...current.mintPhases, [phase]: { ...current.mintPhases[phase], priceEth: Number(e.target.value) } } }))} placeholder="Price ETH" className="bg-white/5 border border-white/10 rounded px-2 py-1.5 text-xs text-white" /><input type="number" min="1" value={config.allocation || ""} onChange={(e) => setForm((current) => ({ ...current, mintPhases: { ...current.mintPhases, [phase]: { ...current.mintPhases[phase], allocation: Number(e.target.value) } } }))} placeholder="Supply allocation" className="bg-white/5 border border-white/10 rounded px-2 py-1.5 text-xs text-white" /><input type="number" min="0" value={config.walletLimit || ""} onChange={(e) => setForm((current) => ({ ...current, mintPhases: { ...current.mintPhases, [phase]: { ...current.mintPhases[phase], walletLimit: Number(e.target.value) } } }))} placeholder="0 = no wallet cap" className="bg-white/5 border border-white/10 rounded px-2 py-1.5 text-xs text-white" />{hasAllowlist && <textarea value={allowlist} onChange={(e) => setForm((current) => ({ ...current, mintPhases: { ...current.mintPhases, [phase]: { ...current.mintPhases[phase], allowlist: e.target.value } } }))} placeholder="Wallet addresses, comma or line separated" rows={2} className="sm:col-span-3 bg-white/5 border border-white/10 rounded px-2 py-1.5 text-xs text-white placeholder:text-white/30" />}</div>}
+                </div>;
+              })}
+            </div>
           </div>
 
           <div>
