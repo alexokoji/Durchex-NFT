@@ -6,6 +6,7 @@ import clsx from "clsx";
 import { Button } from "@/components/ui/Button";
 import { CategoryIcon, CATEGORY_LABELS, CategoryKey } from "@/components/ui/CategoryIcon";
 import { GeneratedArt } from "@/components/nft/GeneratedArt";
+import { AssetUploader, UploadedAsset } from "@/components/create/AssetUploader";
 
 export interface CollectionOption {
   id: string;
@@ -15,6 +16,8 @@ export interface CollectionOption {
   contractAddress: string;
   chainId: number;
   royaltyBps: number;
+  logoUrl?: string;
+  bannerUrl?: string;
   verified: boolean;
   items: number;
 }
@@ -28,7 +31,7 @@ export function CollectionPicker({
 }) {
   const [collections, setCollections] = useState<CollectionOption[] | null>(null);
   const [creating, setCreating] = useState(false);
-  const [form, setForm] = useState({ name: "", category: "art" as CategoryKey, royaltyBps: 500, maxSupply: 0, payoutAddress: "", mintPhases: {
+  const [form, setForm] = useState({ name: "", category: "art" as CategoryKey, royaltyBps: 500, maxSupply: 0, payoutAddress: "", logo: null as UploadedAsset | null, banner: null as UploadedAsset | null, mintPhases: {
     whitelist: { enabled: false, priceEth: 0, allocation: 0, walletLimit: 0, allowlist: "" },
     og: { enabled: false, priceEth: 0, allocation: 0, walletLimit: 0, allowlist: "" },
     public: { enabled: false, priceEth: 0, allocation: 0, walletLimit: 0, allowlist: "" },
@@ -53,7 +56,7 @@ export function CollectionPicker({
       const res = await fetch("/api/collections", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...form, payoutRecipients: form.payoutAddress.trim() ? [{ address: form.payoutAddress.trim(), shareBps: 10000 }] : [], mintPhases: {
+        body: JSON.stringify({ ...form, logoUrl: form.logo?.url ?? "", bannerUrl: form.banner?.url ?? "", payoutRecipients: form.payoutAddress.trim() ? [{ address: form.payoutAddress.trim(), shareBps: 10000 }] : [], mintPhases: {
           whitelist: { ...form.mintPhases.whitelist, allowlist: form.mintPhases.whitelist.allowlist.split(/[\s,]+/).filter(Boolean) },
           og: { ...form.mintPhases.og, allowlist: form.mintPhases.og.allowlist.split(/[\s,]+/).filter(Boolean) },
           public: form.mintPhases.public,
@@ -100,8 +103,8 @@ export function CollectionPicker({
                 : "hover:border-white/20"
             )}
           >
-            <span className="w-10 h-10 rounded-lg overflow-hidden shrink-0">
-              <GeneratedArt seedKey={`logo-${c.slug}`} className="w-full h-full" />
+            <span className="w-10 h-10 rounded-lg overflow-hidden shrink-0 bg-black">
+              {c.logoUrl ? <img src={c.logoUrl} alt="" className="w-full h-full object-cover" /> : <GeneratedArt seedKey={`logo-${c.slug}`} className="w-full h-full" />}
             </span>
             <div className="min-w-0 flex-1">
               <div className="flex items-center gap-1">
@@ -134,6 +137,17 @@ export function CollectionPicker({
               placeholder="e.g. Neon Ronin"
               className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white placeholder:text-white/30 focus:outline-none focus:border-purple-500/60"
             />
+          </div>
+
+          <div className="grid sm:grid-cols-2 gap-4">
+            <div>
+              <label className="text-xs font-medium text-white/50 mb-1.5 block">Collection image</label>
+              <AssetUploader value={form.logo} onChange={(logo) => setForm((current) => ({ ...current, logo }))} imageOnly label="Upload collection image" />
+            </div>
+            <div>
+              <label className="text-xs font-medium text-white/50 mb-1.5 block">Collection cover image</label>
+              <AssetUploader value={form.banner} onChange={(banner) => setForm((current) => ({ ...current, banner }))} imageOnly label="Upload cover image" />
+            </div>
           </div>
 
           <div className="grid sm:grid-cols-2 gap-3">

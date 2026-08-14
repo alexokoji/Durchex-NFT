@@ -5,6 +5,8 @@ const CollectionSchema = new Schema(
     slug: { type: String, required: true, unique: true, index: true },
     name: { type: String, required: true },
     description: { type: String, default: "" },
+    logoUrl: { type: String, default: "" },
+    bannerUrl: { type: String, default: "" },
     contractAddress: { type: String, default: "" },
     contractType: { type: String, enum: ["lazy", "drop"], default: "lazy" },
     maxSupply: { type: Number, default: 0 },

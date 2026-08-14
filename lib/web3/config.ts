@@ -19,6 +19,7 @@ import { SUPPORTED_EVM_CHAIN_IDS } from "@/lib/web3/supportedChains";
 // Get a real one at https://cloud.walletconnect.com for production.
 const WALLETCONNECT_PROJECT_ID =
   process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID || "caa9727fd26fe72353d75ddc7fcde24c";
+const APP_URL = process.env.NEXT_PUBLIC_APP_URL || "https://durchex-two.vercel.app";
 
 // Every EVM network from the deployment-cost estimate. `DurchexNFT` +
 // `DurchexMarketplace` are plain Solidity, so the same contracts deploy
@@ -33,6 +34,9 @@ const WALLETCONNECT_PROJECT_ID =
 // switch to it.
 export const wagmiConfig = getDefaultConfig({
   appName: "Durchex",
+  appDescription: "Durchex is a multi-chain NFT marketplace for creators and collectors.",
+  appUrl: APP_URL,
+  appIcon: `${APP_URL}/icon.svg`,
   projectId: WALLETCONNECT_PROJECT_ID,
   chains: [mainnet, base, polygon, arbitrum, optimism, avalanche, bsc, hyperliquid, polygonAmoy, hardhat],
   ssr: true,

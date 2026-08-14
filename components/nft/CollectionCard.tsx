@@ -13,14 +13,14 @@ export function CollectionCard({ collection, rank }: { collection: CollectionVie
       className="group surface-card surface-card-hover block overflow-hidden shrink-0 w-64"
     >
       <div className="relative h-24 overflow-hidden rounded-t-2xl">
-        <GeneratedArt seedKey={`banner-${collection.slug}`} className="w-full h-full opacity-70" />
+        {collection.bannerUrl ? <img src={collection.bannerUrl} alt="" className="w-full h-full object-cover opacity-70" /> : <GeneratedArt seedKey={`banner-${collection.slug}`} className="w-full h-full opacity-70" />}
         {rank && (
           <span className="absolute top-2 left-2 w-6 h-6 rounded-md bg-black/60 backdrop-blur grid place-items-center text-[11px] font-bold text-purple-200 border border-white/10">
             {rank}
           </span>
         )}
         <div className="absolute -bottom-6 left-4 w-14 h-14 rounded-xl overflow-hidden border-2 border-surface shadow-lg">
-          <GeneratedArt seedKey={`logo-${collection.slug}`} className="w-full h-full" />
+          {collection.logoUrl ? <img src={collection.logoUrl} alt="" className="w-full h-full object-cover" /> : <GeneratedArt seedKey={`logo-${collection.slug}`} className="w-full h-full" />}
         </div>
       </div>
       <div className="pt-8 px-4 pb-4">

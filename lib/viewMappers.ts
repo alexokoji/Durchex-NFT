@@ -16,6 +16,8 @@ interface CollectionLike {
   slug: string;
   name: string;
   category: string;
+  logoUrl?: string;
+  bannerUrl?: string;
   verified: boolean;
   stats: {
     floorEth: number;
@@ -96,8 +98,8 @@ export function toCollectionView(c: CollectionLike): CollectionView {
     id: String(c._id),
     slug: c.slug,
     name: c.name,
-    logoUrl: "",
-    bannerUrl: "",
+    logoUrl: c.logoUrl || "",
+    bannerUrl: c.bannerUrl || "",
     category: c.category as CategoryKey,
     verified: c.verified,
     floorEth: c.stats.floorEth,

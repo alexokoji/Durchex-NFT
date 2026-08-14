@@ -38,7 +38,7 @@ export async function GET(req: NextRequest) {
   }
   await connectDB();
   const docs = await Collection.find(mine ? { creator: user!._id } : {})
-    .select("slug name category contractAddress contractType chainId royaltyBps maxSupply verified stats.items")
+    .select("slug name category logoUrl bannerUrl contractAddress contractType chainId royaltyBps maxSupply verified stats.items")
     .sort({ name: 1 })
     .lean();
 
@@ -48,6 +48,8 @@ export async function GET(req: NextRequest) {
       slug: c.slug,
       name: c.name,
       category: c.category,
+      logoUrl: c.logoUrl,
+      bannerUrl: c.bannerUrl,
       contractAddress: c.contractAddress,
       contractType: c.contractType,
       chainId: c.chainId,
@@ -69,6 +71,8 @@ export async function POST(req: NextRequest) {
   const name = String(body.name ?? "").trim();
   const category = body.category as CategoryKey;
   const description = String(body.description ?? "").trim();
+  const logoUrl = String(body.logoUrl ?? "").trim();
+  const bannerUrl = String(body.bannerUrl ?? "").trim();
   const royaltyBps = Math.min(Math.max(Number(body.royaltyBps ?? 500), 0), 1000);
   const mintPhases = {
     whitelist: normalizePhase(body.mintPhases?.whitelist, true),
@@ -105,6 +109,8 @@ export async function POST(req: NextRequest) {
     slug,
     name,
     description,
+    logoUrl,
+    bannerUrl,
     category,
     creator: user._id,
     royaltyBps,
@@ -121,6 +127,8 @@ export async function POST(req: NextRequest) {
       slug: collection.slug,
       name: collection.name,
       category: collection.category,
+      logoUrl: collection.logoUrl,
+      bannerUrl: collection.bannerUrl,
       contractAddress: collection.contractAddress,
       contractType: collection.contractType,
       chainId: collection.chainId,

@@ -46,10 +46,7 @@ export function DropCard({ drop }: { drop: DropView }) {
   return (
     <div className="surface-card overflow-hidden relative group">
       <Link href={`/collection/${drop.slug}`} className="block relative h-56 overflow-hidden">
-        <GeneratedArt
-          seedKey={`drop-${drop.slug}`}
-          className="w-full h-full transition-transform duration-700 group-hover:scale-105"
-        />
+        {drop.bannerUrl ? <img src={drop.bannerUrl} alt="" className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" /> : <GeneratedArt seedKey={`drop-${drop.slug}`} className="w-full h-full transition-transform duration-700 group-hover:scale-105" />}
         <div className="absolute inset-0 bg-gradient-to-t from-void via-void/20 to-transparent" />
         <span
           className={clsx(

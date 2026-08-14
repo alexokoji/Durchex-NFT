@@ -7,13 +7,13 @@ export function CollectionHeader({ collection }: { collection: CollectionDetailV
   return (
     <div>
       <div className="relative h-48 sm:h-64 overflow-hidden rounded-2xl">
-        <GeneratedArt seedKey={`banner-${collection.slug}`} className="w-full h-full" />
+        {collection.bannerUrl ? <img src={collection.bannerUrl} alt={`${collection.name} cover`} className="w-full h-full object-cover" /> : <GeneratedArt seedKey={`banner-${collection.slug}`} className="w-full h-full" />}
         <div className="absolute inset-0 bg-gradient-to-t from-void via-void/10 to-transparent" />
       </div>
 
       <div className="px-4 sm:px-8 -mt-12 relative flex flex-col sm:flex-row sm:items-end gap-4">
         <div className="w-24 h-24 rounded-2xl overflow-hidden border-4 border-void shadow-xl shrink-0">
-          <GeneratedArt seedKey={`logo-${collection.slug}`} className="w-full h-full" />
+          {collection.logoUrl ? <img src={collection.logoUrl} alt={`${collection.name} logo`} className="w-full h-full object-cover" /> : <GeneratedArt seedKey={`logo-${collection.slug}`} className="w-full h-full" />}
         </div>
         <div className="pb-1">
           <div className="flex items-center gap-2">

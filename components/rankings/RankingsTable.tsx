@@ -51,8 +51,8 @@ export function RankingsTable({
                 {i + 1}
               </span>
               <span className="flex items-center gap-3 min-w-0">
-                <span className="w-9 h-9 rounded-lg overflow-hidden shrink-0">
-                  <GeneratedArt seedKey={`logo-${c.slug}`} className="w-full h-full" />
+                <span className="w-9 h-9 rounded-lg overflow-hidden shrink-0 bg-black">
+                  {c.logoUrl ? <img src={c.logoUrl} alt="" className="w-full h-full object-cover" /> : <GeneratedArt seedKey={`logo-${c.slug}`} className="w-full h-full" />}
                 </span>
                 <span className="min-w-0">
                   <span className="flex items-center gap-1">

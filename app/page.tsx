@@ -6,7 +6,6 @@ import { FeaturedDrops } from "@/components/home/FeaturedDrops";
 import { CategoryGrid } from "@/components/home/CategoryGrid";
 import { HowLazyMintingWorks } from "@/components/home/HowLazyMintingWorks";
 import { StatsBand } from "@/components/home/StatsBand";
-import { Testimonials } from "@/components/home/Testimonials";
 import { NewsletterCTA } from "@/components/home/NewsletterCTA";
 import {
   getTrendingCollections,
@@ -44,7 +43,6 @@ export default async function Home() {
       <CategoryGrid counts={categoryCounts} />
       <HowLazyMintingWorks />
       <StatsBand stats={stats} />
-      <Testimonials />
       <NewsletterCTA />
     </div>
   );

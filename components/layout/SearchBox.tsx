@@ -80,8 +80,8 @@ export function SearchBox() {
                       onClick={() => setOpen(false)}
                       className="flex items-center gap-2.5 px-3 py-2 rounded-lg hover:bg-white/5 transition"
                     >
-                      <span className="w-7 h-7 rounded-md overflow-hidden shrink-0">
-                        <GeneratedArt seedKey={`logo-${c.slug}`} className="w-full h-full" />
+                      <span className="w-7 h-7 rounded-md overflow-hidden shrink-0 bg-black">
+                        {c.logoUrl ? <img src={c.logoUrl} alt="" className="w-full h-full object-cover" /> : <GeneratedArt seedKey={`logo-${c.slug}`} className="w-full h-full" />}
                       </span>
                       <span className="text-sm text-white truncate flex items-center gap-1">
                         {c.name}
