@@ -82,6 +82,12 @@ export function CollectionPicker({
 
   return (
     <div>
+      <div className="flex items-center justify-between mb-3">
+        <div>
+          <div className="text-sm font-semibold text-white">Your collections</div>
+          <p className="text-[11px] text-white/40 mt-0.5">Only collections created by your connected wallet appear here.</p>
+        </div>
+      </div>
       <div className="grid sm:grid-cols-2 gap-3 mb-4">
         {collections.map((c) => (
           <button
