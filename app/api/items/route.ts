@@ -57,6 +57,12 @@ export async function POST(req: NextRequest) {
   if (!collection) {
     return NextResponse.json({ error: "Collection not found" }, { status: 404 });
   }
+  if (String(collection.creator) !== String(user._id)) {
+    return NextResponse.json(
+      { error: "Only the collection creator can add NFTs to this collection." },
+      { status: 403 }
+    );
+  }
   if (body.voucher && await Item.exists({ collection: collection._id, tokenId: body.tokenId })) {
     return NextResponse.json(
       { error: "That token id was just taken — refresh and try again" },

@@ -30,9 +30,14 @@ function slugify(name: string) {
     .replace(/^-+|-+$/g, "");
 }
 
-export async function GET() {
+export async function GET(req: NextRequest) {
+  const mine = new URL(req.url).searchParams.get("mine") === "1";
+  const user = mine ? await getCurrentUser(req) : null;
+  if (mine && !user) {
+    return NextResponse.json({ error: "Sign in to view your collections" }, { status: 401 });
+  }
   await connectDB();
-  const docs = await Collection.find()
+  const docs = await Collection.find(mine ? { creator: user!._id } : {})
     .select("slug name category contractAddress contractType chainId royaltyBps maxSupply verified stats.items")
     .sort({ name: 1 })
     .lean();

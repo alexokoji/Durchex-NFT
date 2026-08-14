@@ -37,9 +37,9 @@ export function CollectionPicker({
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    fetch("/api/collections")
-      .then((r) => r.json())
-      .then((data) => setCollections(data.collections));
+    fetch("/api/collections?mine=1")
+      .then((r) => r.ok ? r.json() : { collections: [] })
+      .then((data) => setCollections(data.collections ?? []));
   }, []);
 
   async function createCollection() {
@@ -114,7 +114,7 @@ export function CollectionPicker({
           <span className="w-10 h-10 rounded-lg grid place-items-center bg-white/5 shrink-0">
             <Plus className="w-4 h-4 text-purple-400" />
           </span>
-          <span className="text-sm font-medium text-white/70">New collection</span>
+          <span className="text-sm font-medium text-white/70">Create your collection</span>
         </button>
       </div>
 
