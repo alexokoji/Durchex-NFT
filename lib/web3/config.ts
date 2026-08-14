@@ -11,6 +11,7 @@ import {
   hyperliquid,
   hardhat,
 } from "wagmi/chains";
+import { SUPPORTED_EVM_CHAIN_IDS } from "@/lib/web3/supportedChains";
 
 // A public placeholder so wallet connect doesn't hard-crash without a real
 // WalletConnect Cloud project id in dev. Injected wallets (MetaMask, etc.)
@@ -54,13 +55,4 @@ export const CHAIN_META: Record<number, { label: string; symbol: string; accent:
 // and the local dev chain are supported (a connected wallet can still switch
 // to them) but stay out of the main list to keep it focused on the real
 // deployment targets.
-export const PRIMARY_CHAIN_IDS = [
-  mainnet.id,
-  base.id,
-  polygon.id,
-  arbitrum.id,
-  optimism.id,
-  avalanche.id,
-  bsc.id,
-  hyperliquid.id,
-];
+export const PRIMARY_CHAIN_IDS = SUPPORTED_EVM_CHAIN_IDS;

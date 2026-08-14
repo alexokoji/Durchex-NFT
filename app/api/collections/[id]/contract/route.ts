@@ -3,7 +3,7 @@ import { getAddress, isAddress } from "viem";
 import { connectDB } from "@/lib/db";
 import { Collection } from "@/lib/models/Collection";
 import { getCurrentUser } from "@/lib/auth/currentUser";
-import { PRIMARY_CHAIN_IDS } from "@/lib/web3/config";
+import { SUPPORTED_EVM_CHAIN_IDS } from "@/lib/web3/supportedChains";
 
 export async function PATCH(request: NextRequest, context: { params: Promise<{ id: string }> }) {
   const user = await getCurrentUser(request);
@@ -12,7 +12,7 @@ export async function PATCH(request: NextRequest, context: { params: Promise<{ i
   const body = await request.json();
   const address = String(body.contractAddress ?? "");
   const chainId = Number(body.chainId);
-  if (!isAddress(address) || !(PRIMARY_CHAIN_IDS as readonly number[]).includes(chainId)) return NextResponse.json({ error: "Use a valid deployed contract on a supported production network." }, { status: 400 });
+  if (!isAddress(address) || !(SUPPORTED_EVM_CHAIN_IDS as readonly number[]).includes(chainId)) return NextResponse.json({ error: "Use a valid deployed contract on a supported production network." }, { status: 400 });
   await connectDB();
   const collection = await Collection.findById(id);
   if (!collection) return NextResponse.json({ error: "Collection not found" }, { status: 404 });
