@@ -15,6 +15,7 @@ const NAV_LINKS = [
   { href: "/rankings", label: "Rankings" },
   { href: "/drops", label: "Drops" },
   { href: "/stats", label: "Stats" },
+  { href: "/creator", label: "Creator Studio" },
 ];
 
 export function Navbar() {

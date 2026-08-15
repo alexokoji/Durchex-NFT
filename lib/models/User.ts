@@ -8,6 +8,7 @@ const UserSchema = new Schema(
     avatarSeed: { type: String, default: "" },
     bannerSeed: { type: String, default: "" },
     isVerified: { type: Boolean, default: false },
+    role: { type: String, enum: ["user", "moderator", "admin"], default: "user" },
     socials: {
       twitter: String,
       discord: String,

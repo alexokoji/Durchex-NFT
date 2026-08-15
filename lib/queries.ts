@@ -287,6 +287,76 @@ export async function getFavoritedItems(userId: string): Promise<ItemView[]> {
     .map((d) => toItemView(d as never));
 }
 
+export interface CreatorAnalytics {
+  collections: number;
+  items: number;
+  listed: number;
+  minted: number;
+  views: number;
+  favorites: number;
+  totalVolumeEth: number;
+  sales: number;
+  volumeLast30DaysEth: number;
+  collectionPerformance: {
+    id: string;
+    name: string;
+    slug: string;
+    items: number;
+    owners: number;
+    floorEth: number;
+    totalVolumeEth: number;
+    sales: number;
+  }[];
+}
+
+/** Marketplace analytics calculated from the authenticated creator's own data. */
+export async function getCreatorAnalytics(userId: string): Promise<CreatorAnalytics> {
+  await connectDB();
+  const creatorId = new Types.ObjectId(userId);
+  const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+  const [collections, itemAgg, salesAgg] = await Promise.all([
+    Collection.find({ creator: creatorId }).sort({ createdAt: -1 }).lean(),
+    Item.aggregate([
+      { $match: { creator: creatorId } },
+      {
+        $group: {
+          _id: null,
+          items: { $sum: 1 },
+          listed: { $sum: { $cond: [{ $in: ["$status", ["fixed_price", "auction"]] }, 1, 0] } },
+          minted: { $sum: { $cond: ["$isMinted", 1, 0] } },
+          views: { $sum: "$viewCount" },
+          favorites: { $sum: "$favoriteCount" },
+        },
+      },
+    ]),
+    Activity.aggregate([
+      { $match: { type: "sale", createdAt: { $gte: thirtyDaysAgo } } },
+      { $lookup: { from: "items", localField: "item", foreignField: "_id", as: "itemDoc" } },
+      { $unwind: "$itemDoc" },
+      { $match: { "itemDoc.creator": creatorId } },
+      { $group: { _id: null, volume: { $sum: { $ifNull: ["$priceEth", 0] } } } },
+    ]),
+  ]);
+  const totals = itemAgg[0] ?? {};
+  return {
+    collections: collections.length,
+    items: totals.items ?? 0,
+    listed: totals.listed ?? 0,
+    minted: totals.minted ?? 0,
+    views: totals.views ?? 0,
+    favorites: totals.favorites ?? 0,
+    totalVolumeEth: collections.reduce((sum, c) => sum + (c.stats?.totalVolumeEth ?? 0), 0),
+    sales: collections.reduce((sum, c) => sum + (c.stats?.sales ?? 0), 0),
+    volumeLast30DaysEth: salesAgg[0]?.volume ?? 0,
+    collectionPerformance: collections.map((c) => ({
+      id: String(c._id), name: c.name, slug: c.slug,
+      items: c.stats?.items ?? 0, owners: c.stats?.owners ?? 0,
+      floorEth: c.stats?.floorEth ?? 0, totalVolumeEth: c.stats?.totalVolumeEth ?? 0,
+      sales: c.stats?.sales ?? 0,
+    })),
+  };
+}
+
 export type RankingsTimeframe = "24h" | "7d" | "all";
 
 const RANKINGS_SORT_FIELD: Record<RankingsTimeframe, string> = {

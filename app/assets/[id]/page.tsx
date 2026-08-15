@@ -7,6 +7,7 @@ import { PricePanel } from "@/components/item/PricePanel";
 import { ItemTabs } from "@/components/item/ItemTabs";
 import { UserChip } from "@/components/item/UserChip";
 import { NFTCard } from "@/components/nft/NFTCard";
+import { ReportButton } from "@/components/moderation/ReportButton";
 
 // Live marketplace data (price, ownership, offers) — never prerender a stale
 // snapshot at build time.
@@ -73,6 +74,7 @@ export default async function ItemDetailPage({ params }: PageProps) {
           </div>
 
           <PricePanel item={item} />
+          <ReportButton targetId={item.id} />
         </div>
       </div>
 
