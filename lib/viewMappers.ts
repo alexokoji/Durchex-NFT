@@ -52,6 +52,7 @@ interface CollectionDetailLike extends CollectionLike {
   royaltyBps: number;
   contractType?: "lazy" | "drop";
   maxSupply?: number;
+  creator?: { address?: string } | null;
   mintPhases?: {
     whitelist?: { enabled?: boolean; priceEth?: number; allocation?: number; walletLimit?: number };
     og?: { enabled?: boolean; priceEth?: number; allocation?: number; walletLimit?: number };
@@ -141,6 +142,7 @@ export function toCollectionDetailView(c: CollectionDetailLike): CollectionDetai
   });
   return {
     ...toCollectionView(c),
+    creatorAddress: c.creator?.address ?? null,
     description: c.description,
     contractAddress: c.contractAddress,
     chainId: c.chainId,

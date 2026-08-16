@@ -216,7 +216,7 @@ export async function getRelatedItems(
 
 export async function getCollectionBySlug(slug: string): Promise<CollectionDetailView | null> {
   await connectDB();
-  const doc = await Collection.findOne({ slug }).lean();
+  const doc = await Collection.findOne({ slug }).populate("creator", "address").lean();
   if (!doc) return null;
   return toCollectionDetailView(doc as never);
 }

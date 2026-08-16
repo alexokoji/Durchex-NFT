@@ -2,6 +2,7 @@ import { BadgeCheck } from "lucide-react";
 import { GeneratedArt } from "@/components/nft/GeneratedArt";
 import { CollectionDetailView } from "@/lib/types";
 import { DropMintPanel } from "@/components/drop/DropMintPanel";
+import { PhaseManager } from "@/components/collection/PhaseManager";
 
 export function CollectionHeader({ collection }: { collection: CollectionDetailView }) {
   return (
@@ -38,6 +39,9 @@ export function CollectionHeader({ collection }: { collection: CollectionDetailV
           <DropMintPanel drop={{ collectionId: collection.id, contractAddress: collection.contractAddress, chainId: collection.chainId, phases: collection.mintPhases }} />
         </div>
       )}
+      <div className="px-4 sm:px-8">
+        <PhaseManager collectionId={collection.id} creatorAddress={collection.creatorAddress} />
+      </div>
     </div>
   );
 }

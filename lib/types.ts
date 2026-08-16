@@ -36,6 +36,7 @@ export interface CollectionView {
 }
 
 export interface CollectionDetailView extends CollectionView {
+  creatorAddress: string | null;
   description: string;
   contractAddress: string;
   chainId: number;

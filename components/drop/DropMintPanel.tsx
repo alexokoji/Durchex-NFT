@@ -56,6 +56,13 @@ export function DropMintPanel({ drop }: { drop: DropMintConfig }) {
       const hash = await writeContractAsync({ address: drop.contractAddress as `0x${string}`, abi: DROP_ABI, functionName: "mint", args: [selected.value, BigInt(quantity), selected.key === "public" ? [] : proofs[selected.key] ?? phase.proof ?? []], value: parseEther(total.toString()), chainId: drop.chainId });
       setState("mining");
       await client?.waitForTransactionReceipt({ hash });
+      if (drop.collectionId) {
+        await fetch(`/api/collections/${drop.collectionId}/phases/${selected.key}/claim`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ quantity }),
+        }).catch(() => {});
+      }
       setState("done");
     } catch (err) { setError(err instanceof Error ? err.message.split("\n")[0] : "Mint failed"); setState("idle"); }
   }

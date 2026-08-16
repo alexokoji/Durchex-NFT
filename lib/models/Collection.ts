@@ -32,6 +32,7 @@ const CollectionSchema = new Schema(
         allocation: { type: Number, default: 0 },
         walletLimit: { type: Number, default: 0 },
         allowlist: { type: [String], default: [] },
+        minted: { type: Number, default: 0 },
       },
       og: {
         enabled: { type: Boolean, default: false },
@@ -39,12 +40,14 @@ const CollectionSchema = new Schema(
         allocation: { type: Number, default: 0 },
         walletLimit: { type: Number, default: 0 },
         allowlist: { type: [String], default: [] },
+        minted: { type: Number, default: 0 },
       },
       public: {
         enabled: { type: Boolean, default: false },
         priceEth: { type: Number, default: 0 },
         allocation: { type: Number, default: 0 },
         walletLimit: { type: Number, default: 0 },
+        minted: { type: Number, default: 0 },
       },
     },
     verified: { type: Boolean, default: false },
