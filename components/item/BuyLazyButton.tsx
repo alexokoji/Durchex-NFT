@@ -84,6 +84,7 @@ export function BuyLazyButton({ item }: { item: ItemDetailView }) {
             creator: voucher.creator as `0x${string}`,
             royaltyBps: BigInt(voucher.royaltyBps),
             nonce: BigInt(voucher.nonce),
+            deadline: BigInt(voucher.deadline ?? 0),
           },
           voucher.signature as `0x${string}`,
         ],

@@ -3,9 +3,10 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Tag, Loader2 } from "lucide-react";
-import { useAccount, useSwitchChain, useWriteContract, useReadContract } from "wagmi";
+import { useAccount, useSwitchChain, useWriteContract, useReadContract, useSignTypedData } from "wagmi";
 import { Button } from "@/components/ui/Button";
 import { ERC721_APPROVAL_ABI, MARKETPLACE_ADDRESS } from "@/lib/web3/marketplaceAbi";
+import { buildListingTypedData, generateListingNonce } from "@/lib/web3/listing";
 import { ItemDetailView } from "@/lib/types";
 
 /**
@@ -21,8 +22,9 @@ export function ListForSaleForm({ item }: { item: ItemDetailView }) {
   const { address, chainId: connectedChainId } = useAccount();
   const { switchChainAsync } = useSwitchChain();
   const { writeContractAsync } = useWriteContract();
+  const { signTypedDataAsync } = useSignTypedData();
   const [priceEth, setPriceEth] = useState("");
-  const [phase, setPhase] = useState<"idle" | "switching" | "approving" | "saving">("idle");
+  const [phase, setPhase] = useState<"idle" | "switching" | "approving" | "signing" | "saving">("idle");
   const [error, setError] = useState<string | null>(null);
 
   const { data: isApproved, refetch: refetchApproval } = useReadContract({
@@ -64,11 +66,36 @@ export function ListForSaleForm({ item }: { item: ItemDetailView }) {
         void hash;
       }
 
+      setPhase("signing");
+      const nonce = generateListingNonce();
+      const typedData = buildListingTypedData({
+        chainId: item.chainId,
+        verifyingContract: MARKETPLACE_ADDRESS!,
+        nft: item.contractAddress,
+        tokenId: item.tokenId!,
+        seller: address as `0x${string}`,
+        priceEth: price,
+        nonce,
+      });
+      const signature = await signTypedDataAsync(typedData);
+
       setPhase("saving");
       const res = await fetch(`/api/items/${item.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ priceEth: price }),
+        body: JSON.stringify({
+          priceEth: price,
+          signature,
+          listing: {
+            nft: typedData.message.nft,
+            tokenId: typedData.message.tokenId.toString(),
+            seller: typedData.message.seller,
+            buyer: typedData.message.buyer,
+            price: typedData.message.price.toString(),
+            deadline: typedData.message.deadline.toString(),
+            nonce: typedData.message.nonce.toString(),
+          },
+        }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Failed to list");
@@ -103,6 +130,7 @@ export function ListForSaleForm({ item }: { item: ItemDetailView }) {
         >
           {phase === "switching" && "Switch network…"}
           {phase === "approving" && "Approve in wallet…"}
+          {phase === "signing" && "Sign listing in wallet…"}
           {phase === "saving" && "Listing…"}
           {phase === "idle" && "List"}
         </Button>

@@ -7,7 +7,7 @@ import type { HardhatEthersSigner } from "@nomicfoundation/hardhat-ethers/signer
 async function buildVoucher(
   nft: DurchexNFT,
   creator: HardhatEthersSigner,
-  overrides: Partial<{ tokenId: number; uri: string; minPrice: bigint; royaltyBps: number; nonce: number }> = {}
+  overrides: Partial<{ tokenId: number; uri: string; minPrice: bigint; royaltyBps: number; nonce: number; deadline: number }> = {}
 ) {
   const chainId = (await ethers.provider.getNetwork()).chainId;
   const voucher = {
@@ -17,6 +17,7 @@ async function buildVoucher(
     creator: creator.address,
     royaltyBps: overrides.royaltyBps ?? 500, // 5%
     nonce: overrides.nonce ?? 0,
+    deadline: overrides.deadline ?? 0,
   };
   const domain = {
     name: "Durchex",
@@ -32,10 +33,47 @@ async function buildVoucher(
       { name: "creator", type: "address" },
       { name: "royaltyBps", type: "uint96" },
       { name: "nonce", type: "uint256" },
+      { name: "deadline", type: "uint256" },
     ],
   };
   const signature = await creator.signTypedData(domain, types, voucher);
   return { voucher, signature };
+}
+
+async function buildListing(
+  marketplace: { getAddress(): Promise<string> },
+  seller: HardhatEthersSigner,
+  overrides: Partial<{ nft: string; tokenId: number; buyer: string; price: bigint; deadline: number; nonce: number }> = {}
+) {
+  const chainId = (await ethers.provider.getNetwork()).chainId;
+  const listing = {
+    nft: overrides.nft ?? ethers.ZeroAddress,
+    tokenId: overrides.tokenId ?? 1,
+    seller: seller.address,
+    buyer: overrides.buyer ?? ethers.ZeroAddress,
+    price: overrides.price ?? ethers.parseEther("1"),
+    deadline: overrides.deadline ?? 0,
+    nonce: overrides.nonce ?? 0,
+  };
+  const domain = {
+    name: "DurchexMarketplace",
+    version: "1",
+    chainId,
+    verifyingContract: await marketplace.getAddress(),
+  };
+  const types = {
+    Listing: [
+      { name: "nft", type: "address" },
+      { name: "tokenId", type: "uint256" },
+      { name: "seller", type: "address" },
+      { name: "buyer", type: "address" },
+      { name: "price", type: "uint256" },
+      { name: "deadline", type: "uint256" },
+      { name: "nonce", type: "uint256" },
+    ],
+  };
+  const signature = await seller.signTypedData(domain, types, listing);
+  return { listing, signature };
 }
 
 describe("DurchexMarketplace", () => {
@@ -112,12 +150,14 @@ describe("DurchexMarketplace", () => {
     const creatorBefore = await ethers.provider.getBalance(creator.address);
     const sellerBefore = await ethers.provider.getBalance(buyer.address);
 
+    const { listing, signature: listingSig } = await buildListing(marketplace, buyer, {
+      nft: await nft.getAddress(),
+      tokenId: voucher.tokenId,
+      price: resalePrice,
+    });
+
     await expect(
-      marketplace
-        .connect(resaleBuyer)
-        .buyListed(await nft.getAddress(), voucher.tokenId, buyer.address, resalePrice, {
-          value: resalePrice,
-        })
+      marketplace.connect(resaleBuyer).buyListed(listing, listingSig, { value: resalePrice })
     )
       .to.emit(marketplace, "ListingFilled")
       .withArgs(await nft.getAddress(), voucher.tokenId, buyer.address, resaleBuyer.address, resalePrice);
@@ -143,13 +183,119 @@ describe("DurchexMarketplace", () => {
     const { voucher, signature } = await buildVoucher(nft, creator, { minPrice: price });
     await marketplace.connect(buyer).buyLazy(await nft.getAddress(), voucher, signature, { value: price });
 
-    // Note: `buyer` never approved the marketplace, and `creator` (the
-    // stated seller) doesn't own the token at all.
+    // `creator` (the stated seller) doesn't actually own the token — `buyer` does.
+    const { listing, signature: listingSig } = await buildListing(marketplace, creator, {
+      nft: await nft.getAddress(),
+      tokenId: voucher.tokenId,
+      price,
+    });
     await expect(
-      marketplace
-        .connect(resaleBuyer)
-        .buyListed(await nft.getAddress(), voucher.tokenId, creator.address, price, { value: price })
+      marketplace.connect(resaleBuyer).buyListed(listing, listingSig, { value: price })
     ).to.be.revertedWith("DurchexMarketplace: seller no longer owns token");
+  });
+
+  it("rejects a resale listing not actually signed by the stated seller", async () => {
+    const { nft, marketplace, creator, buyer, resaleBuyer } = await loadFixture(deployFixture);
+    const price = ethers.parseEther("1");
+    const { voucher, signature } = await buildVoucher(nft, creator, { minPrice: price });
+    await marketplace.connect(buyer).buyLazy(await nft.getAddress(), voucher, signature, { value: price });
+    await nft.connect(buyer).approve(await marketplace.getAddress(), voucher.tokenId);
+
+    // Listing claims `buyer` as seller but is actually signed by `creator`.
+    const forged = await buildListing(marketplace, creator, {
+      nft: await nft.getAddress(),
+      tokenId: voucher.tokenId,
+      price,
+    });
+    const listing = { ...forged.listing, seller: buyer.address };
+    await expect(
+      marketplace.connect(resaleBuyer).buyListed(listing, forged.signature, { value: price })
+    ).to.be.revertedWith("DurchexMarketplace: invalid signature");
+  });
+
+  it("rejects a resale listing that's expired", async () => {
+    const { nft, marketplace, creator, buyer, resaleBuyer } = await loadFixture(deployFixture);
+    const price = ethers.parseEther("1");
+    const { voucher, signature } = await buildVoucher(nft, creator, { minPrice: price });
+    await marketplace.connect(buyer).buyLazy(await nft.getAddress(), voucher, signature, { value: price });
+    await nft.connect(buyer).approve(await marketplace.getAddress(), voucher.tokenId);
+
+    const past = Math.floor(Date.now() / 1000) - 3600;
+    const { listing, signature: listingSig } = await buildListing(marketplace, buyer, {
+      nft: await nft.getAddress(),
+      tokenId: voucher.tokenId,
+      price,
+      deadline: past,
+    });
+    await expect(
+      marketplace.connect(resaleBuyer).buyListed(listing, listingSig, { value: price })
+    ).to.be.revertedWith("DurchexMarketplace: listing expired");
+  });
+
+  it("lets a seller cancel a listing before it's bought, and blocks reuse", async () => {
+    const { nft, marketplace, creator, buyer, resaleBuyer } = await loadFixture(deployFixture);
+    const price = ethers.parseEther("1");
+    const { voucher, signature } = await buildVoucher(nft, creator, { minPrice: price });
+    await marketplace.connect(buyer).buyLazy(await nft.getAddress(), voucher, signature, { value: price });
+    await nft.connect(buyer).approve(await marketplace.getAddress(), voucher.tokenId);
+
+    const { listing, signature: listingSig } = await buildListing(marketplace, buyer, {
+      nft: await nft.getAddress(),
+      tokenId: voucher.tokenId,
+      price,
+      nonce: 0,
+    });
+
+    await expect(marketplace.connect(buyer).cancelListing(0))
+      .to.emit(marketplace, "ListingCancelled")
+      .withArgs(buyer.address, 0);
+
+    await expect(
+      marketplace.connect(resaleBuyer).buyListed(listing, listingSig, { value: price })
+    ).to.be.revertedWith("DurchexMarketplace: listing cancelled or already used");
+  });
+
+  it("rejects the exact same listing being filled twice (replay)", async () => {
+    const { nft, marketplace, creator, buyer, resaleBuyer } = await loadFixture(deployFixture);
+    const price = ethers.parseEther("1");
+    const { voucher, signature } = await buildVoucher(nft, creator, { minPrice: price });
+    await marketplace.connect(buyer).buyLazy(await nft.getAddress(), voucher, signature, { value: price });
+    await nft.connect(buyer).approve(await marketplace.getAddress(), voucher.tokenId);
+
+    const { listing, signature: listingSig } = await buildListing(marketplace, buyer, {
+      nft: await nft.getAddress(),
+      tokenId: voucher.tokenId,
+      price,
+    });
+
+    await marketplace.connect(resaleBuyer).buyListed(listing, listingSig, { value: price });
+
+    await expect(
+      marketplace.connect(resaleBuyer).buyListed(listing, listingSig, { value: price })
+    ).to.be.revertedWith("DurchexMarketplace: listing cancelled or already used");
+  });
+
+  it("restricts a listing with a specific authorized buyer (e.g. an auction winner)", async () => {
+    const { nft, marketplace, creator, buyer, resaleBuyer } = await loadFixture(deployFixture);
+    const price = ethers.parseEther("1");
+    const { voucher, signature } = await buildVoucher(nft, creator, { minPrice: price });
+    await marketplace.connect(buyer).buyLazy(await nft.getAddress(), voucher, signature, { value: price });
+    await nft.connect(buyer).approve(await marketplace.getAddress(), voucher.tokenId);
+
+    const { listing, signature: listingSig } = await buildListing(marketplace, buyer, {
+      nft: await nft.getAddress(),
+      tokenId: voucher.tokenId,
+      price,
+      buyer: resaleBuyer.address,
+    });
+
+    // `creator` isn't the authorized buyer.
+    await expect(
+      marketplace.connect(creator).buyListed(listing, listingSig, { value: price })
+    ).to.be.revertedWith("DurchexMarketplace: not the authorized buyer");
+
+    await expect(marketplace.connect(resaleBuyer).buyListed(listing, listingSig, { value: price }))
+      .to.not.be.reverted;
   });
 
   it("rejects deployment with a zero fee recipient", async () => {

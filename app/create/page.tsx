@@ -105,6 +105,7 @@ export default function CreatePage() {
             creator: address,
             royaltyBps: collection.royaltyBps,
             nonce: user.nextVoucherNonce,
+            deadline: typedData.message.deadline.toString(),
           } : undefined,
           signature,
         }),

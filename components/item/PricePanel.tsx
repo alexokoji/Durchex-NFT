@@ -24,11 +24,25 @@ export function PricePanel({ item }: { item: ItemDetailView }) {
   const [showOfferForm, setShowOfferForm] = useState(false);
   const { favorited, count, toggle } = useFavorite(item.id, item.favoriteCount);
   const isAuction = item.status === "auction";
-  const isSold = item.status === "sold";
+  // "sold" is never actually assigned as a status — a sold item goes back
+  // to "not_listed" until the owner relists it. Whether it's ever sold
+  // before is tracked separately via lastSalePriceEth.
+  const isSold = false;
+  const hasSaleHistory = item.isMinted && item.status === "not_listed" && item.lastSalePriceEth != null;
   const isOwner = !!user && user.address === item.owner?.address;
-  const isLiveOnChainBuy = !isAuction && !item.isMinted && !!item.voucher && !!MARKETPLACE_ADDRESS;
+  // Vouchers signed before the DurchexNFT contract's NFTVoucher struct
+  // gained a `deadline` field can never be redeemed against the redeployed
+  // contract (the struct change alters the on-chain function selector) —
+  // Number(deadline) > 0 is a reliable signal a voucher was signed under
+  // the current scheme, since every voucher built today always carries a
+  // real future deadline. Older items fall through to "not for sale"
+  // instead of showing a buy button that would revert on-chain.
+  const isLiveOnChainBuy =
+    !isAuction && !item.isMinted && !!item.voucher && Number(item.voucher.deadline) > 0 && !!MARKETPLACE_ADDRESS;
+  const isStaleUnmintedListing =
+    !isAuction && !item.isMinted && !!item.voucher && Number(item.voucher.deadline) === 0;
   const isLiveResaleBuy =
-    !isAuction && item.isMinted && item.status === "fixed_price" && !!item.tokenId && !!MARKETPLACE_ADDRESS;
+    !isAuction && item.isMinted && item.status === "fixed_price" && !!item.tokenId && !!item.listing && !!MARKETPLACE_ADDRESS;
   // A minted item that isn't currently listed for resale at all — nothing
   // is "not wired up" here, there's just no live listing to buy. Distinct
   // from isLiveResaleBuy being false because the marketplace contract isn't
@@ -67,16 +81,13 @@ export function PricePanel({ item }: { item: ItemDetailView }) {
 
       <div className="mb-5">
         <div className="text-[11px] text-white/40 mb-1">
-          {isSold ? "Last sale price" : isAuction ? "Current highest bid" : "Price"}
+          {isAuction ? "Current highest bid" : hasSaleHistory ? "Last sale price" : "Price"}
         </div>
         <div className="flex items-baseline gap-2">
           <span className="font-display text-3xl font-semibold text-white tabular-nums">
-            {(isAuction ? item.highestBidEth ?? item.priceEth : item.priceEth).toFixed(2)}
+            {(isAuction ? item.highestBidEth ?? item.priceEth : hasSaleHistory ? item.lastSalePriceEth! : item.priceEth).toFixed(2)}
           </span>
           <span className="text-purple-300 font-medium">ETH</span>
-          <span className="text-white/40 text-sm">
-            ≈ ${(item.priceUsd).toLocaleString(undefined, { maximumFractionDigits: 0 })}
-          </span>
         </div>
       </div>
 
@@ -110,10 +121,21 @@ export function PricePanel({ item }: { item: ItemDetailView }) {
                 <BuyLazyButton item={item} />
               ) : isLiveResaleBuy ? (
                 <BuyListedButton item={item} />
+              ) : isStaleUnmintedListing ? (
+                <div className="rounded-xl bg-white/5 border border-white/10 p-4 text-center">
+                  <p className="text-sm font-medium text-white/60">Listing needs to be refreshed</p>
+                  <p className="text-xs text-white/35 mt-1">
+                    This item was listed before a marketplace contract upgrade — the owner needs to relist it to make it purchasable again.
+                  </p>
+                </div>
               ) : notCurrentlyListed ? (
                 <div className="rounded-xl bg-white/5 border border-white/10 p-4 text-center">
                   <p className="text-sm font-medium text-white/60">Not currently for sale</p>
-                  <p className="text-xs text-white/35 mt-1">The owner hasn&rsquo;t listed this item.</p>
+                  <p className="text-xs text-white/35 mt-1">
+                    {hasSaleHistory
+                      ? `Last sold for ${item.lastSalePriceEth!.toFixed(2)} ETH — the owner hasn't relisted it.`
+                      : "The owner hasn't listed this item."}
+                  </p>
                 </div>
               ) : (
                 <Button

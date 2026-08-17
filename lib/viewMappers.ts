@@ -34,6 +34,7 @@ interface ItemLike {
   status: string;
   isMinted: boolean;
   priceEth: number;
+  lastSalePriceEth?: number | null;
   highestBidEth: number;
   auctionEndsAt: Date | string | null;
   favoriteCount: number;
@@ -84,6 +85,17 @@ interface ItemDetailLike extends ItemLike {
     royaltyBps?: number | null;
     signature?: string | null;
     nonce?: number | null;
+    deadline?: string | null;
+  } | null;
+  listing?: {
+    nft?: string | null;
+    tokenId?: string | null;
+    seller?: string | null;
+    buyer?: string | null;
+    price?: string | null;
+    deadline?: string | null;
+    nonce?: string | null;
+    signature?: string | null;
   } | null;
 }
 
@@ -124,6 +136,7 @@ export function toItemView(item: ItemLike): ItemView {
     category: item.collection.category as CategoryKey,
     priceEth: item.priceEth,
     priceUsd: item.priceEth * ETH_USD,
+    lastSalePriceEth: item.lastSalePriceEth ?? null,
     isMinted: item.isMinted,
     status: item.status as ItemView["status"],
     favoriteCount: item.favoriteCount,
@@ -202,6 +215,25 @@ export function toItemDetailView(item: ItemDetailLike): ItemDetailView {
             royaltyBps: item.voucher.royaltyBps ?? 0,
             nonce: item.voucher.nonce ?? 0,
             signature: item.voucher.signature,
+            deadline: item.voucher.deadline ?? "0",
+          }
+        : null,
+    listing:
+      item.listing &&
+      item.listing.nft &&
+      item.listing.tokenId &&
+      item.listing.seller &&
+      item.listing.price &&
+      item.listing.signature
+        ? {
+            nft: item.listing.nft,
+            tokenId: item.listing.tokenId,
+            seller: item.listing.seller,
+            buyer: item.listing.buyer ?? null,
+            price: item.listing.price,
+            deadline: item.listing.deadline ?? "0",
+            nonce: item.listing.nonce ?? "0",
+            signature: item.listing.signature,
           }
         : null,
   };

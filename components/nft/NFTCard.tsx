@@ -10,6 +10,8 @@ import { ItemView } from "@/lib/types";
 
 export function NFTCard({ item }: { item: ItemView }) {
   const isAuction = item.status === "auction";
+  const isListed = isAuction || item.status === "fixed_price";
+  const hasSaleHistory = !isListed && item.lastSalePriceEth != null;
   const { favorited, count, toggle } = useFavorite(item.id, item.favoriteCount);
 
   return (
@@ -79,12 +81,16 @@ export function NFTCard({ item }: { item: ItemView }) {
         <div className="flex items-end justify-between">
           <div>
             <div className="text-[10px] text-white/40 mb-0.5">
-              {isAuction ? "Highest bid" : "Price"}
+              {isAuction ? "Highest bid" : isListed ? "Price" : hasSaleHistory ? "Last sale" : "Not listed"}
             </div>
-            <div className="text-sm font-bold text-white tabular-nums">
-              {(isAuction ? item.highestBidEth ?? item.priceEth : item.priceEth).toFixed(2)}{" "}
-              <span className="text-purple-300">ETH</span>
-            </div>
+            {isListed || hasSaleHistory ? (
+              <div className="text-sm font-bold text-white tabular-nums">
+                {(isAuction ? item.highestBidEth ?? item.priceEth : isListed ? item.priceEth : item.lastSalePriceEth!).toFixed(2)}{" "}
+                <span className="text-purple-300">ETH</span>
+              </div>
+            ) : (
+              <div className="text-sm font-bold text-white/30">—</div>
+            )}
           </div>
           <div className="flex items-center gap-1 text-[11px] text-white/40">
             <Heart className={clsx("w-3 h-3", favorited && "fill-current text-pink-purple")} />

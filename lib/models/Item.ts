@@ -28,6 +28,13 @@ const ItemSchema = new Schema(
       index: true,
     },
     priceEth: { type: Number, default: 0 },
+    // Set only when a sale actually settles on-chain (chainSync.ts) — kept
+    // separate from priceEth (the current listing ask) so a past sale price
+    // never gets mistaken for an active listing once the item is relisted.
+    lastSalePriceEth: { type: Number, default: null },
+    // Guards handleResale against reprocessing the same settlement twice
+    // (e.g. a retried /api/purchases/confirm call for the same tx).
+    lastSaleTxHash: { type: String, default: null },
     highestBidEth: { type: Number, default: 0 },
     auctionEndsAt: { type: Date, default: null },
     favoriteCount: { type: Number, default: 0 },
@@ -40,6 +47,22 @@ const ItemSchema = new Schema(
       royaltyBps: Number,
       signature: String,
       nonce: Number,
+      deadline: String,
+    },
+    // A seller-signed EIP-712 authorization for the marketplace contract's
+    // buyListed(Listing,signature) — set whenever an already-minted item is
+    // listed for resale, so the buyer's purchase call carries a price the
+    // seller actually agreed to rather than trusting a bare DB value.
+    // Cleared on unlist so the app never re-surfaces a stale one.
+    listing: {
+      nft: String,
+      tokenId: String,
+      seller: String,
+      buyer: { type: String, default: null },
+      price: String,
+      deadline: String,
+      nonce: String,
+      signature: String,
     },
   },
   { timestamps: true, suppressReservedKeysWarning: true }

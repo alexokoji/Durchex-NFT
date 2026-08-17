@@ -13,6 +13,7 @@ async function buildVoucher(
     minPrice: bigint;
     royaltyBps: number;
     nonce: number;
+    deadline: number;
   }> = {}
 ) {
   const chainId = (await ethers.provider.getNetwork()).chainId;
@@ -23,6 +24,7 @@ async function buildVoucher(
     creator: creator.address,
     royaltyBps: overrides.royaltyBps ?? 500,
     nonce: overrides.nonce ?? 0,
+    deadline: overrides.deadline ?? 0,
   };
 
   const domain = {
@@ -39,6 +41,7 @@ async function buildVoucher(
       { name: "creator", type: "address" },
       { name: "royaltyBps", type: "uint96" },
       { name: "nonce", type: "uint256" },
+      { name: "deadline", type: "uint256" },
     ],
   };
 
@@ -130,5 +133,42 @@ describe("DurchexNFT", () => {
   it("only the owner can update the marketplace address", async () => {
     const { nft, stranger } = await loadFixture(deployFixture);
     await expect(nft.connect(stranger).setMarketplace(stranger.address)).to.be.reverted;
+  });
+
+  it("rejects a voucher past its deadline", async () => {
+    const { nft, marketplace, creator, buyer } = await loadFixture(deployFixture);
+    const past = Math.floor(Date.now() / 1000) - 3600;
+    const { voucher, signature } = await buildVoucher(nft, creator, { deadline: past });
+
+    await expect(
+      nft.connect(marketplace).redeem(buyer.address, voucher, signature)
+    ).to.be.revertedWith("DurchexNFT: voucher expired");
+  });
+
+  it("accepts a voucher with no deadline (0) or a future deadline", async () => {
+    const { nft, marketplace, creator, buyer } = await loadFixture(deployFixture);
+    const future = Math.floor(Date.now() / 1000) + 3600;
+    const { voucher, signature } = await buildVoucher(nft, creator, { deadline: future });
+
+    await expect(nft.connect(marketplace).redeem(buyer.address, voucher, signature)).to.not.be
+      .reverted;
+  });
+
+  it("lets a creator cancel their next pending voucher before it's redeemed", async () => {
+    const { nft, marketplace, creator, buyer } = await loadFixture(deployFixture);
+    const { voucher, signature } = await buildVoucher(nft, creator, { nonce: 0 });
+
+    await expect(nft.connect(creator).cancelVoucher())
+      .to.emit(nft, "VoucherCancelled")
+      .withArgs(creator.address, 0);
+
+    await expect(
+      nft.connect(marketplace).redeem(buyer.address, voucher, signature)
+    ).to.be.revertedWith("DurchexNFT: bad nonce");
+
+    // The next voucher (nonce 1) is unaffected and still redeemable.
+    const next = await buildVoucher(nft, creator, { tokenId: 2, nonce: 1 });
+    await expect(nft.connect(marketplace).redeem(buyer.address, next.voucher, next.signature)).to
+      .not.be.reverted;
   });
 });

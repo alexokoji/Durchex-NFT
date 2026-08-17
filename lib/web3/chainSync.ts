@@ -14,6 +14,7 @@ import { Collection } from "@/lib/models/Collection";
 import { Item } from "@/lib/models/Item";
 import { User } from "@/lib/models/User";
 import { recordActivity } from "@/lib/activity";
+import { recalculateCollectionFloor } from "@/lib/floorPrice";
 
 export async function resolveOrCreateUser(address: string) {
   const lower = address.toLowerCase();
@@ -55,7 +56,13 @@ export async function handleVoucherRedeemed(
   item.tokenId = tokenId.toString();
   item.owner = buyerUser._id;
   item.status = "not_listed";
-  item.priceEth = priceEth;
+  // priceEth is the *current listing ask* — the item isn't listed for
+  // anything right now, so it goes to 0. What it actually sold for lives in
+  // lastSalePriceEth (and the immutable Activity "sale" record below), never
+  // conflated with an active listing price.
+  item.priceEth = 0;
+  item.lastSalePriceEth = priceEth;
+  item.lastSaleTxHash = txHash;
   await item.save();
 
   await Promise.all([
@@ -71,6 +78,7 @@ export async function handleVoucherRedeemed(
       priceEth,
       txHash,
     }),
+    recalculateCollectionFloor(collection._id),
   ]);
 
   return { synced: true as const, itemId: String(item._id) };
@@ -87,6 +95,13 @@ export async function handleResale(
 ) {
   const item = await Item.findOne({ tokenId: tokenId.toString() });
   if (!item) return { synced: false as const, reason: "no matching item" };
+  // A retried/duplicate confirm call for a settlement already applied —
+  // without this guard the stats $inc and Activity record below would
+  // double-count the same sale (handleVoucherRedeemed is self-guarding via
+  // its isMinted:false filter, but resale has no such natural guard).
+  if (item.lastSaleTxHash === txHash) {
+    return { synced: false as const, reason: "already synced" };
+  }
 
   const collection = await Collection.findById(item.collection);
   if (!collection) return { synced: false as const, reason: "item has no collection" };
@@ -99,7 +114,9 @@ export async function handleResale(
 
   item.owner = buyerUser._id;
   item.status = "not_listed";
-  item.priceEth = priceEth;
+  item.priceEth = 0;
+  item.lastSalePriceEth = priceEth;
+  item.lastSaleTxHash = txHash;
   item.highestBidEth = 0;
   item.auctionEndsAt = null;
   await item.save();
@@ -117,6 +134,7 @@ export async function handleResale(
       priceEth,
       txHash,
     }),
+    recalculateCollectionFloor(collection._id),
   ]);
 
   return { synced: true as const, itemId: String(item._id) };

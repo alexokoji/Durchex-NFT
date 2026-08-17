@@ -16,8 +16,15 @@ export const VOUCHER_TYPES = {
     { name: "creator", type: "address" },
     { name: "royaltyBps", type: "uint96" },
     { name: "nonce", type: "uint256" },
+    { name: "deadline", type: "uint256" },
   ],
 } as const;
+
+// Default validity window for a signed-but-unredeemed voucher: long enough
+// that a creator doesn't have to re-sign a listing they haven't touched in
+// weeks, short enough that a truly abandoned listing doesn't stay
+// redeemable forever.
+export const DEFAULT_VOUCHER_VALIDITY_SECONDS = 180 * 24 * 60 * 60; // 180 days
 
 export interface NFTVoucherMessage {
   tokenId: bigint;
@@ -26,6 +33,7 @@ export interface NFTVoucherMessage {
   creator: Address;
   royaltyBps: bigint;
   nonce: bigint;
+  deadline: bigint;
 }
 
 export function buildVoucherTypedData({
@@ -37,6 +45,7 @@ export function buildVoucherTypedData({
   creator,
   royaltyBps,
   nonce,
+  deadlineSeconds = DEFAULT_VOUCHER_VALIDITY_SECONDS,
 }: {
   chainId: number;
   verifyingContract: string;
@@ -46,6 +55,7 @@ export function buildVoucherTypedData({
   creator: Address;
   royaltyBps: number;
   nonce: number;
+  deadlineSeconds?: number;
 }) {
   const message: NFTVoucherMessage = {
     tokenId: BigInt(tokenId),
@@ -54,6 +64,7 @@ export function buildVoucherTypedData({
     creator,
     royaltyBps: BigInt(royaltyBps),
     nonce: BigInt(nonce),
+    deadline: BigInt(Math.floor(Date.now() / 1000) + deadlineSeconds),
   };
 
   return {

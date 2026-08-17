@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { parseEther } from "viem";
 import { Zap, Loader2 } from "lucide-react";
 import { useAccount, useSwitchChain, useWriteContract, usePublicClient } from "wagmi";
 import { useConnectModal } from "@rainbow-me/rainbowkit";
@@ -22,7 +21,8 @@ export function BuyListedButton({ item }: { item: ItemDetailView }) {
   const [phase, setPhase] = useState<"idle" | "switching" | "confirm" | "mining" | "done">("idle");
   const [error, setError] = useState<string | null>(null);
 
-  if (!item.tokenId || !item.owner || !MARKETPLACE_ADDRESS) return null;
+  if (!item.tokenId || !item.owner || !MARKETPLACE_ADDRESS || !item.listing) return null;
+  const listing = item.listing;
 
   async function buy() {
     if (!address) {
@@ -42,12 +42,18 @@ export function BuyListedButton({ item }: { item: ItemDetailView }) {
         abi: MARKETPLACE_ABI,
         functionName: "buyListed",
         args: [
-          item.contractAddress as `0x${string}`,
-          BigInt(item.tokenId!),
-          item.owner!.address as `0x${string}`,
-          parseEther(item.priceEth.toString()),
+          {
+            nft: listing.nft as `0x${string}`,
+            tokenId: BigInt(listing.tokenId),
+            seller: listing.seller as `0x${string}`,
+            buyer: (listing.buyer ?? "0x0000000000000000000000000000000000000000") as `0x${string}`,
+            price: BigInt(listing.price),
+            deadline: BigInt(listing.deadline),
+            nonce: BigInt(listing.nonce),
+          },
+          listing.signature as `0x${string}`,
         ],
-        value: parseEther(item.priceEth.toString()),
+        value: BigInt(listing.price),
         chainId: item.chainId,
       });
 

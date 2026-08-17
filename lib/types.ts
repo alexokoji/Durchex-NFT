@@ -12,6 +12,9 @@ export interface ItemView {
   category: CategoryKey;
   priceEth: number;
   priceUsd: number;
+  // What this item last actually sold for, distinct from priceEth (the
+  // current listing ask, 0 when not listed). Null until a sale settles.
+  lastSalePriceEth: number | null;
   isMinted: boolean;
   status: "fixed_price" | "auction" | "sold" | "not_listed";
   favoriteCount: number;
@@ -83,6 +86,20 @@ export interface VoucherView {
   royaltyBps: number;
   nonce: number;
   signature: string;
+  deadline: string;
+}
+
+// A seller-signed authorization for DurchexMarketplace.buyListed(Listing,signature) —
+// present once the item's current owner has listed it for resale.
+export interface ListingView {
+  nft: string;
+  tokenId: string;
+  seller: string;
+  buyer: string | null;
+  price: string;
+  deadline: string;
+  nonce: string;
+  signature: string;
 }
 
 export interface ItemDetailView extends ItemView {
@@ -100,6 +117,7 @@ export interface ItemDetailView extends ItemView {
   owner: UserRef | null;
   creator: UserRef | null;
   voucher: VoucherView | null;
+  listing: ListingView | null;
 }
 
 export interface SearchResults {

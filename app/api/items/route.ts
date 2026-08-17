@@ -5,6 +5,7 @@ import { Item } from "@/lib/models/Item";
 import { User } from "@/lib/models/User";
 import { getCurrentUser } from "@/lib/auth/currentUser";
 import { recordActivity } from "@/lib/activity";
+import { recalculateCollectionFloor } from "@/lib/floorPrice";
 
 interface CreateItemBody {
   collectionId: string;
@@ -24,6 +25,7 @@ interface CreateItemBody {
     creator: string;
     royaltyBps: number;
     nonce: number;
+    deadline: string;
   };
   signature?: string;
 }
@@ -113,17 +115,9 @@ export async function POST(req: NextRequest) {
       from: user._id,
       priceEth: status === "not_listed" ? null : body.priceEth,
     }),
-    Collection.updateOne(
-      { _id: collection._id },
-      {
-        $inc: { "stats.items": 1 },
-        ...(status !== "not_listed" &&
-        (collection.stats.floorEth === 0 || body.priceEth < collection.stats.floorEth)
-          ? { $set: { "stats.floorEth": body.priceEth } }
-          : {}),
-      }
-    ),
+    Collection.updateOne({ _id: collection._id }, { $inc: { "stats.items": 1 } }),
   ]);
+  if (status !== "not_listed") await recalculateCollectionFloor(collection._id);
 
   return NextResponse.json({ id: String(item._id) }, { status: 201 });
 }

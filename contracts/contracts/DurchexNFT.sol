@@ -23,6 +23,7 @@ contract DurchexNFT is ERC721URIStorage, ERC2981, EIP712, Ownable {
         address creator;
         uint96 royaltyBps;
         uint256 nonce; // replay protection per creator
+        uint256 deadline; // unix seconds; 0 = no expiry
     }
 
     address public marketplace; // only this address may redeem
@@ -31,10 +32,11 @@ contract DurchexNFT is ERC721URIStorage, ERC2981, EIP712, Ownable {
 
     bytes32 private constant VOUCHER_TYPEHASH =
         keccak256(
-            "NFTVoucher(uint256 tokenId,string uri,uint256 minPrice,address creator,uint96 royaltyBps,uint256 nonce)"
+            "NFTVoucher(uint256 tokenId,string uri,uint256 minPrice,address creator,uint96 royaltyBps,uint256 nonce,uint256 deadline)"
         );
 
     event MarketplaceUpdated(address indexed marketplace);
+    event VoucherCancelled(address indexed creator, uint256 nonce);
 
     constructor() ERC721("Durchex", "DRX") EIP712("Durchex", "1") Ownable(msg.sender) {}
 
@@ -54,10 +56,23 @@ contract DurchexNFT is ERC721URIStorage, ERC2981, EIP712, Ownable {
                         v.minPrice,
                         v.creator,
                         v.royaltyBps,
-                        v.nonce
+                        v.nonce,
+                        v.deadline
                     )
                 )
             );
+    }
+
+    /// @notice Lets a creator invalidate their next pending voucher without
+    /// waiting for someone to redeem it. Vouchers are keyed to a strictly
+    /// sequential per-creator nonce (see `nonces`), so at any time exactly
+    /// one voucher is "next" — this simply skips it, matching how unlisting
+    /// works everywhere else in the marketplace (creator-initiated, no
+    /// counterparty needed).
+    function cancelVoucher() external {
+        uint256 cancelled = nonces[msg.sender];
+        nonces[msg.sender] = cancelled + 1;
+        emit VoucherCancelled(msg.sender, cancelled);
     }
 
     /// @notice Mints `voucher.tokenId` to `voucher.creator` then transfers it
@@ -71,6 +86,7 @@ contract DurchexNFT is ERC721URIStorage, ERC2981, EIP712, Ownable {
         require(msg.sender == marketplace, "DurchexNFT: only marketplace");
         require(!minted[voucher.tokenId], "DurchexNFT: already minted");
         require(voucher.nonce == nonces[voucher.creator], "DurchexNFT: bad nonce");
+        require(voucher.deadline == 0 || block.timestamp <= voucher.deadline, "DurchexNFT: voucher expired");
 
         address signer = hashVoucher(voucher).recoverCalldata(signature);
         require(signer == voucher.creator, "DurchexNFT: invalid signature");

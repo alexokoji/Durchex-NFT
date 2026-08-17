@@ -50,6 +50,26 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "This item has already sold" }, { status: 400 });
   }
 
+  // Two concurrent bids can both pass the check above against the same
+  // stale read — re-check and update atomically so the higher bid always
+  // wins regardless of request ordering, instead of "last .save() wins."
+  if (type === "auction_bid") {
+    const updated = await Item.findOneAndUpdate(
+      {
+        _id: item._id,
+        status: "auction",
+        $or: [{ auctionEndsAt: null }, { auctionEndsAt: { $gt: new Date() } }],
+        $expr: {
+          $gt: [amountEth, { $cond: [{ $gt: ["$highestBidEth", 0] }, "$highestBidEth", "$priceEth"] }],
+        },
+      },
+      { $set: { highestBidEth: amountEth } }
+    );
+    if (!updated) {
+      return NextResponse.json({ error: "A higher bid was placed first — refresh and try again" }, { status: 409 });
+    }
+  }
+
   // Find the previous highest bidder (if any) before we place the new bid,
   // so we can notify them they've been outbid.
   const previousTopBid =
@@ -67,11 +87,6 @@ export async function POST(req: NextRequest) {
     expiresAt:
       type === "offer" ? new Date(Date.now() + OFFER_EXPIRY_DAYS * 24 * 60 * 60 * 1000) : null,
   });
-
-  if (type === "auction_bid") {
-    item.highestBidEth = amountEth;
-    await item.save();
-  }
 
   await recordActivity({
     type: type === "auction_bid" ? "bid" : "offer",
