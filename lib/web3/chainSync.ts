@@ -24,8 +24,15 @@ export async function resolveOrCreateUser(address: string) {
   return user;
 }
 
+function escapeRegExp(value: string) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+// contractAddress is stored checksummed (mixed-case, via viem's getAddress())
+// wherever a collection gets wired up, but on-chain event args and RPC
+// responses aren't guaranteed to match that casing — compare case-insensitively.
 async function findCollectionByContract(nftAddress: string) {
-  return Collection.findOne({ contractAddress: nftAddress.toLowerCase() });
+  return Collection.findOne({ contractAddress: new RegExp(`^${escapeRegExp(nftAddress)}$`, "i") });
 }
 
 /** A lazy item's first sale: mints it (isMinted/tokenId weren't set until now) and transfers to the buyer. */
