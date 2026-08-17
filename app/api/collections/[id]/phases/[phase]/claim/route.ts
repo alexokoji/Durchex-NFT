@@ -74,6 +74,19 @@ export async function POST(req: NextRequest, context: { params: Promise<{ id: st
   const finalMinted = updated.mintPhases[key].minted;
   const allocation = updated.mintPhases[key].allocation;
   const sellsOut = racesAllocation && allocation > 0 && finalMinted >= allocation;
+  console.log(
+    "[claim-debug]",
+    JSON.stringify({
+      key,
+      racesAllocation,
+      finalMinted,
+      allocation,
+      finalMintedType: typeof finalMinted,
+      allocationType: typeof allocation,
+      comparison: finalMinted >= allocation,
+      sellsOut,
+    })
+  );
   if (sellsOut) {
     await Collection.updateOne(
       { _id: id, [`mintPhases.${key}.enabled`]: true },
