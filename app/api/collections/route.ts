@@ -4,6 +4,7 @@ import { Collection } from "@/lib/models/Collection";
 import { getCurrentUser } from "@/lib/auth/currentUser";
 import { CategoryKey } from "@/components/ui/CategoryIcon";
 import { normalizePhase } from "@/lib/mintPhases";
+import { DEFAULT_NFT_ADDRESS, DEFAULT_NFT_CHAIN_ID } from "@/lib/web3/deployedContract";
 
 const CATEGORIES: CategoryKey[] = [
   "art",
@@ -108,7 +109,8 @@ export async function POST(req: NextRequest) {
     category,
     creator: user._id,
     royaltyBps,
-    contractAddress: "",
+    contractAddress: DEFAULT_NFT_ADDRESS,
+    chainId: DEFAULT_NFT_CHAIN_ID,
     contractType: "lazy",
     maxSupply,
     payoutRecipients,
