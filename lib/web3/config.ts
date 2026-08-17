@@ -4,6 +4,7 @@ import {
   base,
   polygon,
   polygonAmoy,
+  sepolia,
   avalanche,
   optimism,
   arbitrum,
@@ -38,7 +39,7 @@ export const wagmiConfig = getDefaultConfig({
   appUrl: APP_URL,
   appIcon: `${APP_URL}/icon.svg`,
   projectId: WALLETCONNECT_PROJECT_ID,
-  chains: [mainnet, base, polygon, arbitrum, optimism, avalanche, bsc, hyperliquid, polygonAmoy, hardhat],
+  chains: [mainnet, base, polygon, arbitrum, optimism, avalanche, bsc, hyperliquid, polygonAmoy, sepolia, hardhat],
   ssr: true,
 });
 
@@ -52,6 +53,7 @@ export const CHAIN_META: Record<number, { label: string; symbol: string; accent:
   [bsc.id]: { label: "BNB Chain", symbol: "BNB", accent: "#F0B90B" },
   [hyperliquid.id]: { label: "Hyperliquid", symbol: "HYPE", accent: "#97FCE4" },
   [polygonAmoy.id]: { label: "Polygon Amoy", symbol: "POL", accent: "#8247E5" },
+  [sepolia.id]: { label: "Ethereum Sepolia", symbol: "ETH", accent: "#627EEA" },
   [hardhat.id]: { label: "Localhost", symbol: "ETH", accent: "#6B6478" },
 };
 

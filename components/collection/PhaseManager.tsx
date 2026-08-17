@@ -96,8 +96,11 @@ function PhaseRow({
   const hasAllowlist = phaseKey !== "public";
 
   useEffect(() => {
-    setDraft(phase);
-    setAllowlistText(phase.allowlist.join("\n"));
+    const id = setTimeout(() => {
+      setDraft(phase);
+      setAllowlistText(phase.allowlist.join("\n"));
+    }, 0);
+    return () => clearTimeout(id);
   }, [phase]);
 
   function parseAddresses(text: string) {
