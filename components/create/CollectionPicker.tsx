@@ -165,11 +165,14 @@ export function CollectionPicker({
 
           <div className="pt-1">
             <div className="text-xs font-medium text-white/50 mb-2">Optional mint phases</div>
-            <p className="text-[11px] text-white/35 mb-3">Configure your launch now. These become enforceable when the collection is deployed with the Durchex Drop contract.</p>
+            <p className="text-[11px] text-white/35 mb-3">
+              Configure your launch now — enforced immediately once enabled. You can toggle phases on/off
+              later from the collection page (e.g. close GTD and open FCFS) without recreating anything.
+            </p>
             <div className="space-y-2">
               {(["whitelist", "og", "public"] as const).map((phase) => {
                 const config = form.mintPhases[phase];
-                const label = phase === "og" ? "OG mint" : phase === "whitelist" ? "Whitelist mint" : "Public mint";
+                const label = phase === "og" ? "OG mint (GTD)" : phase === "whitelist" ? "Whitelist mint (GTD)" : "Public mint (FCFS)";
                 const hasAllowlist = phase !== "public";
                 const allowlist = config.allowlist;
                 return <div key={phase} className="rounded-lg border border-white/10 p-3 bg-white/[0.02]">
