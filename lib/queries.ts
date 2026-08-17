@@ -490,6 +490,17 @@ export async function search(query: string, limit = 8): Promise<SearchResults> {
   };
 }
 
+/** The single collection whose scheduled drop window is live right now, for the header banner — null if none. */
+export async function getActiveLiveDrop(): Promise<{ slug: string; name: string } | null> {
+  await connectDB();
+  const now = new Date();
+  const doc = await Collection.findOne({ dropStartsAt: { $lte: now }, dropEndsAt: { $gt: now } })
+    .sort({ dropStartsAt: -1 })
+    .select("slug name")
+    .lean();
+  return doc ? { slug: doc.slug as string, name: doc.name as string } : null;
+}
+
 export async function getDrops(viewerUserId?: string): Promise<DropView[]> {
   await connectDB();
   const docs = await Collection.find({ dropStartsAt: { $ne: null } })

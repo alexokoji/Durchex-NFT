@@ -44,6 +44,21 @@ export default function CreatePage() {
     true,
   ][step];
 
+  // The Continue button being silently disabled with no explanation reads
+  // as "the button does nothing" — spell out exactly what's missing.
+  const blockedReason =
+    step === 0
+      ? !collection
+        ? "Pick or create a collection to continue."
+        : !asset
+          ? "Upload an NFT asset to continue."
+          : name.trim().length < 2
+            ? "Give your item a name (2+ characters) to continue."
+            : null
+      : step === 2 && mode !== "not_listed" && !(Number(priceEth) > 0)
+        ? "Enter a price greater than 0 to continue."
+        : null;
+
   async function handleSubmit() {
     if (!collection || !address || !user || !asset) return;
     setSubmitting(true);
@@ -234,7 +249,7 @@ export default function CreatePage() {
         )}
       </div>
 
-      <div className="flex items-center justify-between mt-6">
+      <div className="flex items-center justify-between mt-2">
         <Button
           variant="ghost"
           size="sm"
@@ -246,14 +261,17 @@ export default function CreatePage() {
           Back
         </Button>
         {step < STEP_COUNT - 1 && (
-          <Button
-            size="sm"
-            icon={<ArrowRight className="w-3.5 h-3.5" />}
-            onClick={() => setStep((s) => Math.min(STEP_COUNT - 1, s + 1))}
-            disabled={!canProceed}
-          >
-            Continue
-          </Button>
+          <div className="flex flex-col items-end gap-1.5">
+            {blockedReason && <p className="text-xs text-white/40">{blockedReason}</p>}
+            <Button
+              size="sm"
+              icon={<ArrowRight className="w-3.5 h-3.5" />}
+              onClick={() => setStep((s) => Math.min(STEP_COUNT - 1, s + 1))}
+              disabled={!canProceed}
+            >
+              Continue
+            </Button>
+          </div>
         )}
       </div>
     </div>

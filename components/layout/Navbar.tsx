@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Menu, X, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { ConnectWalletButton } from "@/components/wallet/ConnectWalletButton";
@@ -20,13 +20,26 @@ const NAV_LINKS = [
 
 export function Navbar() {
   const [open, setOpen] = useState(false);
+  const [liveDrop, setLiveDrop] = useState<{ slug: string; name: string } | null>(null);
+
+  useEffect(() => {
+    fetch("/api/drops/live")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => data?.liveDrop && setLiveDrop(data.liveDrop))
+      .catch(() => {});
+  }, []);
 
   return (
     <header className="sticky top-0 z-50">
-      <div className="w-full bg-gradient-to-r from-purple-900 via-purple-700 to-pink-purple/80 text-center text-xs sm:text-sm py-1.5 px-4 text-white/90">
-        <Sparkles className="inline w-3.5 h-3.5 mb-0.5 mr-1.5 text-purple-300" />
-        New drop: <span className="font-semibold text-white">Neon Ronin</span> mints live now — real lazy-minted, zero gas to list.
-      </div>
+      {liveDrop && (
+        <Link
+          href={`/collection/${liveDrop.slug}`}
+          className="block w-full bg-gradient-to-r from-purple-900 via-purple-700 to-pink-purple/80 text-center text-xs sm:text-sm py-1.5 px-4 text-white/90 hover:brightness-110 transition"
+        >
+          <Sparkles className="inline w-3.5 h-3.5 mb-0.5 mr-1.5 text-purple-300" />
+          New drop: <span className="font-semibold text-white">{liveDrop.name}</span> mints live now — real lazy-minted, zero gas to list.
+        </Link>
+      )}
       <nav className="glass-panel border-b border-white/5">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between gap-4">
           <Link href="/" className="flex items-center gap-2 shrink-0">
