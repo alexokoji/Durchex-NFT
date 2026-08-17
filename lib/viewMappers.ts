@@ -33,6 +33,7 @@ interface ItemLike {
   name: string;
   status: string;
   isMinted: boolean;
+  standard?: string;
   priceEth: number;
   lastSalePriceEth?: number | null;
   highestBidEth: number;
@@ -97,6 +98,19 @@ interface ItemDetailLike extends ItemLike {
     nonce?: string | null;
     signature?: string | null;
   } | null;
+  totalSupply?: number;
+  mintedSupply?: number;
+  editionVoucher?: {
+    tokenId?: string | null;
+    uri?: string | null;
+    minPrice?: string | null;
+    creator?: string | null;
+    royaltyBps?: number | null;
+    maxSupply?: number | null;
+    nonce?: string | null;
+    signature?: string | null;
+    deadline?: string | null;
+  } | null;
 }
 
 const ETH_USD = 3400;
@@ -139,6 +153,7 @@ export function toItemView(item: ItemLike): ItemView {
     lastSalePriceEth: item.lastSalePriceEth ?? null,
     isMinted: item.isMinted,
     status: item.status as ItemView["status"],
+    standard: (item.standard as ItemView["standard"]) ?? "ERC721",
     favoriteCount: item.favoriteCount,
     highestBidEth: item.highestBidEth || undefined,
     auctionEndsAt: item.auctionEndsAt ? new Date(item.auctionEndsAt).toISOString() : undefined,
@@ -234,6 +249,27 @@ export function toItemDetailView(item: ItemDetailLike): ItemDetailView {
             deadline: item.listing.deadline ?? "0",
             nonce: item.listing.nonce ?? "0",
             signature: item.listing.signature,
+          }
+        : null,
+    totalSupply: item.totalSupply ?? 0,
+    mintedSupply: item.mintedSupply ?? 0,
+    editionVoucher:
+      item.editionVoucher &&
+      item.editionVoucher.tokenId &&
+      item.editionVoucher.uri &&
+      item.editionVoucher.minPrice &&
+      item.editionVoucher.creator &&
+      item.editionVoucher.signature
+        ? {
+            tokenId: item.editionVoucher.tokenId,
+            uri: item.editionVoucher.uri,
+            minPrice: item.editionVoucher.minPrice,
+            creator: item.editionVoucher.creator,
+            royaltyBps: item.editionVoucher.royaltyBps ?? 0,
+            maxSupply: item.editionVoucher.maxSupply ?? 0,
+            nonce: item.editionVoucher.nonce ?? "0",
+            signature: item.editionVoucher.signature,
+            deadline: item.editionVoucher.deadline ?? "0",
           }
         : null,
   };

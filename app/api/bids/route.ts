@@ -18,6 +18,7 @@ export async function POST(req: NextRequest) {
   const itemId = String(body.itemId ?? "");
   const type = body.type === "auction_bid" ? "auction_bid" : "offer";
   const amountEth = Number(body.amountEth);
+  const quantity = Math.max(1, Math.floor(Number(body.quantity ?? 1)));
 
   if (!itemId || !Number.isFinite(amountEth) || amountEth <= 0) {
     return NextResponse.json({ error: "A valid item and amount are required" }, { status: 400 });
@@ -28,7 +29,9 @@ export async function POST(req: NextRequest) {
   if (!item) {
     return NextResponse.json({ error: "Item not found" }, { status: 404 });
   }
-  if (String(item.owner) === String(user._id)) {
+  // ERC-1155 holders can still offer to acquire more units, so this
+  // "already own it" guard only makes sense for single-owner 721 items.
+  if (item.standard === "ERC721" && String(item.owner) === String(user._id)) {
     return NextResponse.json({ error: "You already own this item" }, { status: 400 });
   }
 
@@ -84,6 +87,7 @@ export async function POST(req: NextRequest) {
     bidder: user._id,
     type,
     amountEth,
+    quantity: item.standard === "ERC1155" ? quantity : 1,
     expiresAt:
       type === "offer" ? new Date(Date.now() + OFFER_EXPIRY_DAYS * 24 * 60 * 60 * 1000) : null,
   });

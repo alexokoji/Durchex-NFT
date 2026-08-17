@@ -12,6 +12,7 @@
     "DurchexMarketplace": "0x6cb04Ac6521bA854e729A2De90c75Ce8878D8701",
     "DurchexPass": "0xa5a24412C42131f11cfd0c1E5Eb01A97d5A49083",
     "feeRecipient": "0x84bf211B9aC597018371171a6f492cAD34255Cf7",
-    "deployedAt": "2026-08-17T17:50:25.914Z"
+    "deployedAt": "2026-08-17T17:50:25.914Z",
+    "DurchexNFT1155": "0xe353063FA269752F9487AF3E4af7800122a0b0a0"
   }
 }

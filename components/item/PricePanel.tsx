@@ -12,10 +12,16 @@ import { useSession } from "@/hooks/useSession";
 import { BuyLazyButton } from "@/components/item/BuyLazyButton";
 import { BuyListedButton } from "@/components/item/BuyListedButton";
 import { ListForSaleForm } from "@/components/item/ListForSaleForm";
+import { EditionPanel } from "@/components/item/EditionPanel";
 import { MARKETPLACE_ADDRESS } from "@/lib/web3/marketplaceAbi";
 import { ItemDetailView } from "@/lib/types";
 
 export function PricePanel({ item }: { item: ItemDetailView }) {
+  if (item.standard === "ERC1155") return <EditionPanel item={item} />;
+  return <ClassicPricePanel item={item} />;
+}
+
+function ClassicPricePanel({ item }: { item: ItemDetailView }) {
   const router = useRouter();
   const { user } = useSession();
   const { openConnectModal } = useConnectModal();

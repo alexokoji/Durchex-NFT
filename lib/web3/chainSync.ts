@@ -13,6 +13,9 @@ import { formatEther } from "viem";
 import { Collection } from "@/lib/models/Collection";
 import { Item } from "@/lib/models/Item";
 import { User } from "@/lib/models/User";
+import { ItemBalance } from "@/lib/models/ItemBalance";
+import { Listing } from "@/lib/models/Listing";
+import { Activity } from "@/lib/models/Activity";
 import { recordActivity } from "@/lib/activity";
 import { recalculateCollectionFloor } from "@/lib/floorPrice";
 
@@ -132,6 +135,134 @@ export async function handleResale(
       from: (await User.findOne({ address: seller.toLowerCase() }))?._id,
       to: buyerUser._id,
       priceEth,
+      txHash,
+    }),
+    recalculateCollectionFloor(collection._id),
+  ]);
+
+  return { synced: true as const, itemId: String(item._id) };
+}
+
+/**
+ * An ERC-1155 lazy primary-sale purchase: mints `quantity` units to buyer.
+ * Unlike handleVoucherRedeemed, the same voucher/tokenId is redeemed
+ * repeatedly (by different buyers, or the same buyer buying more), so
+ * "already synced" can't be inferred from item state the way it can for a
+ * single-use 721 voucher — idempotency is keyed on txHash instead.
+ */
+export async function handleEditionRedeemed(
+  nft: string,
+  tokenId: bigint,
+  buyer: string,
+  quantity: bigint,
+  totalPrice: bigint,
+  txHash: string
+) {
+  const item = await Item.findOne({ "editionVoucher.tokenId": tokenId.toString(), standard: "ERC1155" });
+  if (!item) return { synced: false as const, reason: "no matching edition item" };
+  if (await Activity.exists({ item: item._id, txHash })) {
+    return { synced: false as const, reason: "already synced" };
+  }
+
+  const collection = await Collection.findById(item.collection);
+  if (!collection) return { synced: false as const, reason: "item has no collection" };
+  if (collection.contractAddress.toLowerCase() !== nft.toLowerCase()) {
+    return { synced: false as const, reason: "item's collection doesn't match this contract" };
+  }
+
+  const buyerUser = await resolveOrCreateUser(buyer);
+  const qty = Number(quantity);
+  const totalPriceEth = Number(formatEther(totalPrice));
+
+  item.isMinted = true;
+  item.mintedSupply = (item.mintedSupply ?? 0) + qty;
+  // Once every edition is minted, the creator's own primary listing has
+  // nothing left to sell — resale continues independently via Listing
+  // documents, unrelated to this item-level status.
+  if (item.mintedSupply >= item.totalSupply) {
+    item.status = "not_listed";
+  }
+  await item.save();
+
+  await Promise.all([
+    ItemBalance.findOneAndUpdate(
+      { item: item._id, owner: buyerUser._id },
+      { $inc: { quantity: qty } },
+      { upsert: true }
+    ),
+    Collection.updateOne(
+      { _id: collection._id },
+      { $inc: { "stats.sales": 1, "stats.volume24hEth": totalPriceEth, "stats.totalVolumeEth": totalPriceEth } }
+    ),
+    recordActivity({
+      type: "sale",
+      item: item._id,
+      from: item.creator,
+      to: buyerUser._id,
+      priceEth: totalPriceEth,
+      quantity: qty,
+      txHash,
+    }),
+    recalculateCollectionFloor(collection._id),
+  ]);
+
+  return { synced: true as const, itemId: String(item._id) };
+}
+
+/**
+ * An ERC-1155 resale: transfers `quantity` units from seller to buyer's
+ * ItemBalance and marks that much of the Listing as filled. Same
+ * txHash-keyed idempotency as handleEditionRedeemed, for the same reason —
+ * one Listing can be filled by many separate transactions.
+ */
+export async function handleListing1155Filled(
+  nft: string,
+  tokenId: bigint,
+  seller: string,
+  buyer: string,
+  quantity: bigint,
+  totalPrice: bigint,
+  txHash: string
+) {
+  const item = await Item.findOne({ tokenId: tokenId.toString(), standard: "ERC1155" });
+  if (!item) return { synced: false as const, reason: "no matching item" };
+  if (await Activity.exists({ item: item._id, txHash })) {
+    return { synced: false as const, reason: "already synced" };
+  }
+
+  const collection = await Collection.findById(item.collection);
+  if (!collection) return { synced: false as const, reason: "item has no collection" };
+  if (collection.contractAddress.toLowerCase() !== nft.toLowerCase()) {
+    return { synced: false as const, reason: "item's collection doesn't match this contract" };
+  }
+
+  const sellerUser = await resolveOrCreateUser(seller);
+  const buyerUser = await resolveOrCreateUser(buyer);
+  const qty = Number(quantity);
+  const totalPriceEth = Number(formatEther(totalPrice));
+
+  await Promise.all([
+    ItemBalance.findOneAndUpdate({ item: item._id, owner: sellerUser._id }, { $inc: { quantity: -qty } }),
+    ItemBalance.findOneAndUpdate(
+      { item: item._id, owner: buyerUser._id },
+      { $inc: { quantity: qty } },
+      { upsert: true }
+    ),
+    Listing.findOneAndUpdate(
+      { seller: sellerUser._id, item: item._id, nft: { $regex: `^${nft}$`, $options: "i" } },
+      { $inc: { filledQuantity: qty } }
+    ),
+    Collection.updateOne(
+      { _id: collection._id },
+      { $inc: { "stats.sales": 1, "stats.volume24hEth": totalPriceEth, "stats.totalVolumeEth": totalPriceEth } }
+    ),
+    recordActivity({
+      type: "sale",
+      item: item._id,
+      from: sellerUser._id,
+      to: buyerUser._id,
+      priceEth: totalPriceEth,
+      quantity: qty,
       txHash,
     }),
     recalculateCollectionFloor(collection._id),

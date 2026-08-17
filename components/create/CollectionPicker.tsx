@@ -31,6 +31,7 @@ export interface CollectionOption {
   bannerUrl?: string;
   verified: boolean;
   items: number;
+  standard: "ERC721" | "ERC1155";
 }
 
 export function CollectionPicker({
@@ -43,7 +44,7 @@ export function CollectionPicker({
   const [collections, setCollections] = useState<CollectionOption[] | null>(null);
   const [creating, setCreating] = useState(false);
   const emptyPhase: CreatePhaseForm = { enabled: false, priceEth: 0, allocation: 0, walletLimit: 0, allowlist: "", startsAt: "", endsAt: "" };
-  const [form, setForm] = useState({ name: "", category: "art" as CategoryKey, royaltyBps: 500, maxSupply: 0, payoutAddress: "", logo: null as UploadedAsset | null, banner: null as UploadedAsset | null, mintPhases: {
+  const [form, setForm] = useState({ name: "", category: "art" as CategoryKey, standard: "ERC721" as "ERC721" | "ERC1155", royaltyBps: 500, maxSupply: 0, payoutAddress: "", logo: null as UploadedAsset | null, banner: null as UploadedAsset | null, mintPhases: {
     whitelist: { ...emptyPhase },
     og: { ...emptyPhase },
     public: { ...emptyPhase },
@@ -154,6 +155,34 @@ export function CollectionPicker({
             />
           </div>
 
+          <div>
+            <label className="text-xs font-medium text-white/50 mb-1.5 block">Token standard</label>
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => setForm((f) => ({ ...f, standard: "ERC721" }))}
+                className={clsx(
+                  "rounded-lg border px-3 py-2.5 text-left text-xs",
+                  form.standard === "ERC721" ? "border-purple-500/60 bg-purple-700/15 text-white" : "border-white/10 text-white/50 hover:border-white/20"
+                )}
+              >
+                <div className="font-medium mb-0.5">ERC-721</div>
+                <div className="text-white/40">One-of-one items, each individually owned</div>
+              </button>
+              <button
+                type="button"
+                onClick={() => setForm((f) => ({ ...f, standard: "ERC1155" }))}
+                className={clsx(
+                  "rounded-lg border px-3 py-2.5 text-left text-xs",
+                  form.standard === "ERC1155" ? "border-purple-500/60 bg-purple-700/15 text-white" : "border-white/10 text-white/50 hover:border-white/20"
+                )}
+              >
+                <div className="font-medium mb-0.5">ERC-1155</div>
+                <div className="text-white/40">Multi-edition items, many copies per token</div>
+              </button>
+            </div>
+          </div>
+
           <div className="grid sm:grid-cols-2 gap-4">
             <div>
               <label className="text-xs font-medium text-white/50 mb-1.5 block">Collection image</label>
@@ -178,6 +207,14 @@ export function CollectionPicker({
             </div>
           </div>
 
+          {form.standard === "ERC1155" && (
+            <p className="text-[11px] text-amber-200 bg-amber-400/10 border border-amber-300/20 rounded-lg p-3">
+              ERC-1155 items don&rsquo;t use GTD/FCFS/Public mint phases — each item sets its own per-unit price and total
+              supply when you create it, and any wallet can buy any quantity while supply lasts.
+            </p>
+          )}
+
+          {form.standard === "ERC721" && (
           <div className="pt-1">
             <div className="text-xs font-medium text-white/50 mb-2">Optional mint phases</div>
             <p className="text-[11px] text-white/35 mb-3">
@@ -201,6 +238,7 @@ export function CollectionPicker({
               ))}
             </div>
           </div>
+          )}
 
           <div>
             <label className="text-xs font-medium text-white/50 mb-1.5 block">Category</label>

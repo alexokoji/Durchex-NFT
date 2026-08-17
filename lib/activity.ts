@@ -7,6 +7,7 @@ export async function recordActivity(params: {
   from?: string | Types.ObjectId | null;
   to?: string | Types.ObjectId | null;
   priceEth?: number | null;
+  quantity?: number | null;
   txHash?: string | null;
 }) {
   return Activity.create({
@@ -15,6 +16,7 @@ export async function recordActivity(params: {
     from: params.from ?? undefined,
     to: params.to ?? undefined,
     priceEth: params.priceEth ?? null,
+    quantity: params.quantity ?? null,
     txHash: params.txHash ?? null,
   });
 }

@@ -4,7 +4,12 @@ import { Collection } from "@/lib/models/Collection";
 import { getCurrentUser } from "@/lib/auth/currentUser";
 import { CategoryKey } from "@/components/ui/CategoryIcon";
 import { normalizePhase, computePublicAllocation } from "@/lib/mintPhases";
-import { DEFAULT_NFT_ADDRESS, DEFAULT_NFT_CHAIN_ID } from "@/lib/web3/deployedContract";
+import {
+  DEFAULT_NFT_ADDRESS,
+  DEFAULT_NFT_CHAIN_ID,
+  DEFAULT_NFT1155_ADDRESS,
+  DEFAULT_NFT1155_CHAIN_ID,
+} from "@/lib/web3/deployedContract";
 
 const CATEGORIES: CategoryKey[] = [
   "art",
@@ -70,6 +75,7 @@ export async function POST(req: NextRequest) {
   const bannerUrl = String(body.bannerUrl ?? "").trim();
   const royaltyBps = Math.min(Math.max(Number(body.royaltyBps ?? 500), 0), 3000);
   const maxSupply = Math.max(0, Math.floor(Number(body.maxSupply ?? 0)));
+  const standard = body.standard === "ERC1155" ? "ERC1155" : "ERC721";
   const whitelistPhase = normalizePhase(body.mintPhases?.whitelist, true);
   const ogPhase = normalizePhase(body.mintPhases?.og, true);
   // Public has no allocation/walletLimit/schedule of its own — supply is
@@ -123,8 +129,9 @@ export async function POST(req: NextRequest) {
     category,
     creator: user._id,
     royaltyBps,
-    contractAddress: DEFAULT_NFT_ADDRESS,
-    chainId: DEFAULT_NFT_CHAIN_ID,
+    standard,
+    contractAddress: standard === "ERC1155" ? DEFAULT_NFT1155_ADDRESS : DEFAULT_NFT_ADDRESS,
+    chainId: standard === "ERC1155" ? DEFAULT_NFT1155_CHAIN_ID : DEFAULT_NFT_CHAIN_ID,
     contractType: "lazy",
     maxSupply,
     payoutRecipients,
@@ -142,6 +149,7 @@ export async function POST(req: NextRequest) {
       contractAddress: collection.contractAddress,
       contractType: collection.contractType,
       chainId: collection.chainId,
+      standard: collection.standard,
       royaltyBps: collection.royaltyBps,
       maxSupply: collection.maxSupply,
       verified: false,

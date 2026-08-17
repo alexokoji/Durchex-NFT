@@ -16,6 +16,7 @@ import { AssetUploader, UploadedAsset } from "@/components/create/AssetUploader"
 import { ConnectWalletButton } from "@/components/wallet/ConnectWalletButton";
 import { useSession } from "@/hooks/useSession";
 import { buildVoucherTypedData } from "@/lib/web3/voucher";
+import { buildEditionVoucherTypedData } from "@/lib/web3/editionVoucher";
 
 const STEP_COUNT = 4;
 
@@ -34,13 +35,15 @@ export default function CreatePage() {
   const [mode, setMode] = useState<PricingMode>("fixed_price");
   const [priceEth, setPriceEth] = useState("0.10");
   const [auctionDurationHours, setAuctionDurationHours] = useState(24);
+  const [totalSupply, setTotalSupply] = useState("100");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const isEdition = collection?.standard === "ERC1155";
 
   const canProceed = [
     !!collection && !!asset && name.trim().length >= 2,
     true,
-    mode === "not_listed" || Number(priceEth) > 0,
+    isEdition ? Number(priceEth) > 0 && Number(totalSupply) > 0 : mode === "not_listed" || Number(priceEth) > 0,
     true,
   ][step];
 
@@ -55,12 +58,74 @@ export default function CreatePage() {
           : name.trim().length < 2
             ? "Give your item a name (2+ characters) to continue."
             : null
-      : step === 2 && mode !== "not_listed" && !(Number(priceEth) > 0)
-        ? "Enter a price greater than 0 to continue."
-        : null;
+      : step === 2 && isEdition && !(Number(priceEth) > 0)
+        ? "Enter a per-unit price greater than 0 to continue."
+        : step === 2 && isEdition && !(Number(totalSupply) > 0)
+          ? "Enter a total supply greater than 0 to continue."
+          : step === 2 && !isEdition && mode !== "not_listed" && !(Number(priceEth) > 0)
+            ? "Enter a price greater than 0 to continue."
+            : null;
+
+  async function handleSubmitEdition() {
+    if (!collection || !address || !user || !asset) return;
+    setSubmitting(true);
+    setError(null);
+    try {
+      const tokenId = Date.now();
+      const metadataUri = `${window.location.origin}/api/metadata/${collection.slug}/${tokenId}`;
+      const nonce = Date.now();
+      const typedData = buildEditionVoucherTypedData({
+        chainId: collection.chainId,
+        verifyingContract: collection.contractAddress,
+        tokenId,
+        uri: metadataUri,
+        pricePerUnitEth: Number(priceEth),
+        creator: address,
+        royaltyBps: collection.royaltyBps,
+        maxSupply: Number(totalSupply),
+        nonce,
+      });
+      const signature = await signTypedDataAsync(typedData);
+
+      const res = await fetch("/api/items", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          collectionId: collection.id,
+          name,
+          description,
+          media: asset,
+          traits,
+          priceEth: Number(priceEth),
+          totalSupply: Number(totalSupply),
+          tokenId: String(tokenId),
+          metadataUri,
+          editionVoucher: {
+            tokenId: String(tokenId),
+            uri: metadataUri,
+            minPrice: typedData.message.minPrice.toString(),
+            creator: address,
+            royaltyBps: collection.royaltyBps,
+            maxSupply: Number(totalSupply),
+            nonce: typedData.message.nonce.toString(),
+            deadline: typedData.message.deadline.toString(),
+          },
+          signature,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Failed to create edition");
+      router.push(`/assets/${data.id}`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Something went wrong signing your voucher");
+    } finally {
+      setSubmitting(false);
+    }
+  }
 
   async function handleSubmit() {
     if (!collection || !address || !user || !asset) return;
+    if (isEdition) return handleSubmitEdition();
     setSubmitting(true);
     setError(null);
     try {
@@ -176,18 +241,47 @@ export default function CreatePage() {
 
         {step === 2 && (
           <div>
-            <h2 className="text-lg font-semibold text-white mb-1">Pricing</h2>
+            <h2 className="text-lg font-semibold text-white mb-1">{isEdition ? "Supply & price" : "Pricing"}</h2>
             <p className="text-sm text-white/45 mb-5">
-              This item won&apos;t mint on-chain until it sells — listing is free.
+              {isEdition
+                ? "Set a total edition size and a per-unit price — any wallet can buy any quantity while supply lasts."
+                : "This item won't mint on-chain until it sells — listing is free."}
             </p>
-            <PricingForm
-              mode={mode}
-              onModeChange={setMode}
-              priceEth={priceEth}
-              onPriceChange={setPriceEth}
-              auctionDurationHours={auctionDurationHours}
-              onDurationChange={setAuctionDurationHours}
-            />
+            {isEdition ? (
+              <div className="space-y-4">
+                <div>
+                  <label className="text-xs font-medium text-white/50 mb-1.5 block">Total supply (editions)</label>
+                  <input
+                    type="number"
+                    min="1"
+                    value={totalSupply}
+                    onChange={(e) => setTotalSupply(e.target.value)}
+                    placeholder="e.g. 500"
+                    className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white placeholder:text-white/30 focus:outline-none focus:border-purple-500/60"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-medium text-white/50 mb-1.5 block">Price per unit (ETH)</label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.001"
+                    value={priceEth}
+                    onChange={(e) => setPriceEth(e.target.value)}
+                    className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white placeholder:text-white/30 focus:outline-none focus:border-purple-500/60"
+                  />
+                </div>
+              </div>
+            ) : (
+              <PricingForm
+                mode={mode}
+                onModeChange={setMode}
+                priceEth={priceEth}
+                onPriceChange={setPriceEth}
+                auctionDurationHours={auctionDurationHours}
+                onDurationChange={setAuctionDurationHours}
+              />
+            )}
           </div>
         )}
 
@@ -210,9 +304,11 @@ export default function CreatePage() {
                 </div>
                 <div className="font-semibold text-white truncate">{name || "Untitled item"}</div>
                 <div className="text-sm text-white/50 mt-1">
-                  {mode === "not_listed"
-                    ? "Not listed yet"
-                    : `${mode === "auction" ? "Starting at" : "Price"}: ${priceEth || "0"} ETH`}
+                  {isEdition
+                    ? `${totalSupply || "0"} editions × ${priceEth || "0"} ETH each`
+                    : mode === "not_listed"
+                      ? "Not listed yet"
+                      : `${mode === "auction" ? "Starting at" : "Price"}: ${priceEth || "0"} ETH`}
                 </div>
                 {traits.filter((t) => t.traitType && t.value).length > 0 && (
                   <div className="text-xs text-white/40 mt-1">

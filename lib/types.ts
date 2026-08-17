@@ -17,6 +17,7 @@ export interface ItemView {
   lastSalePriceEth: number | null;
   isMinted: boolean;
   status: "fixed_price" | "auction" | "sold" | "not_listed";
+  standard: "ERC721" | "ERC1155";
   favoriteCount: number;
   highestBidEth?: number;
   auctionEndsAt?: string; // ISO date
@@ -102,6 +103,18 @@ export interface ListingView {
   signature: string;
 }
 
+export interface EditionVoucherView {
+  tokenId: string;
+  uri: string;
+  minPrice: string; // per unit
+  creator: string;
+  royaltyBps: number;
+  maxSupply: number;
+  nonce: string;
+  signature: string;
+  deadline: string;
+}
+
 export interface ItemDetailView extends ItemView {
   collectionId: string;
   description: string;
@@ -118,6 +131,11 @@ export interface ItemDetailView extends ItemView {
   creator: UserRef | null;
   voucher: VoucherView | null;
   listing: ListingView | null;
+  // ERC-1155 only.
+  standard: "ERC721" | "ERC1155";
+  totalSupply: number;
+  mintedSupply: number;
+  editionVoucher: EditionVoucherView | null;
 }
 
 export interface SearchResults {

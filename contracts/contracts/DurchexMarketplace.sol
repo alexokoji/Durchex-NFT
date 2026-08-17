@@ -4,10 +4,12 @@ pragma solidity ^0.8.24;
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/utils/Address.sol";
 import "@openzeppelin/contracts/token/ERC721/IERC721.sol";
+import "@openzeppelin/contracts/token/ERC1155/IERC1155.sol";
 import "@openzeppelin/contracts/token/common/ERC2981.sol";
 import "@openzeppelin/contracts/utils/cryptography/EIP712.sol";
 import "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import "./DurchexNFT.sol";
+import "./DurchexNFT1155.sol";
 
 /// @title DurchexMarketplace
 /// @notice Settlement, platform fee and royalty splitting for fixed-price
@@ -38,9 +40,32 @@ contract DurchexMarketplace is ReentrancyGuard, EIP712 {
 
     mapping(address seller => mapping(uint256 nonce => bool used)) public usedListingNonce;
 
+    /// @notice Same idea as Listing, but for a reusable ERC-1155 resale
+    /// authorization: the seller signs "up to `quantity` units at
+    /// `pricePerUnit`," and different buyers can each fill part of it until
+    /// the full quantity is sold — unlike Listing, one signature can be
+    /// filled by many separate transactions.
+    struct Listing1155 {
+        address nft;
+        uint256 tokenId;
+        address seller;
+        address buyer; // 0 = anyone may buy
+        uint256 quantity; // total units authorized under this listing
+        uint256 pricePerUnit;
+        uint256 deadline; // unix seconds; 0 = no expiry
+        uint256 nonce;
+    }
+
+    mapping(address seller => mapping(uint256 nonce => uint256 filled)) public listing1155Filled;
+    mapping(address seller => mapping(uint256 nonce => bool cancelled)) public listing1155Cancelled;
+
     bytes32 private constant LISTING_TYPEHASH =
         keccak256(
             "Listing(address nft,uint256 tokenId,address seller,address buyer,uint256 price,uint256 deadline,uint256 nonce)"
+        );
+    bytes32 private constant LISTING_1155_TYPEHASH =
+        keccak256(
+            "Listing1155(address nft,uint256 tokenId,address seller,address buyer,uint256 quantity,uint256 pricePerUnit,uint256 deadline,uint256 nonce)"
         );
 
     event VoucherRedeemed(address indexed nft, uint256 indexed tokenId, address buyer, uint256 price);
@@ -52,6 +77,22 @@ contract DurchexMarketplace is ReentrancyGuard, EIP712 {
         uint256 price
     );
     event ListingCancelled(address indexed seller, uint256 nonce);
+    event EditionRedeemed(
+        address indexed nft,
+        uint256 indexed tokenId,
+        address buyer,
+        uint256 quantity,
+        uint256 totalPrice
+    );
+    event Listing1155Filled(
+        address indexed nft,
+        uint256 indexed tokenId,
+        address seller,
+        address buyer,
+        uint256 quantity,
+        uint256 totalPrice
+    );
+    event Listing1155Cancelled(address indexed seller, uint256 nonce);
 
     constructor(address _feeRecipient) EIP712("DurchexMarketplace", "1") {
         require(_feeRecipient != address(0), "DurchexMarketplace: zero fee recipient");
@@ -82,6 +123,32 @@ contract DurchexMarketplace is ReentrancyGuard, EIP712 {
         require(!usedListingNonce[msg.sender][nonce], "DurchexMarketplace: already used");
         usedListingNonce[msg.sender][nonce] = true;
         emit ListingCancelled(msg.sender, nonce);
+    }
+
+    function hashListing1155(Listing1155 calldata l) public view returns (bytes32) {
+        return
+            _hashTypedDataV4(
+                keccak256(
+                    abi.encode(
+                        LISTING_1155_TYPEHASH,
+                        l.nft,
+                        l.tokenId,
+                        l.seller,
+                        l.buyer,
+                        l.quantity,
+                        l.pricePerUnit,
+                        l.deadline,
+                        l.nonce
+                    )
+                )
+            );
+    }
+
+    /// @notice Stops further fills of an ERC-1155 resale listing, even if
+    /// its authorized quantity hasn't fully sold.
+    function cancelListing1155(uint256 nonce) external {
+        listing1155Cancelled[msg.sender][nonce] = true;
+        emit Listing1155Cancelled(msg.sender, nonce);
     }
 
     /// @notice Buy a not-yet-minted item: verifies + redeems the voucher on
@@ -127,6 +194,63 @@ contract DurchexMarketplace is ReentrancyGuard, EIP712 {
         _settle(listing.seller, royaltyReceiver, royaltyBps, listing.price);
 
         emit ListingFilled(listing.nft, listing.tokenId, listing.seller, msg.sender, listing.price);
+    }
+
+    /// @notice Buy `quantity` not-yet-minted units of an ERC-1155 edition.
+    /// The same voucher can be redeemed again by other buyers (or the same
+    /// buyer, for more units) until the edition's maxSupply is reached —
+    /// see DurchexNFT1155.redeem.
+    function buyLazy1155(
+        DurchexNFT1155 nft,
+        uint256 quantity,
+        DurchexNFT1155.EditionVoucher calldata voucher,
+        bytes calldata signature
+    ) external payable nonReentrant {
+        require(quantity > 0, "DurchexMarketplace: zero quantity");
+        uint256 totalPrice = voucher.minPrice * quantity;
+        require(msg.value >= totalPrice, "DurchexMarketplace: insufficient payment");
+        uint256 tokenId = nft.redeem(msg.sender, quantity, voucher, signature);
+        _settle(voucher.creator, voucher.creator, voucher.royaltyBps, msg.value);
+        emit EditionRedeemed(address(nft), tokenId, msg.sender, quantity, msg.value);
+    }
+
+    /// @notice Buy `quantity` units of an already-minted ERC-1155 resale
+    /// listing. `listing.quantity` is the total the seller authorized
+    /// under this one signature — multiple buyers (or one buyer, multiple
+    /// times) can each fill part of it until it's exhausted or cancelled.
+    function buyListed1155(
+        Listing1155 calldata listing,
+        uint256 quantity,
+        bytes calldata signature
+    ) external payable nonReentrant {
+        require(quantity > 0, "DurchexMarketplace: zero quantity");
+        require(listing.deadline == 0 || block.timestamp <= listing.deadline, "DurchexMarketplace: listing expired");
+        require(!listing1155Cancelled[listing.seller][listing.nonce], "DurchexMarketplace: listing cancelled");
+        require(listing.buyer == address(0) || listing.buyer == msg.sender, "DurchexMarketplace: not the authorized buyer");
+        require(
+            listing1155Filled[listing.seller][listing.nonce] + quantity <= listing.quantity,
+            "DurchexMarketplace: exceeds listing quantity"
+        );
+
+        address signer = hashListing1155(listing).recoverCalldata(signature);
+        require(signer == listing.seller, "DurchexMarketplace: invalid signature");
+
+        uint256 totalPrice = listing.pricePerUnit * quantity;
+        require(msg.value >= totalPrice, "DurchexMarketplace: insufficient payment");
+        IERC1155 nft = IERC1155(listing.nft);
+        require(
+            nft.balanceOf(listing.seller, listing.tokenId) >= quantity,
+            "DurchexMarketplace: seller balance too low"
+        );
+
+        listing1155Filled[listing.seller][listing.nonce] += quantity;
+        nft.safeTransferFrom(listing.seller, msg.sender, listing.tokenId, quantity, "");
+
+        (address royaltyReceiver, uint256 royaltyAmt) = ERC2981(listing.nft).royaltyInfo(listing.tokenId, totalPrice);
+        uint96 royaltyBps = totalPrice == 0 ? 0 : uint96((royaltyAmt * 10000) / totalPrice);
+        _settle(listing.seller, royaltyReceiver, royaltyBps, totalPrice);
+
+        emit Listing1155Filled(listing.nft, listing.tokenId, listing.seller, msg.sender, quantity, totalPrice);
     }
 
     function _settle(

@@ -21,7 +21,7 @@ import {
   hardhat,
   type Chain,
 } from "viem/chains";
-import { handleVoucherRedeemed, handleResale } from "@/lib/web3/chainSync";
+import { handleVoucherRedeemed, handleResale, handleEditionRedeemed, handleListing1155Filled } from "@/lib/web3/chainSync";
 
 const CHAINS: Record<number, Chain> = Object.fromEntries(
   [mainnet, sepolia, polygon, polygonAmoy, base, arbitrum, optimism, avalanche, bsc, hyperliquid, hardhat].map(
@@ -32,7 +32,8 @@ const CHAINS: Record<number, Chain> = Object.fromEntries(
 const MARKETPLACE_EVENTS_ABI = parseAbi([
   "event VoucherRedeemed(address indexed nft, uint256 indexed tokenId, address buyer, uint256 price)",
   "event ListingFilled(address indexed nft, uint256 indexed tokenId, address seller, address buyer, uint256 price)",
-  "event AuctionSettled(address indexed nft, uint256 indexed tokenId, address seller, address winner, uint256 amount)",
+  "event EditionRedeemed(address indexed nft, uint256 indexed tokenId, address buyer, uint256 quantity, uint256 totalPrice)",
+  "event Listing1155Filled(address indexed nft, uint256 indexed tokenId, address seller, address buyer, uint256 quantity, uint256 totalPrice)",
 ]);
 
 export async function verifyAndSyncPurchase({
@@ -76,14 +77,28 @@ export async function verifyAndSyncPurchase({
       const result = await handleVoucherRedeemed(nft, tokenId, buyer, price, txHash);
       return { ok: true as const, ...result };
     }
-    if (log.eventName === "ListingFilled" || log.eventName === "AuctionSettled") {
-      const { nft, tokenId, seller } = log.args;
-      const buyer = "buyer" in log.args ? log.args.buyer : log.args.winner;
-      const price = "price" in log.args ? log.args.price : log.args.amount;
+    if (log.eventName === "ListingFilled") {
+      const { nft, tokenId, seller, buyer, price } = log.args;
       if (buyer.toLowerCase() !== expectedBuyer.toLowerCase()) {
         return { ok: false as const, error: "This transaction wasn't made by you" };
       }
       const result = await handleResale(nft, tokenId, seller, buyer, price, txHash);
+      return { ok: true as const, ...result };
+    }
+    if (log.eventName === "EditionRedeemed") {
+      const { nft, tokenId, buyer, quantity, totalPrice } = log.args;
+      if (buyer.toLowerCase() !== expectedBuyer.toLowerCase()) {
+        return { ok: false as const, error: "This transaction wasn't made by you" };
+      }
+      const result = await handleEditionRedeemed(nft, tokenId, buyer, quantity, totalPrice, txHash);
+      return { ok: true as const, ...result };
+    }
+    if (log.eventName === "Listing1155Filled") {
+      const { nft, tokenId, seller, buyer, quantity, totalPrice } = log.args;
+      if (buyer.toLowerCase() !== expectedBuyer.toLowerCase()) {
+        return { ok: false as const, error: "This transaction wasn't made by you" };
+      }
+      const result = await handleListing1155Filled(nft, tokenId, seller, buyer, quantity, totalPrice, txHash);
       return { ok: true as const, ...result };
     }
   }
