@@ -263,7 +263,8 @@ function CreatePhaseRow({
   onChange: (patch: Partial<CreatePhaseForm>) => void;
 }) {
   const fileRef = useRef<HTMLInputElement>(null);
-  const hasAllowlist = phaseKey !== "public";
+  const isPublic = phaseKey === "public";
+  const hasAllowlist = !isPublic;
   const isGtd = phaseKey === "whitelist";
   const wallets = config.allowlist.split(/[\s,]+/).map((a) => a.trim()).filter(Boolean);
 
@@ -293,9 +294,11 @@ function CreatePhaseRow({
           <p className="text-[10px] text-white/35">
             {isGtd
               ? "Guaranteed — every allowlisted wallet can mint any time the phase is live."
-              : "First come, first served — closes automatically once the allocation sells out."}
+              : isPublic
+                ? "Open to everyone — takes whatever's left of the collection's max supply after GTD + FCFS reserve theirs (or the whole supply if you're not using those)."
+                : "First come, first served — closes automatically once the allocation sells out."}
           </p>
-          <div className="grid sm:grid-cols-3 gap-2">
+          <div className={clsx("grid gap-2", isPublic ? "grid-cols-1" : "sm:grid-cols-3")}>
             <input
               type="number"
               min="0"
@@ -305,44 +308,50 @@ function CreatePhaseRow({
               placeholder="Price ETH"
               className="bg-white/5 border border-white/10 rounded px-2 py-1.5 text-xs text-white"
             />
-            <input
-              type="number"
-              min="1"
-              value={config.allocation || ""}
-              onChange={(e) => onChange({ allocation: Number(e.target.value) })}
-              placeholder="Supply allocation"
-              className="bg-white/5 border border-white/10 rounded px-2 py-1.5 text-xs text-white"
-            />
-            <input
-              type="number"
-              min="0"
-              value={config.walletLimit || ""}
-              onChange={(e) => onChange({ walletLimit: Number(e.target.value) })}
-              placeholder="0 = no wallet cap"
-              className="bg-white/5 border border-white/10 rounded px-2 py-1.5 text-xs text-white"
-            />
+            {!isPublic && (
+              <>
+                <input
+                  type="number"
+                  min="1"
+                  value={config.allocation || ""}
+                  onChange={(e) => onChange({ allocation: Number(e.target.value) })}
+                  placeholder="Supply allocation"
+                  className="bg-white/5 border border-white/10 rounded px-2 py-1.5 text-xs text-white"
+                />
+                <input
+                  type="number"
+                  min="0"
+                  value={config.walletLimit || ""}
+                  onChange={(e) => onChange({ walletLimit: Number(e.target.value) })}
+                  placeholder="0 = no wallet cap"
+                  className="bg-white/5 border border-white/10 rounded px-2 py-1.5 text-xs text-white"
+                />
+              </>
+            )}
           </div>
 
-          <div className="grid sm:grid-cols-2 gap-2">
-            <div>
-              <label className="text-[10px] text-white/35 block mb-1">Starts (optional)</label>
-              <input
-                type="datetime-local"
-                value={config.startsAt}
-                onChange={(e) => onChange({ startsAt: e.target.value })}
-                className="w-full bg-white/5 border border-white/10 rounded px-2 py-1.5 text-xs text-white"
-              />
+          {!isPublic && (
+            <div className="grid sm:grid-cols-2 gap-2">
+              <div>
+                <label className="text-[10px] text-white/35 block mb-1">Starts (optional)</label>
+                <input
+                  type="datetime-local"
+                  value={config.startsAt}
+                  onChange={(e) => onChange({ startsAt: e.target.value })}
+                  className="w-full bg-white/5 border border-white/10 rounded px-2 py-1.5 text-xs text-white"
+                />
+              </div>
+              <div>
+                <label className="text-[10px] text-white/35 block mb-1">Ends (optional)</label>
+                <input
+                  type="datetime-local"
+                  value={config.endsAt}
+                  onChange={(e) => onChange({ endsAt: e.target.value })}
+                  className="w-full bg-white/5 border border-white/10 rounded px-2 py-1.5 text-xs text-white"
+                />
+              </div>
             </div>
-            <div>
-              <label className="text-[10px] text-white/35 block mb-1">Ends (optional)</label>
-              <input
-                type="datetime-local"
-                value={config.endsAt}
-                onChange={(e) => onChange({ endsAt: e.target.value })}
-                className="w-full bg-white/5 border border-white/10 rounded px-2 py-1.5 text-xs text-white"
-              />
-            </div>
-          </div>
+          )}
 
           {hasAllowlist && (
             <div>

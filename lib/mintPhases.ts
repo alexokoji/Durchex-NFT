@@ -69,13 +69,27 @@ type MintPhasesLike = Record<PhaseKey, ConfiguredPhaseLike | undefined>;
  * Whether the creator has ever set up phases for this collection at all.
  * Phases are optional — a collection that's never touched them should mint
  * exactly like it always did (no gating), matching how "Optional mint
- * phases" is presented at creation. allocation > 0 is required to enable a
- * phase (see the PATCH/POST collection routes), so it's a reliable signal
- * that this isn't just the untouched default state.
+ * phases" is presented at creation. allocation > 0 is required to enable
+ * GTD/FCFS (see the PATCH/POST collection routes), so it's a reliable
+ * signal for those two. Public has no allocation of its own to check (its
+ * supply is derived, see computePublicAllocation) — its own enabled flag
+ * is the signal instead.
  */
 export function hasConfiguredPhases(mintPhases: MintPhasesLike | undefined): boolean {
   if (!mintPhases) return false;
-  return PHASE_KEYS.some((key) => (mintPhases[key]?.allocation ?? 0) > 0);
+  return (mintPhases.whitelist?.allocation ?? 0) > 0 || (mintPhases.og?.allocation ?? 0) > 0 || !!mintPhases.public?.enabled;
+}
+
+/**
+ * Public has no allocation of its own — it opens up whatever's left of the
+ * collection's supply after GTD + FCFS. If the collection has no maxSupply
+ * cap (0 = unlimited), Public is uncapped too, regardless of what GTD/FCFS
+ * reserved. Returns 0 to mean "unlimited", matching the existing
+ * allocation convention everywhere else.
+ */
+export function computePublicAllocation(maxSupply: number, whitelistAllocation: number, ogAllocation: number): number {
+  if (!maxSupply || maxSupply <= 0) return 0;
+  return Math.max(0, maxSupply - whitelistAllocation - ogAllocation);
 }
 
 /** The currently-live phase, checked in GTD → FCFS → Public priority order. */

@@ -3,7 +3,7 @@ import { connectDB } from "@/lib/db";
 import { Collection } from "@/lib/models/Collection";
 import { getCurrentUser } from "@/lib/auth/currentUser";
 import { CategoryKey } from "@/components/ui/CategoryIcon";
-import { normalizePhase } from "@/lib/mintPhases";
+import { normalizePhase, computePublicAllocation } from "@/lib/mintPhases";
 import { DEFAULT_NFT_ADDRESS, DEFAULT_NFT_CHAIN_ID } from "@/lib/web3/deployedContract";
 
 const CATEGORIES: CategoryKey[] = [
@@ -69,12 +69,26 @@ export async function POST(req: NextRequest) {
   const logoUrl = String(body.logoUrl ?? "").trim();
   const bannerUrl = String(body.bannerUrl ?? "").trim();
   const royaltyBps = Math.min(Math.max(Number(body.royaltyBps ?? 500), 0), 3000);
-  const mintPhases = {
-    whitelist: normalizePhase(body.mintPhases?.whitelist, true),
-    og: normalizePhase(body.mintPhases?.og, true),
-    public: normalizePhase(body.mintPhases?.public),
-  };
   const maxSupply = Math.max(0, Math.floor(Number(body.maxSupply ?? 0)));
+  const whitelistPhase = normalizePhase(body.mintPhases?.whitelist, true);
+  const ogPhase = normalizePhase(body.mintPhases?.og, true);
+  // Public has no allocation/walletLimit/schedule of its own — supply is
+  // whatever's left of maxSupply after GTD (whitelist) + FCFS (og), or
+  // unlimited if maxSupply isn't set.
+  const publicAllocation = computePublicAllocation(maxSupply, whitelistPhase.allocation, ogPhase.allocation);
+  const soldOutBeforeOpening = maxSupply > 0 && publicAllocation === 0;
+  const mintPhases = {
+    whitelist: whitelistPhase,
+    og: ogPhase,
+    public: {
+      enabled: soldOutBeforeOpening ? false : !!body.mintPhases?.public?.enabled,
+      priceEth: Math.max(0, Number(body.mintPhases?.public?.priceEth ?? 0)),
+      allocation: publicAllocation,
+      walletLimit: 0,
+      startsAt: null,
+      endsAt: null,
+    },
+  };
   const payoutRecipients = (Array.isArray(body.payoutRecipients) ? body.payoutRecipients : [])
     .map((p: { address?: string; shareBps?: number }) => ({ address: String(p.address ?? "").trim().toLowerCase(), shareBps: Math.max(0, Math.floor(Number(p.shareBps ?? 0))) }))
     .filter((p: { address: string; shareBps: number }) => /^0x[a-f0-9]{40}$/.test(p.address) && p.shareBps > 0);
@@ -85,7 +99,7 @@ export async function POST(req: NextRequest) {
   if (!CATEGORIES.includes(category)) {
     return NextResponse.json({ error: "Invalid category" }, { status: 400 });
   }
-  if ([mintPhases.whitelist, mintPhases.og, mintPhases.public].some((phase) => phase.enabled && phase.allocation === 0)) {
+  if ([mintPhases.whitelist, mintPhases.og].some((phase) => phase.enabled && phase.allocation === 0)) {
     return NextResponse.json({ error: "Each enabled mint phase needs a supply allocation." }, { status: 400 });
   }
   if ((mintPhases.whitelist.enabled && mintPhases.whitelist.allowlist.length === 0) || (mintPhases.og.enabled && mintPhases.og.allowlist.length === 0)) {
