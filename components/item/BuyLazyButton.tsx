@@ -7,6 +7,7 @@ import { useAccount, useSwitchChain, useWriteContract, usePublicClient } from "w
 import { useConnectModal } from "@rainbow-me/rainbowkit";
 import { Button } from "@/components/ui/Button";
 import { MARKETPLACE_ABI, MARKETPLACE_ADDRESS } from "@/lib/web3/marketplaceAbi";
+import { explorerTxUrl } from "@/lib/web3/explorer";
 import { ItemDetailView } from "@/lib/types";
 
 /**
@@ -110,9 +111,10 @@ export function BuyLazyButton({ item }: { item: ItemDetailView }) {
       </Button>
       {txHash && (
         <a
-          href={`#`}
-          onClick={(e) => e.preventDefault()}
-          className="mt-2 flex items-center gap-1 text-[11px] text-white/40"
+          href={explorerTxUrl(item.chainId, txHash) ?? undefined}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="mt-2 flex items-center gap-1 text-[11px] text-white/40 hover:text-white/70 transition"
         >
           <ExternalLink className="w-3 h-3" />
           tx {txHash.slice(0, 10)}…{txHash.slice(-6)}

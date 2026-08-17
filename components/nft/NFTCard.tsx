@@ -49,13 +49,15 @@ export function NFTCard({ item }: { item: ItemView }) {
         </button>
 
         <div className="absolute inset-x-0 bottom-0 p-2.5 translate-y-full group-hover:translate-y-0 transition-transform duration-300">
-          <button
-            className="w-full py-2 rounded-lg bg-white text-void text-xs font-bold shadow-lg hover:bg-purple-100 transition flex items-center justify-center gap-1.5"
-            onClick={(e) => e.preventDefault()}
-          >
+          {/* Not an inline purchase — a real buy needs the wallet-signed
+              voucher/contract/chain data this lightweight card view doesn't
+              carry, so this takes you to the item page where the real
+              Buy & Mint / Buy Now button lives. Plain <span>, not a nested
+              <button>, since the card itself is already the clickable <Link>. */}
+          <span className="w-full py-2 rounded-lg bg-white text-void text-xs font-bold shadow-lg group-hover:bg-purple-100 transition flex items-center justify-center gap-1.5">
             <Zap className="w-3.5 h-3.5" />
             {item.isMinted ? "Quick Buy" : "Buy & Mint"}
-          </button>
+          </span>
         </div>
       </div>
 

@@ -218,6 +218,18 @@ export async function getCollectionBySlug(slug: string): Promise<CollectionDetai
   await connectDB();
   const doc = await Collection.findOne({ slug }).populate("creator", "address").lean();
   if (!doc) return null;
+
+  // stats.owners is only ever set at seed time — it never reflects real
+  // ownership changes from minting/buying/reselling, so compute it live
+  // instead of trusting the stored (and usually stale/zero) value.
+  const ownersAgg = await Item.aggregate([
+    { $match: { collection: doc._id } },
+    { $group: { _id: "$owner" } },
+    { $count: "count" },
+  ]);
+  doc.stats.owners = ownersAgg[0]?.count ?? 0;
+  doc.stats.items = await Item.countDocuments({ collection: doc._id });
+
   return toCollectionDetailView(doc as never);
 }
 
