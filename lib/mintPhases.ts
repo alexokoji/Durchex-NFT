@@ -61,3 +61,25 @@ export function isPhaseLive(phase: PhaseLike | undefined, now: Date = new Date()
   if (phase.endsAt && now > new Date(phase.endsAt)) return false;
   return true;
 }
+
+type ConfiguredPhaseLike = { allocation?: number; enabled?: boolean; startsAt?: Date | string | null; endsAt?: Date | string | null };
+type MintPhasesLike = Record<PhaseKey, ConfiguredPhaseLike | undefined>;
+
+/**
+ * Whether the creator has ever set up phases for this collection at all.
+ * Phases are optional — a collection that's never touched them should mint
+ * exactly like it always did (no gating), matching how "Optional mint
+ * phases" is presented at creation. allocation > 0 is required to enable a
+ * phase (see the PATCH/POST collection routes), so it's a reliable signal
+ * that this isn't just the untouched default state.
+ */
+export function hasConfiguredPhases(mintPhases: MintPhasesLike | undefined): boolean {
+  if (!mintPhases) return false;
+  return PHASE_KEYS.some((key) => (mintPhases[key]?.allocation ?? 0) > 0);
+}
+
+/** The currently-live phase, checked in GTD → FCFS → Public priority order. */
+export function pickActivePhase(mintPhases: MintPhasesLike | undefined, now: Date = new Date()): PhaseKey | null {
+  if (!mintPhases) return null;
+  return PHASE_KEYS.find((key) => isPhaseLive(mintPhases[key], now)) ?? null;
+}
