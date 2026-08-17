@@ -18,8 +18,10 @@ export function ListEditionForm({ item }: { item: ItemDetailView }) {
   const { signTypedDataAsync } = useSignTypedData();
 
   const [balance, setBalance] = useState(0);
+  const [mode, setMode] = useState<"fixed" | "auction">("fixed");
   const [quantity, setQuantity] = useState("");
   const [priceEth, setPriceEth] = useState("");
+  const [durationHours, setDurationHours] = useState("24");
   const [phase, setPhase] = useState<"idle" | "switching" | "approving" | "signing" | "saving">("idle");
   const [error, setError] = useState<string | null>(null);
 
@@ -49,7 +51,7 @@ export function ListEditionForm({ item }: { item: ItemDetailView }) {
       return;
     }
     if (!Number.isFinite(price) || price <= 0) {
-      setError("Enter a valid per-unit price");
+      setError(mode === "auction" ? "Enter a valid reserve price" : "Enter a valid per-unit price");
       return;
     }
     setError(null);
@@ -72,42 +74,62 @@ export function ListEditionForm({ item }: { item: ItemDetailView }) {
         await refetchApproval();
       }
 
-      setPhase("signing");
-      const nonce = generateListing1155Nonce();
-      const typedData = buildListing1155TypedData({
-        chainId: item.chainId,
-        verifyingContract: MARKETPLACE_ADDRESS!,
-        nft: item.contractAddress,
-        tokenId: item.tokenId!,
-        seller: address as `0x${string}`,
-        quantity: qty,
-        pricePerUnitEth: price,
-        nonce,
-      });
-      const signature = await signTypedDataAsync(typedData);
-
-      setPhase("saving");
-      const res = await fetch(`/api/items/${item.id}/listings`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
+      if (mode === "auction") {
+        // Nothing to sign yet — the winner and final price aren't known
+        // until the auction ends; the seller signs the actual sale then.
+        setPhase("saving");
+        const nonce = generateListing1155Nonce();
+        const res = await fetch(`/api/items/${item.id}/listings`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            quantity: qty,
+            pricePerUnitEth: price,
+            isAuction: true,
+            auctionEndsAt: new Date(Date.now() + Number(durationHours) * 60 * 60 * 1000).toISOString(),
+            nonce: nonce.toString(),
+          }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error ?? "Failed to start auction");
+      } else {
+        setPhase("signing");
+        const nonce = generateListing1155Nonce();
+        const typedData = buildListing1155TypedData({
+          chainId: item.chainId,
+          verifyingContract: MARKETPLACE_ADDRESS!,
+          nft: item.contractAddress,
+          tokenId: item.tokenId!,
+          seller: address as `0x${string}`,
           quantity: qty,
           pricePerUnitEth: price,
-          signature,
-          listing: {
-            nft: typedData.message.nft,
-            tokenId: typedData.message.tokenId.toString(),
-            seller: typedData.message.seller,
-            buyer: typedData.message.buyer,
-            quantity: typedData.message.quantity.toString(),
-            pricePerUnit: typedData.message.pricePerUnit.toString(),
-            deadline: typedData.message.deadline.toString(),
-            nonce: typedData.message.nonce.toString(),
-          },
-        }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error ?? "Failed to list");
+          nonce,
+        });
+        const signature = await signTypedDataAsync(typedData);
+
+        setPhase("saving");
+        const res = await fetch(`/api/items/${item.id}/listings`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            quantity: qty,
+            pricePerUnitEth: price,
+            signature,
+            listing: {
+              nft: typedData.message.nft,
+              tokenId: typedData.message.tokenId.toString(),
+              seller: typedData.message.seller,
+              buyer: typedData.message.buyer,
+              quantity: typedData.message.quantity.toString(),
+              pricePerUnit: typedData.message.pricePerUnit.toString(),
+              deadline: typedData.message.deadline.toString(),
+              nonce: typedData.message.nonce.toString(),
+            },
+          }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error ?? "Failed to list");
+      }
 
       setPhase("idle");
       setQuantity("");
@@ -125,7 +147,23 @@ export function ListEditionForm({ item }: { item: ItemDetailView }) {
         <Tag className="w-4 h-4 text-purple-300" /> List some for sale
       </div>
       <p className="text-xs text-white/45 mb-3">You hold {balance}. Choose how many to sell and at what price each.</p>
-      <div className="grid grid-cols-2 gap-2 mb-2">
+      <div className="flex gap-2 mb-2">
+        <button
+          type="button"
+          onClick={() => setMode("fixed")}
+          className={`flex-1 rounded-lg border px-3 py-1.5 text-xs font-medium ${mode === "fixed" ? "border-purple-500/60 bg-purple-700/15 text-white" : "border-white/10 text-white/50 hover:border-white/20"}`}
+        >
+          Fixed price
+        </button>
+        <button
+          type="button"
+          onClick={() => setMode("auction")}
+          className={`flex-1 rounded-lg border px-3 py-1.5 text-xs font-medium ${mode === "auction" ? "border-purple-500/60 bg-purple-700/15 text-white" : "border-white/10 text-white/50 hover:border-white/20"}`}
+        >
+          Auction
+        </button>
+      </div>
+      <div className={`grid gap-2 mb-2 ${mode === "auction" ? "grid-cols-3" : "grid-cols-2"}`}>
         <input
           type="number"
           min="1"
@@ -141,9 +179,19 @@ export function ListEditionForm({ item }: { item: ItemDetailView }) {
           step="0.001"
           value={priceEth}
           onChange={(e) => setPriceEth(e.target.value)}
-          placeholder="Price per unit (ETH)"
+          placeholder={mode === "auction" ? "Reserve price/unit (ETH)" : "Price per unit (ETH)"}
           className="bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white placeholder:text-white/30 focus:outline-none focus:border-purple-500/60"
         />
+        {mode === "auction" && (
+          <input
+            type="number"
+            min="1"
+            value={durationHours}
+            onChange={(e) => setDurationHours(e.target.value)}
+            placeholder="Duration (hours)"
+            className="bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white placeholder:text-white/30 focus:outline-none focus:border-purple-500/60"
+          />
+        )}
       </div>
       <Button
         onClick={submit}
@@ -154,7 +202,7 @@ export function ListEditionForm({ item }: { item: ItemDetailView }) {
         {phase === "approving" && "Approve in wallet…"}
         {phase === "signing" && "Sign listing in wallet…"}
         {phase === "saving" && "Listing…"}
-        {phase === "idle" && "List for sale"}
+        {phase === "idle" && (mode === "auction" ? "Start auction" : "List for sale")}
       </Button>
       {!isApproved && (
         <p className="text-[11px] text-white/35 mt-2">

@@ -14,9 +14,10 @@ import { recalculateCollectionFloor } from "@/lib/floorPrice";
 export async function GET(_req: NextRequest, context: { params: Promise<{ id: string }> }) {
   const { id } = await context.params;
   await connectDB();
-  const listings = await Listing.find({ item: id, status: "active" })
+  const listings = await Listing.find({ item: id, status: { $in: ["active", "auction"] } })
     .sort({ pricePerUnitEth: 1 })
     .populate("seller", "username address")
+    .populate("highestBidder", "username address")
     .lean();
   return NextResponse.json({
     listings: listings.map((l) => ({
@@ -32,6 +33,11 @@ export async function GET(_req: NextRequest, context: { params: Promise<{ id: st
       signature: l.signature,
       nft: l.nft,
       tokenId: l.tokenId,
+      status: l.status,
+      isAuction: l.isAuction,
+      auctionEndsAt: l.auctionEndsAt,
+      highestBidEth: l.highestBidEth,
+      highestBidder: l.highestBidder,
     })),
   });
 }
@@ -63,11 +69,41 @@ export async function POST(req: NextRequest, context: { params: Promise<{ id: st
     return NextResponse.json({ error: "You don't hold enough of this item to list that quantity" }, { status: 400 });
   }
 
+  const collection = await Collection.findById(item.collection).select("contractAddress").lean();
+
+  // Auction lots: nothing to sign yet — the seller only signs a Listing1155
+  // at settlement, once the winner and final price are actually known.
+  if (body.isAuction) {
+    const auctionEndsAt = new Date(body.auctionEndsAt);
+    if (!(auctionEndsAt.getTime() > Date.now())) {
+      return NextResponse.json({ error: "Auction end time must be in the future" }, { status: 400 });
+    }
+    const nonce = String(body.nonce ?? "");
+    if (!nonce) {
+      return NextResponse.json({ error: "Missing auction nonce" }, { status: 400 });
+    }
+    const listing = await Listing.create({
+      item: item._id,
+      collection: item.collection,
+      seller: user._id,
+      nft: collection?.contractAddress,
+      tokenId: String(item.tokenId),
+      quantity,
+      filledQuantity: 0,
+      pricePerUnitEth, // reserve price per unit
+      nonce,
+      status: "auction",
+      isAuction: true,
+      auctionEndsAt,
+    });
+    await recalculateCollectionFloor(item.collection);
+    return NextResponse.json({ id: String(listing._id) }, { status: 201 });
+  }
+
   const listingData = body.listing;
   if (!listingData || typeof body.signature !== "string") {
     return NextResponse.json({ error: "A signed listing authorization is required" }, { status: 400 });
   }
-  const collection = await Collection.findById(item.collection).select("contractAddress").lean();
   if (
     String(listingData.tokenId) !== String(item.tokenId) ||
     listingData.seller?.toLowerCase() !== user.address.toLowerCase() ||

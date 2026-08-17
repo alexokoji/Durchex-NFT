@@ -20,17 +20,27 @@ const ListingSchema = new Schema(
     // listing1155Filled mapping; this is a best-effort local mirror kept
     // in sync by chainSync.ts, used for display/floor-price purposes.
     filledQuantity: { type: Number, default: 0 },
+    // pricePerUnitEth doubles as the auction reserve price while
+    // isAuction && status === "auction" — the actual per-unit settlement
+    // price (highestBidEth / quantity) is only known once the auction ends.
     pricePerUnitEth: { type: Number, required: true },
     buyer: { type: String, default: null }, // restricted buyer address, if any
     deadline: { type: Date, default: null },
     nonce: { type: String, required: true },
-    signature: { type: String, required: true },
+    // Auctions have no seller signature yet at creation — nothing to sign
+    // until the winner (and therefore the final price) is known. Filled in
+    // by the settle step, which is what actually unlocks the on-chain buy.
+    signature: { type: String, default: null },
     status: {
       type: String,
-      enum: ["active", "cancelled", "filled", "expired"],
+      enum: ["active", "auction", "cancelled", "filled", "expired"],
       default: "active",
       index: true,
     },
+    isAuction: { type: Boolean, default: false },
+    auctionEndsAt: { type: Date, default: null },
+    highestBidEth: { type: Number, default: 0 },
+    highestBidder: { type: Schema.Types.ObjectId, ref: "User", default: null },
   },
   { timestamps: true }
 );

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { connectDB } from "@/lib/db";
 import { Item } from "@/lib/models/Item";
 import { Bid } from "@/lib/models/Bid";
+import { Listing } from "@/lib/models/Listing";
 import { getCurrentUser } from "@/lib/auth/currentUser";
 import { recordActivity } from "@/lib/activity";
 import { createNotification } from "@/lib/notifications";
@@ -33,6 +34,62 @@ export async function POST(req: NextRequest) {
   // "already own it" guard only makes sense for single-owner 721 items.
   if (item.standard === "ERC721" && String(item.owner) === String(user._id)) {
     return NextResponse.json({ error: "You already own this item" }, { status: 400 });
+  }
+
+  // ERC-1155 auction lots are bid on per-Listing (several can exist on the
+  // same item from different sellers), not via the item's single auction
+  // slot — a separate path from the 721 flow below.
+  if (type === "auction_bid" && item.standard === "ERC1155") {
+    const listingId = String(body.listingId ?? "");
+    const listing = listingId ? await Listing.findById(listingId) : null;
+    if (!listing || String(listing.item) !== String(item._id) || !listing.isAuction) {
+      return NextResponse.json({ error: "This auction lot doesn't exist" }, { status: 404 });
+    }
+    if (listing.status !== "auction" || (listing.auctionEndsAt && listing.auctionEndsAt.getTime() < Date.now())) {
+      return NextResponse.json({ error: "This auction has ended" }, { status: 400 });
+    }
+    if (String(listing.seller) === String(user._id)) {
+      return NextResponse.json({ error: "You can't bid on your own auction" }, { status: 400 });
+    }
+
+    const updated = await Listing.findOneAndUpdate(
+      {
+        _id: listing._id,
+        status: "auction",
+        $expr: {
+          $gt: [amountEth, { $cond: [{ $gt: ["$highestBidEth", 0] }, "$highestBidEth", "$pricePerUnitEth"] }],
+        },
+      },
+      { $set: { highestBidEth: amountEth, highestBidder: user._id } }
+    );
+    if (!updated) {
+      const currentHigh = listing.highestBidEth || listing.pricePerUnitEth || 0;
+      return NextResponse.json(
+        { error: `Bid must be higher than the current bid of ${currentHigh} ETH` },
+        { status: 409 }
+      );
+    }
+
+    const previousTopBid = await Bid.findOne({ listing: listing._id, type: "auction_bid", status: "active" }).sort({
+      amountEth: -1,
+    });
+
+    const bid = await Bid.create({
+      item: item._id,
+      listing: listing._id,
+      bidder: user._id,
+      type: "auction_bid",
+      amountEth,
+      quantity: listing.quantity,
+    });
+
+    await recordActivity({ type: "bid", item: item._id, from: user._id, priceEth: amountEth, quantity: listing.quantity });
+    await createNotification({ user: listing.seller, type: "bid", item: item._id, fromUser: user._id, amountEth });
+    if (previousTopBid && String(previousTopBid.bidder) !== String(user._id)) {
+      await createNotification({ user: previousTopBid.bidder, type: "outbid", item: item._id, fromUser: user._id, amountEth });
+    }
+
+    return NextResponse.json({ id: String(bid._id) }, { status: 201 });
   }
 
   if (type === "auction_bid") {
