@@ -47,7 +47,8 @@ export async function POST(req: NextRequest, context: { params: Promise<{ id: st
     return NextResponse.json({ error: "This phase is sold out" }, { status: 409 });
   }
 
-  const sellsOut = racesAllocation && config.allocation > 0 && config.minted + quantity >= config.allocation;
+  // Increment atomically first — the $lte guard is what actually prevents
+  // overselling under concurrency, verified under real concurrent load.
   const updated = await Collection.findOneAndUpdate(
     {
       _id: id,
@@ -56,16 +57,28 @@ export async function POST(req: NextRequest, context: { params: Promise<{ id: st
         ? { [`mintPhases.${key}.minted`]: { $lte: config.allocation - quantity } }
         : {}),
     },
-    {
-      $inc: { [`mintPhases.${key}.minted`]: quantity },
-      // FCFS phases close themselves the moment they sell out, rather than
-      // staying "enabled" with nothing left to claim.
-      ...(sellsOut ? { $set: { [`mintPhases.${key}.enabled`]: false } } : {}),
-    },
+    { $inc: { [`mintPhases.${key}.minted`]: quantity } },
     { new: true }
   ).select(`mintPhases.${key}`);
   if (!updated) {
     return NextResponse.json({ error: "This phase is sold out" }, { status: 409 });
+  }
+
+  // Decide sellout from the POST-increment value, not a pre-read snapshot —
+  // under real concurrency, every request in a simultaneous burst reads the
+  // same stale "not sold out yet" snapshot before any of the increments
+  // land, so a decision made from that snapshot never fires even once the
+  // phase is genuinely exhausted. MongoDB's $inc is atomic regardless of
+  // app-level concurrency, so `updated.minted` here is the true, current
+  // cumulative total — safe to decide from.
+  const finalMinted = updated.mintPhases[key].minted;
+  const allocation = updated.mintPhases[key].allocation;
+  const sellsOut = racesAllocation && allocation > 0 && finalMinted >= allocation;
+  if (sellsOut) {
+    await Collection.updateOne(
+      { _id: id, [`mintPhases.${key}.enabled`]: true },
+      { $set: { [`mintPhases.${key}.enabled`]: false } }
+    );
   }
 
   await PhaseClaim.findOneAndUpdate(
@@ -76,8 +89,8 @@ export async function POST(req: NextRequest, context: { params: Promise<{ id: st
 
   return NextResponse.json({
     claimed: alreadyClaimed + quantity,
-    minted: updated.mintPhases[key].minted,
-    allocation: updated.mintPhases[key].allocation,
+    minted: finalMinted,
+    allocation,
     soldOut: sellsOut,
   });
 }
