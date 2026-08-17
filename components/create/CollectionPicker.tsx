@@ -181,8 +181,9 @@ export function CollectionPicker({
           <div className="pt-1">
             <div className="text-xs font-medium text-white/50 mb-2">Optional mint phases</div>
             <p className="text-[11px] text-white/35 mb-3">
-              Configure your launch now — enforced immediately once enabled. You can toggle phases on/off
-              later from the collection page (e.g. close GTD and open FCFS) without recreating anything.
+              Configure your launch now — enforced immediately once enabled. GTD, FCFS and Public can all be
+              live at once; a wallet eligible for more than one picks which to mint through. You can toggle
+              any of them on/off later from the collection page without recreating anything.
             </p>
             <div className="space-y-2">
               {PHASE_KEYS.map((phase) => (

@@ -72,8 +72,9 @@ export function PhaseManager({ collectionId, creatorAddress }: { collectionId: s
         <Settings2 className="w-4 h-4 text-purple-300" /> Manage mint phases
       </div>
       <p className="text-xs text-white/45 mb-4">
-        Toggle the next phase on and the current one off — no need to relaunch the collection. Set a start/end
-        time on a phase to have it turn on and off automatically instead.
+        GTD, FCFS and Public can all be live at once — toggle any of them on or off independently, or set an
+        end time to have one close on its own. A wallet eligible for more than one live phase picks which to
+        mint through; otherwise they can only mint via Public if it&rsquo;s live.
       </p>
       <div className="space-y-3">
         {(Object.keys(PHASE_LABELS) as PhaseKey[]).map((key) => (
@@ -216,8 +217,8 @@ function PhaseRow({
             </div>
           </div>
           <p className="text-[10px] text-white/30 mt-1">
-            Leave blank to control manually with the Live/Off toggle above. Set both to have it start and stop
-            on its own — handy for scheduling the next phase to kick in the moment this one ends.
+            Leave blank to control manually with the Live/Off toggle above. Set an end time to have this phase
+            close itself automatically — independent of any other phase.
           </p>
 
           <label className="flex items-center gap-1.5 mt-2 text-[11px] text-white/50 cursor-pointer w-fit">

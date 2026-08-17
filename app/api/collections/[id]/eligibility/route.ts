@@ -5,7 +5,7 @@ import { Collection } from "@/lib/models/Collection";
 import { PhaseClaim } from "@/lib/models/PhaseClaim";
 import { getCurrentUser } from "@/lib/auth/currentUser";
 import { merkleProof, merkleRoot } from "@/lib/web3/merkle";
-import { isPhaseLive, hasConfiguredPhases, pickActivePhase, PHASE_KEYS } from "@/lib/mintPhases";
+import { isPhaseLive, hasConfiguredPhases, PHASE_KEYS, PhaseKey } from "@/lib/mintPhases";
 
 export async function GET(request: NextRequest, context: { params: Promise<{ id: string }> }) {
   const user = await getCurrentUser(request);
@@ -40,13 +40,18 @@ export async function GET(request: NextRequest, context: { params: Promise<{ id:
 
   // Overall summary for gating the plain lazy-mint buy flow (not just the
   // drop-contract panel): does this collection use phases at all, and if
-  // so, is the connected wallet actually allowed to mint right now.
+  // so, every currently-live phase this wallet can actually mint through
+  // right now — GTD/FCFS/Public can all be live simultaneously, so the
+  // buyer picks whichever one they're eligible for, not a single "active"
+  // phase the system decides for them.
   const configured = hasConfiguredPhases(collection.mintPhases as never);
-  const activePhase = configured ? pickActivePhase(collection.mintPhases as never) : null;
+  const eligiblePhases: PhaseKey[] = configured
+    ? PHASE_KEYS.filter((key) => result[key].enabled && result[key].eligible && result[key].remaining !== 0)
+    : [];
   const gate = {
     configured,
-    activePhase,
-    canMint: !configured || (activePhase !== null && result[activePhase].eligible && result[activePhase].remaining !== 0),
+    eligiblePhases,
+    canMint: !configured || eligiblePhases.length > 0,
   };
 
   return NextResponse.json({ ...result, gate });

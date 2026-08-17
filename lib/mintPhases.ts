@@ -92,8 +92,14 @@ export function computePublicAllocation(maxSupply: number, whitelistAllocation: 
   return Math.max(0, maxSupply - whitelistAllocation - ogAllocation);
 }
 
-/** The currently-live phase, checked in GTD → FCFS → Public priority order. */
-export function pickActivePhase(mintPhases: MintPhasesLike | undefined, now: Date = new Date()): PhaseKey | null {
-  if (!mintPhases) return null;
-  return PHASE_KEYS.find((key) => isPhaseLive(mintPhases[key], now)) ?? null;
+/**
+ * All phases can run concurrently — GTD, FCFS and Public aren't a sequence,
+ * each one's own enabled flag and (optional) end time decide when it
+ * closes independently. This returns every phase that's currently live;
+ * the buyer then picks whichever one they're eligible for (or Public, if
+ * they're not eligible for GTD/FCFS) — see the eligibility route.
+ */
+export function listLivePhases(mintPhases: MintPhasesLike | undefined, now: Date = new Date()): PhaseKey[] {
+  if (!mintPhases) return [];
+  return PHASE_KEYS.filter((key) => isPhaseLive(mintPhases[key], now));
 }

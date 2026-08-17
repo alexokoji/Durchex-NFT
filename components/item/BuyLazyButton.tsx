@@ -11,7 +11,7 @@ import { explorerTxUrl } from "@/lib/web3/explorer";
 import { PHASE_LABELS, PhaseKey } from "@/lib/mintPhases";
 import { ItemDetailView } from "@/lib/types";
 
-type Gate = { configured: boolean; activePhase: PhaseKey | null; canMint: boolean };
+type Gate = { configured: boolean; eligiblePhases: PhaseKey[]; canMint: boolean };
 
 /**
  * The one real on-chain purchase path in the app: calls
@@ -21,9 +21,10 @@ type Gate = { configured: boolean; activePhase: PhaseKey | null; canMint: boolea
  * up yet" notice in PricePanel instead of pretending to transact.
  *
  * If the collection has mint phases configured (GTD/FCFS/Public), this also
- * gates the button on whether a phase is currently live and the connected
- * wallet is eligible for it — a collection that's never touched phases
- * mints exactly like before, unrestricted.
+ * gates the button on eligibility. GTD/FCFS/Public can all be live at the
+ * same time — they're not a sequence — so a wallet eligible for more than
+ * one gets to pick which one to mint through; a collection that's never
+ * touched phases mints exactly like before, unrestricted.
  */
 export function BuyLazyButton({ item }: { item: ItemDetailView }) {
   const router = useRouter();
@@ -33,10 +34,11 @@ export function BuyLazyButton({ item }: { item: ItemDetailView }) {
   const { writeContractAsync } = useWriteContract();
   const publicClient = usePublicClient({ chainId: item.chainId });
 
-  const [phase, setPhase] = useState<"idle" | "switching" | "confirm" | "mining" | "done">("idle");
+  const [txPhase, setTxPhase] = useState<"idle" | "switching" | "confirm" | "mining" | "done">("idle");
   const [error, setError] = useState<string | null>(null);
   const [txHash, setTxHash] = useState<string | null>(null);
   const [gate, setGate] = useState<Gate | null>(null);
+  const [selectedMintPhase, setSelectedMintPhase] = useState<PhaseKey | null>(null);
 
   useEffect(() => {
     if (!address) {
@@ -45,7 +47,11 @@ export function BuyLazyButton({ item }: { item: ItemDetailView }) {
     }
     fetch(`/api/collections/${item.collectionId}/eligibility`)
       .then((r) => (r.ok ? r.json() : null))
-      .then((data) => data && setGate(data.gate))
+      .then((data) => {
+        if (!data) return;
+        setGate(data.gate);
+        setSelectedMintPhase((current) => current ?? data.gate.eligiblePhases[0] ?? null);
+      })
       .catch(() => setGate(null));
   }, [address, item.collectionId]);
 
@@ -60,11 +66,11 @@ export function BuyLazyButton({ item }: { item: ItemDetailView }) {
     setError(null);
     try {
       if (connectedChainId !== item.chainId) {
-        setPhase("switching");
+        setTxPhase("switching");
         await switchChainAsync({ chainId: item.chainId });
       }
 
-      setPhase("confirm");
+      setTxPhase("confirm");
       const hash = await writeContractAsync({
         address: MARKETPLACE_ADDRESS!,
         abi: MARKETPLACE_ABI,
@@ -86,7 +92,7 @@ export function BuyLazyButton({ item }: { item: ItemDetailView }) {
       });
       setTxHash(hash);
 
-      setPhase("mining");
+      setTxPhase("mining");
       await publicClient?.waitForTransactionReceipt({ hash });
 
       // No indexer runs continuously in this deployment, so tell the server
@@ -99,25 +105,26 @@ export function BuyLazyButton({ item }: { item: ItemDetailView }) {
         body: JSON.stringify({ txHash: hash, chainId: item.chainId }),
       }).catch(() => {});
 
-      // Records this mint against the active phase's per-wallet/allocation
-      // caps, same off-chain enforcement layer DropMintPanel uses.
-      if (gate?.activePhase) {
-        await fetch(`/api/collections/${item.collectionId}/phases/${gate.activePhase}/claim`, {
+      // Records this mint against whichever phase the buyer minted through —
+      // per-wallet/allocation caps, same off-chain enforcement layer
+      // DropMintPanel uses.
+      if (selectedMintPhase) {
+        await fetch(`/api/collections/${item.collectionId}/phases/${selectedMintPhase}/claim`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ quantity: 1 }),
         }).catch(() => {});
       }
 
-      setPhase("done");
+      setTxPhase("done");
       setTimeout(() => router.refresh(), 500);
     } catch (err) {
       setError(err instanceof Error ? err.message.split("\n")[0] : "Transaction failed");
-      setPhase("idle");
+      setTxPhase("idle");
     }
   }
 
-  if (phase === "done") {
+  if (txPhase === "done") {
     return (
       <div className="rounded-xl bg-success/10 border border-success/30 p-4 text-center">
         <p className="text-sm font-medium text-success mb-1">Purchased on-chain 🎉</p>
@@ -130,30 +137,47 @@ export function BuyLazyButton({ item }: { item: ItemDetailView }) {
   // no — a wallet that hasn't connected yet, or hasn't loaded gate state,
   // still gets the normal button (clicking it prompts connect as usual).
   if (address && gate && gate.configured && !gate.canMint) {
-    const label = gate.activePhase ? PHASE_LABELS[gate.activePhase] : null;
     return (
       <div className="rounded-xl bg-white/5 border border-white/10 p-4 text-center">
         <Lock className="w-4 h-4 text-white/30 mx-auto mb-1.5" />
-        <p className="text-sm font-medium text-white/70">
-          {label ? `${label} is live, but this wallet isn't eligible` : "No mint phase is open right now"}
-        </p>
-        <p className="text-xs text-white/40 mt-1">Check back once the next phase opens.</p>
+        <p className="text-sm font-medium text-white/70">No mint phase this wallet is eligible for is open right now</p>
+        <p className="text-xs text-white/40 mt-1">Check back once GTD, FCFS, or Public opens up.</p>
       </div>
     );
   }
 
+  const showPhasePicker = address && gate?.configured && gate.eligiblePhases.length > 1;
+
   return (
     <div>
+      {showPhasePicker && (
+        <div className="flex gap-1.5 mb-2.5">
+          {gate!.eligiblePhases.map((key) => (
+            <button
+              key={key}
+              onClick={() => setSelectedMintPhase(key)}
+              className={
+                "flex-1 text-xs font-medium rounded-lg px-2.5 py-1.5 border transition " +
+                (selectedMintPhase === key
+                  ? "border-purple-500/60 bg-purple-700/20 text-white"
+                  : "border-white/10 text-white/50 hover:border-white/20")
+              }
+            >
+              {PHASE_LABELS[key]}
+            </button>
+          ))}
+        </div>
+      )}
       <Button
         size="lg"
-        icon={phase === "idle" ? <Zap className="w-4 h-4" /> : <Loader2 className="w-4 h-4 animate-spin" />}
+        icon={txPhase === "idle" ? <Zap className="w-4 h-4" /> : <Loader2 className="w-4 h-4 animate-spin" />}
         onClick={buy}
-        disabled={phase !== "idle"}
+        disabled={txPhase !== "idle"}
       >
-        {phase === "switching" && "Switch network in your wallet…"}
-        {phase === "confirm" && "Confirm in your wallet…"}
-        {phase === "mining" && "Minting on-chain…"}
-        {phase === "idle" && "Buy & Mint (on-chain)"}
+        {txPhase === "switching" && "Switch network in your wallet…"}
+        {txPhase === "confirm" && "Confirm in your wallet…"}
+        {txPhase === "mining" && "Minting on-chain…"}
+        {txPhase === "idle" && "Buy & Mint (on-chain)"}
       </Button>
       {txHash && (
         <a
