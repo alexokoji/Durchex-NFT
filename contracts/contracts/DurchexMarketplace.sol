@@ -11,7 +11,7 @@ import "./DurchexNFT.sol";
 /// sales (both lazy-minted and already-minted), and English auctions.
 /// See docs/Durchex-NFT-Marketplace-Full-Specification.pdf section 5.2.
 contract DurchexMarketplace is ReentrancyGuard {
-    uint96 public constant PLATFORM_FEE_BPS = 250; // 2.5%
+    uint96 public constant PLATFORM_FEE_BPS = 1000; // 10%
     address public feeRecipient;
 
     event VoucherRedeemed(address indexed nft, uint256 indexed tokenId, address buyer, uint256 price);

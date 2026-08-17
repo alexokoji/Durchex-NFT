@@ -71,9 +71,9 @@ describe("DurchexMarketplace", () => {
 
     expect(await nft.ownerOf(voucher.tokenId)).to.equal(buyer.address);
 
-    // 2.5% platform fee; creator is both seller and royalty receiver on a
+    // 10% platform fee; creator is both seller and royalty receiver on a
     // first sale, so they simply keep the rest (no separate royalty split).
-    const expectedFee = (price * 250n) / 10000n;
+    const expectedFee = (price * 1000n) / 10000n;
     expect(await ethers.provider.getBalance(feeRecipient.address)).to.equal(feeBefore + expectedFee);
     expect(await ethers.provider.getBalance(creator.address)).to.equal(
       creatorBefore + (price - expectedFee)
@@ -124,7 +124,7 @@ describe("DurchexMarketplace", () => {
 
     expect(await nft.ownerOf(voucher.tokenId)).to.equal(resaleBuyer.address);
 
-    const expectedFee = (resalePrice * 250n) / 10000n;
+    const expectedFee = (resalePrice * 1000n) / 10000n;
     const expectedRoyalty = (resalePrice * 500n) / 10000n; // creator's 5% royalty
     const expectedSellerProceeds = resalePrice - expectedFee - expectedRoyalty;
 

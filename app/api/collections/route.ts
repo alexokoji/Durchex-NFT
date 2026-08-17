@@ -68,7 +68,7 @@ export async function POST(req: NextRequest) {
   const description = String(body.description ?? "").trim();
   const logoUrl = String(body.logoUrl ?? "").trim();
   const bannerUrl = String(body.bannerUrl ?? "").trim();
-  const royaltyBps = Math.min(Math.max(Number(body.royaltyBps ?? 500), 0), 1000);
+  const royaltyBps = Math.min(Math.max(Number(body.royaltyBps ?? 500), 0), 3000);
   const mintPhases = {
     whitelist: normalizePhase(body.mintPhases?.whitelist, true),
     og: normalizePhase(body.mintPhases?.og, true),

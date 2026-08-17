@@ -52,7 +52,7 @@ contract DurchexDrop is ERC721, ERC721URIStorage, ERC2981, ReentrancyGuard, Owna
         uint96 royaltyBps_
     ) ERC721(name_, symbol_) Ownable(msg.sender) {
         require(payoutRecipient_ != address(0), "DurchexDrop: zero payout");
-        require(royaltyBps_ <= 1000, "DurchexDrop: royalty too high");
+        require(royaltyBps_ <= 3000, "DurchexDrop: royalty too high");
         maxSupply = maxSupply_;
         baseTokenURI = baseTokenURI_;
         payoutRecipient = payoutRecipient_;

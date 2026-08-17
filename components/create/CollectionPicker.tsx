@@ -229,7 +229,7 @@ export function CollectionPicker({
             <input
               type="range"
               min={0}
-              max={1000}
+              max={3000}
               step={50}
               value={form.royaltyBps}
               onChange={(e) => setForm((f) => ({ ...f, royaltyBps: Number(e.target.value) }))}
