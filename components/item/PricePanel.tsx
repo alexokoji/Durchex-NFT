@@ -29,6 +29,11 @@ export function PricePanel({ item }: { item: ItemDetailView }) {
   const isLiveOnChainBuy = !isAuction && !item.isMinted && !!item.voucher && !!MARKETPLACE_ADDRESS;
   const isLiveResaleBuy =
     !isAuction && item.isMinted && item.status === "fixed_price" && !!item.tokenId && !!MARKETPLACE_ADDRESS;
+  // A minted item that isn't currently listed for resale at all — nothing
+  // is "not wired up" here, there's just no live listing to buy. Distinct
+  // from isLiveResaleBuy being false because the marketplace contract isn't
+  // configured, which is a real "not wired up yet" case.
+  const notCurrentlyListed = !isAuction && item.isMinted && item.status !== "fixed_price";
 
   function comingSoon(label: string) {
     setNotice(
@@ -105,6 +110,11 @@ export function PricePanel({ item }: { item: ItemDetailView }) {
                 <BuyLazyButton item={item} />
               ) : isLiveResaleBuy ? (
                 <BuyListedButton item={item} />
+              ) : notCurrentlyListed ? (
+                <div className="rounded-xl bg-white/5 border border-white/10 p-4 text-center">
+                  <p className="text-sm font-medium text-white/60">Not currently for sale</p>
+                  <p className="text-xs text-white/35 mt-1">The owner hasn&rsquo;t listed this item.</p>
+                </div>
               ) : (
                 <Button
                   size="lg"
