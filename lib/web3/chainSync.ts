@@ -24,18 +24,14 @@ export async function resolveOrCreateUser(address: string) {
   return user;
 }
 
-function escapeRegExp(value: string) {
-  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-}
-
-// contractAddress is stored checksummed (mixed-case, via viem's getAddress())
-// wherever a collection gets wired up, but on-chain event args and RPC
-// responses aren't guaranteed to match that casing — compare case-insensitively.
-async function findCollectionByContract(nftAddress: string) {
-  return Collection.findOne({ contractAddress: new RegExp(`^${escapeRegExp(nftAddress)}$`, "i") });
-}
-
-/** A lazy item's first sale: mints it (isMinted/tokenId weren't set until now) and transfers to the buyer. */
+/**
+ * A lazy item's first sale: mints it (isMinted/tokenId weren't set until
+ * now) and transfers to the buyer. tokenId is looked up first because it's
+ * the one thing guaranteed unique across the whole shared DurchexNFT
+ * contract — multiple Collection documents can share the same
+ * contractAddress (see lib/web3/deployedContract.ts), so resolving "the"
+ * collection from the contract address alone would be ambiguous.
+ */
 export async function handleVoucherRedeemed(
   nft: string,
   tokenId: bigint,
@@ -43,15 +39,14 @@ export async function handleVoucherRedeemed(
   price: bigint,
   txHash: string
 ) {
-  const collection = await findCollectionByContract(nft);
-  if (!collection) return { synced: false as const, reason: "unknown collection contract" };
-
-  const item = await Item.findOne({
-    collection: collection._id,
-    "voucher.tokenId": tokenId.toString(),
-    isMinted: false,
-  });
+  const item = await Item.findOne({ "voucher.tokenId": tokenId.toString(), isMinted: false });
   if (!item) return { synced: false as const, reason: "already synced or no matching lazy item" };
+
+  const collection = await Collection.findById(item.collection);
+  if (!collection) return { synced: false as const, reason: "item has no collection" };
+  if (collection.contractAddress.toLowerCase() !== nft.toLowerCase()) {
+    return { synced: false as const, reason: "item's collection doesn't match this contract" };
+  }
 
   const buyerUser = await resolveOrCreateUser(buyer);
   const priceEth = Number(formatEther(price));
@@ -90,11 +85,14 @@ export async function handleResale(
   price: bigint,
   txHash: string
 ) {
-  const collection = await findCollectionByContract(nft);
-  if (!collection) return { synced: false as const, reason: "unknown collection contract" };
-
-  const item = await Item.findOne({ collection: collection._id, tokenId: tokenId.toString() });
+  const item = await Item.findOne({ tokenId: tokenId.toString() });
   if (!item) return { synced: false as const, reason: "no matching item" };
+
+  const collection = await Collection.findById(item.collection);
+  if (!collection) return { synced: false as const, reason: "item has no collection" };
+  if (collection.contractAddress.toLowerCase() !== nft.toLowerCase()) {
+    return { synced: false as const, reason: "item's collection doesn't match this contract" };
+  }
 
   const buyerUser = await resolveOrCreateUser(buyer);
   const priceEth = Number(formatEther(price));

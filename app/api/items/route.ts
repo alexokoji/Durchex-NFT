@@ -63,7 +63,10 @@ export async function POST(req: NextRequest) {
       { status: 403 }
     );
   }
-  if (body.voucher && await Item.exists({ collection: collection._id, tokenId: body.tokenId })) {
+  // tokenId must be unique across ALL collections, not just this one —
+  // collections share the same deployed DurchexNFT contract by default
+  // (see lib/web3/deployedContract.ts), so tokenId is a contract-wide slot.
+  if (body.voucher && await Item.exists({ tokenId: body.tokenId })) {
     return NextResponse.json(
       { error: "That token id was just taken — refresh and try again" },
       { status: 409 }

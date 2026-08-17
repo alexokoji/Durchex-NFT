@@ -49,7 +49,12 @@ export default function CreatePage() {
     setSubmitting(true);
     setError(null);
     try {
-      const tokenId = collection.items + 1;
+      // Every collection defaults to the same shared DurchexNFT contract
+      // (see lib/web3/deployedContract.ts), so tokenId has to be unique
+      // across ALL collections, not just this one — a per-collection
+      // counter like `collection.items + 1` would let two different
+      // collections both try to mint tokenId 1 on the same contract.
+      const tokenId = Date.now();
       const metadataUri = `${window.location.origin}/api/metadata/${collection.slug}/${tokenId}`;
       const canLazyMint = isAddress(collection.contractAddress) && chainId === collection.chainId;
       const typedData = canLazyMint ? buildVoucherTypedData({
