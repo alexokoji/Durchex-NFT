@@ -68,11 +68,18 @@ export function BuyLazyButton({ item }: { item: ItemDetailView }) {
       setPhase("mining");
       await publicClient?.waitForTransactionReceipt({ hash });
 
+      // No indexer runs continuously in this deployment, so tell the server
+      // to re-verify this exact transaction on-chain itself and sync
+      // MongoDB — see /api/purchases/confirm. Best-effort: the purchase
+      // already succeeded on-chain regardless of whether this call works.
+      await fetch("/api/purchases/confirm", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ txHash: hash, chainId: item.chainId }),
+      }).catch(() => {});
+
       setPhase("done");
-      // The indexer worker (scripts/indexer.ts) picks up the on-chain event
-      // and syncs MongoDB asynchronously — give it a moment before refreshing
-      // so this page shows the new owner instead of the stale "Unminted" state.
-      setTimeout(() => router.refresh(), 2500);
+      setTimeout(() => router.refresh(), 500);
     } catch (err) {
       setError(err instanceof Error ? err.message.split("\n")[0] : "Transaction failed");
       setPhase("idle");

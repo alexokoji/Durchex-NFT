@@ -168,6 +168,16 @@ function PhaseRow({
         />
       </div>
 
+      <label className="flex items-center gap-1.5 mt-2 text-[11px] text-white/50 cursor-pointer w-fit">
+        <input
+          type="checkbox"
+          checked={draft.walletLimit === 1}
+          onChange={(e) => setDraft((d) => ({ ...d, walletLimit: e.target.checked ? 1 : 0 }))}
+          className="accent-purple-500 w-3.5 h-3.5"
+        />
+        Limit to 1 mint per wallet — once a wallet mints here, it can only mint again if you move it to another phase
+      </label>
+
       {hasAllowlist && (
         <div className="mt-2">
           <textarea
