@@ -29,11 +29,12 @@ export function CollectionHeader({ collection }: { collection: CollectionDetailV
         </div>
       </div>
 
-      <div className="mt-8 grid grid-cols-2 sm:grid-cols-5 gap-4 px-4 sm:px-8">
+      <div className="mt-8 grid grid-cols-2 sm:grid-cols-6 gap-4 px-4 sm:px-8">
         <Stat label="Floor" value={`${collection.floorEth.toFixed(2)} ETH`} />
         <Stat label="24h Volume" value={`${collection.volume24hEth.toFixed(1)} ETH`} />
         <Stat label="Total Volume" value={`${collection.totalVolumeEth.toFixed(0)} ETH`} />
         <Stat label="Items" value={collection.items.toLocaleString()} />
+        <Stat label="Collection Supply" value={collection.maxSupply > 0 ? collection.maxSupply.toLocaleString() : "Unlimited"} />
         <Stat label="Owners" value={collection.owners.toLocaleString()} />
       </div>
       {collection.contractType === "drop" && (
