@@ -28,6 +28,13 @@ async function main() {
   await tx.wait();
   console.log(`DurchexNFT.marketplace updated to ${marketplaceAddress}`);
 
+  if (current.DurchexNFT1155) {
+    const nft1155 = await ethers.getContractAt("DurchexNFT1155", current.DurchexNFT1155);
+    const tx1155 = await nft1155.setMarketplace(marketplaceAddress);
+    await tx1155.wait();
+    console.log(`DurchexNFT1155.marketplace updated to ${marketplaceAddress}`);
+  }
+
   existing[network.name] = { ...current, DurchexMarketplace: marketplaceAddress, feeRecipient, deployedAt: new Date().toISOString() };
   writeFileSync(deploymentsPath, JSON.stringify(existing, null, 2) + "\n");
   console.log(`Recorded in ${deploymentsPath}`);

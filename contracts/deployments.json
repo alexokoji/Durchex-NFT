@@ -8,11 +8,11 @@
   },
   "sepolia": {
     "chainId": 11155111,
-    "DurchexNFT": "0xFd110487BdA337E08B7Ad18c563d41a6F1A4259E",
-    "DurchexMarketplace": "0x6cb04Ac6521bA854e729A2De90c75Ce8878D8701",
+    "DurchexNFT": "0x1cEFeA9AF5D5dE90fc15A79fEB88f5944f039259",
+    "DurchexMarketplace": "0x6c25bdD92906eb97601410198D398526bA792468",
     "DurchexPass": "0xa5a24412C42131f11cfd0c1E5Eb01A97d5A49083",
-    "feeRecipient": "0x84bf211B9aC597018371171a6f492cAD34255Cf7",
-    "deployedAt": "2026-08-17T17:50:25.914Z",
+    "feeRecipient": "0xf1b1f1410D82Bb5e4bc775a6DdFba895E396314d",
+    "deployedAt": "2026-08-17T22:01:01.836Z",
     "DurchexNFT1155": "0xe353063FA269752F9487AF3E4af7800122a0b0a0"
   }
 }
