@@ -6,9 +6,11 @@ import { getCurrentUser } from "@/lib/auth/currentUser";
 import { recordActivity } from "@/lib/activity";
 import { recalculateCollectionFloor } from "@/lib/floorPrice";
 
-// Lists or unlists an already-minted item for resale. Lazy (unminted) items
-// get their listing price set at creation via the voucher — this is only
-// for items that already exist on-chain and are owned by the caller.
+// Lists, relists, or cancels a listing. Lazy (unminted) items get their
+// initial listing price set at creation via the voucher, but their creator
+// can still cancel that lazy listing here before it's purchased — only
+// *relisting* (the "list for resale" branch below) requires the item to
+// already be minted on-chain.
 export async function PATCH(req: NextRequest, context: { params: Promise<{ id: string }> }) {
   const user = await getCurrentUser(req);
   if (!user) return NextResponse.json({ error: "Sign in required" }, { status: 401 });
@@ -20,19 +22,20 @@ export async function PATCH(req: NextRequest, context: { params: Promise<{ id: s
   if (String(item.owner) !== String(user._id)) {
     return NextResponse.json({ error: "Only the owner can list this item" }, { status: 403 });
   }
-  if (!item.isMinted) {
-    return NextResponse.json({ error: "Unminted items list automatically when created" }, { status: 400 });
-  }
 
   const body = await req.json();
   if (body.action === "unlist") {
     item.status = "not_listed";
     item.priceEth = 0;
     // Stops the app from ever offering a stale signed authorization again —
-    // the on-chain listing itself remains technically fillable until its
-    // deadline unless the owner also separately calls cancelListing().
+    // the on-chain listing/voucher itself remains technically fillable
+    // until its deadline unless the owner also separately calls
+    // cancelListing()/cancelVoucher() on-chain.
     item.listing = undefined;
   } else {
+    if (!item.isMinted) {
+      return NextResponse.json({ error: "Unminted items list automatically when created" }, { status: 400 });
+    }
     const collection = await Collection.findById(item.collection).select("listingEnabled listingOpensAt contractAddress").lean();
     const listingOpen = collection && (collection.listingEnabled || (collection.listingOpensAt && collection.listingOpensAt <= new Date()));
     if (!listingOpen) {
