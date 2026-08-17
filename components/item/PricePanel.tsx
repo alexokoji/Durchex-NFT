@@ -10,6 +10,8 @@ import { CountdownTimer } from "@/components/nft/CountdownTimer";
 import { useFavorite } from "@/hooks/useFavorite";
 import { useSession } from "@/hooks/useSession";
 import { BuyLazyButton } from "@/components/item/BuyLazyButton";
+import { BuyListedButton } from "@/components/item/BuyListedButton";
+import { ListForSaleForm } from "@/components/item/ListForSaleForm";
 import { MARKETPLACE_ADDRESS } from "@/lib/web3/marketplaceAbi";
 import { ItemDetailView } from "@/lib/types";
 
@@ -25,6 +27,8 @@ export function PricePanel({ item }: { item: ItemDetailView }) {
   const isSold = item.status === "sold";
   const isOwner = !!user && user.address === item.owner?.address;
   const isLiveOnChainBuy = !isAuction && !item.isMinted && !!item.voucher && !!MARKETPLACE_ADDRESS;
+  const isLiveResaleBuy =
+    !isAuction && item.isMinted && item.status === "fixed_price" && !!item.tokenId && !!MARKETPLACE_ADDRESS;
 
   function comingSoon(label: string) {
     setNotice(
@@ -99,6 +103,8 @@ export function PricePanel({ item }: { item: ItemDetailView }) {
             <>
               {isLiveOnChainBuy ? (
                 <BuyLazyButton item={item} />
+              ) : isLiveResaleBuy ? (
+                <BuyListedButton item={item} />
               ) : (
                 <Button
                   size="lg"
@@ -133,6 +139,31 @@ export function PricePanel({ item }: { item: ItemDetailView }) {
                 </Button>
               </div>
             </>
+          )}
+        </div>
+      )}
+
+      {!isSold && isOwner && item.isMinted && (
+        <div className="flex flex-col gap-2.5">
+          {item.status === "fixed_price" ? (
+            <div className="surface-card p-4 flex items-center justify-between">
+              <span className="text-sm text-white/70">Listed for {item.priceEth} ETH</span>
+              <button
+                onClick={async () => {
+                  await fetch(`/api/items/${item.id}`, {
+                    method: "PATCH",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ action: "unlist" }),
+                  });
+                  router.refresh();
+                }}
+                className="text-xs font-medium text-white/50 hover:text-white transition"
+              >
+                Unlist
+              </button>
+            </div>
+          ) : (
+            <ListForSaleForm item={item} />
           )}
         </div>
       )}
