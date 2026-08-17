@@ -1,5 +1,17 @@
 import type { HardhatUserConfig } from "hardhat/config";
 import "@nomicfoundation/hardhat-toolbox";
+import fs from "node:fs";
+import path from "node:path";
+
+// No dotenv dependency — just load contracts/.env by hand so RPC URLs and
+// the deployer key are available without a new package.
+const envPath = path.join(__dirname, ".env");
+if (fs.existsSync(envPath)) {
+  for (const line of fs.readFileSync(envPath, "utf-8").split(/\r?\n/)) {
+    const match = line.match(/^([A-Z_]+)=(.*)$/);
+    if (match && !process.env[match[1]]) process.env[match[1]] = match[2];
+  }
+}
 
 const AMOY_RPC_URL = process.env.AMOY_RPC_URL ?? "";
 const POLYGON_RPC_URL = process.env.POLYGON_RPC_URL ?? "";

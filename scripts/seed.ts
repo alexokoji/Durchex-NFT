@@ -35,7 +35,7 @@ function randFloat(min: number, max: number, decimals = 2) {
   return Number((min + Math.random() * (max - min)).toFixed(decimals));
 }
 
-async function main() {
+export async function seed() {
   await connectDB();
   console.log("Connected. Clearing existing data...");
   await Promise.all([
@@ -181,12 +181,21 @@ async function main() {
     );
   }
 
-  console.log(`Seeded ${COLLECTIONS.length} collections and ${totalItems} items.`);
-  await mongoose.disconnect();
-  process.exit(0);
+  const summary = `Seeded ${COLLECTIONS.length} collections and ${totalItems} items.`;
+  console.log(summary);
+  return summary;
 }
 
-main().catch((err) => {
-  console.error(err);
-  process.exit(1);
-});
+// CLI entry point — only runs when this file is executed directly
+// (`npm run seed`), not when `seed()` is imported elsewhere.
+if (require.main === module) {
+  seed()
+    .then(async () => {
+      await mongoose.disconnect();
+      process.exit(0);
+    })
+    .catch((err) => {
+      console.error(err);
+      process.exit(1);
+    });
+}

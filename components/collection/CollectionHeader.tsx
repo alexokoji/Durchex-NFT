@@ -3,6 +3,7 @@ import { GeneratedArt } from "@/components/nft/GeneratedArt";
 import { CollectionDetailView } from "@/lib/types";
 import { DropMintPanel } from "@/components/drop/DropMintPanel";
 import { PhaseManager } from "@/components/collection/PhaseManager";
+import { ContractAttach } from "@/components/collection/ContractAttach";
 
 export function CollectionHeader({ collection }: { collection: CollectionDetailView }) {
   return (
@@ -40,6 +41,12 @@ export function CollectionHeader({ collection }: { collection: CollectionDetailV
         </div>
       )}
       <div className="px-4 sm:px-8">
+        <ContractAttach
+          collectionId={collection.id}
+          creatorAddress={collection.creatorAddress}
+          contractAddress={collection.contractAddress}
+          chainId={collection.chainId}
+        />
         <PhaseManager collectionId={collection.id} creatorAddress={collection.creatorAddress} />
       </div>
     </div>

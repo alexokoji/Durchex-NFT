@@ -5,5 +5,13 @@
     "DurchexMarketplace": "0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512",
     "feeRecipient": "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
     "deployedAt": "2026-07-16T09:26:08.691Z"
+  },
+  "sepolia": {
+    "chainId": 11155111,
+    "DurchexNFT": "0xd141E754DC30F357540B3b11D7ea556FC3C62e70",
+    "DurchexMarketplace": "0x8ea9f7e2f2507b2e7594Ad717f759F53106582a9",
+    "DurchexPass": "0xB29Cb874FddE18bE82172c5cE9373B03E407D4B1",
+    "feeRecipient": "0x84bf211B9aC597018371171a6f492cAD34255Cf7",
+    "deployedAt": "2026-08-17T09:42:50.112Z"
   }
 }
