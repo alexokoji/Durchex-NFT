@@ -42,7 +42,11 @@ export async function connectDB() {
 
   if (!cached.promise) {
     cached.promise = resolveConnectionUri().then((uri) =>
-      mongoose.connect(uri, { dbName: "durchex", bufferCommands: false })
+      // maxPoolSize caps connections PER serverless instance — without it,
+      // the driver's default (100) means a burst of concurrent invocations
+      // (each a separate instance, each with its own pool) could open far
+      // more connections than a shared/free-tier Atlas cluster allows.
+      mongoose.connect(uri, { dbName: "durchex", bufferCommands: false, maxPoolSize: 10 })
     );
   }
 
