@@ -9,6 +9,8 @@ const UserSchema = new Schema(
     bannerSeed: { type: String, default: "" },
     isVerified: { type: Boolean, default: false },
     role: { type: String, enum: ["user", "moderator", "admin"], default: "user" },
+    banned: { type: Boolean, default: false },
+    banReason: { type: String, default: "" },
     socials: {
       twitter: String,
       discord: String,

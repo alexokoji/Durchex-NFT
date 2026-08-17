@@ -9,12 +9,16 @@ export async function GET(req: NextRequest, context: { params: Promise<{ id: str
   if (!user) return NextResponse.json({ error: "Sign in required" }, { status: 401 });
   const { id } = await context.params;
   await connectDB();
-  const collection = await Collection.findById(id).select("creator mintPhases").lean();
+  const collection = await Collection.findById(id).select("creator mintPhases listingEnabled listingOpensAt").lean();
   if (!collection) return NextResponse.json({ error: "Collection not found" }, { status: 404 });
   if (String(collection.creator) !== String(user._id)) {
     return NextResponse.json({ error: "Only the creator can manage this collection" }, { status: 403 });
   }
-  return NextResponse.json({ mintPhases: collection.mintPhases });
+  return NextResponse.json({
+    mintPhases: collection.mintPhases,
+    listingEnabled: collection.listingEnabled,
+    listingOpensAt: collection.listingOpensAt,
+  });
 }
 
 // Partial update: any subset of phases/fields may be sent, e.g.
@@ -37,6 +41,20 @@ export async function PATCH(req: NextRequest, context: { params: Promise<{ id: s
   }
 
   const body = await req.json();
+
+  if (body.listing) {
+    if (typeof body.listing.enabled === "boolean") collection.listingEnabled = body.listing.enabled;
+    if ("opensAt" in body.listing) {
+      collection.listingOpensAt = body.listing.opensAt ? new Date(body.listing.opensAt) : null;
+    }
+    await collection.save();
+    return NextResponse.json({
+      mintPhases: collection.mintPhases,
+      listingEnabled: collection.listingEnabled,
+      listingOpensAt: collection.listingOpensAt,
+    });
+  }
+
   const patch = body.mintPhases ?? {};
 
   for (const phase of ["whitelist", "og"] as const) {

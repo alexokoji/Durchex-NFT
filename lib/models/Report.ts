@@ -12,7 +12,7 @@ const ReportSchema = new Schema(
     },
     details: { type: String, default: "", maxlength: 1200 },
     status: { type: String, enum: ["open", "reviewing", "resolved", "dismissed"], default: "open", index: true },
-    reviewedBy: { type: Schema.Types.ObjectId, ref: "User", default: null },
+    reviewedBy: { type: Schema.Types.ObjectId, ref: "AdminUser", default: null },
     resolutionNote: { type: String, default: "", maxlength: 1200 },
   },
   { timestamps: true }

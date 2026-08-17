@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { connectDB } from "@/lib/db";
 import { Item } from "@/lib/models/Item";
+import { Collection } from "@/lib/models/Collection";
 import { getCurrentUser } from "@/lib/auth/currentUser";
 import { recordActivity } from "@/lib/activity";
 
@@ -27,6 +28,11 @@ export async function PATCH(req: NextRequest, context: { params: Promise<{ id: s
     item.status = "not_listed";
     item.priceEth = 0;
   } else {
+    const collection = await Collection.findById(item.collection).select("listingEnabled listingOpensAt").lean();
+    const listingOpen = collection && (collection.listingEnabled || (collection.listingOpensAt && collection.listingOpensAt <= new Date()));
+    if (!listingOpen) {
+      return NextResponse.json({ error: "Listing is not open yet for this collection" }, { status: 403 });
+    }
     const priceEth = Number(body.priceEth);
     if (!Number.isFinite(priceEth) || priceEth <= 0) {
       return NextResponse.json({ error: "Enter a valid price" }, { status: 400 });

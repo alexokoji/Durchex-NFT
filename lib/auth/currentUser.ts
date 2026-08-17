@@ -10,7 +10,11 @@ async function resolveUser(token: string | undefined) {
   if (!session) return null;
 
   await connectDB();
-  return User.findOne({ address: session.address });
+  const user = await User.findOne({ address: session.address });
+  // A banned user is treated as signed out everywhere this is called —
+  // blocks listing, bidding, minting, etc. without touching every route.
+  if (user?.banned) return null;
+  return user;
 }
 
 /** Resolves the signed-in user's Mongo document from the session cookie, or null. */

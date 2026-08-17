@@ -1,14 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { Types } from "mongoose";
 import { getCurrentUser } from "@/lib/auth/currentUser";
-import { getAdminFromRequest } from "@/lib/auth/admin";
+import { getCurrentAdmin } from "@/lib/auth/currentAdmin";
 import { connectDB } from "@/lib/db";
 import { Report } from "@/lib/models/Report";
 
 const REASONS = ["copyright", "counterfeit", "explicit", "spam", "harassment", "other"] as const;
 
 export async function GET(req: NextRequest) {
-  const admin = await getAdminFromRequest(req);
+  const admin = await getCurrentAdmin(req);
   if (!admin) return NextResponse.json({ error: "Administrator access is required" }, { status: 403 });
 
   const status = new URL(req.url).searchParams.get("status");

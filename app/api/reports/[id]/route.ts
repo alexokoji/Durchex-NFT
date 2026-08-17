@@ -1,13 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { Types } from "mongoose";
-import { getAdminFromRequest } from "@/lib/auth/admin";
+import { getCurrentAdmin } from "@/lib/auth/currentAdmin";
 import { connectDB } from "@/lib/db";
 import { Report } from "@/lib/models/Report";
 
 const STATUSES = ["open", "reviewing", "resolved", "dismissed"] as const;
 
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const admin = await getAdminFromRequest(req);
+  const admin = await getCurrentAdmin(req);
   if (!admin) return NextResponse.json({ error: "Administrator access is required" }, { status: 403 });
   const { id } = await params;
   if (!Types.ObjectId.isValid(id)) return NextResponse.json({ error: "Invalid report" }, { status: 400 });
