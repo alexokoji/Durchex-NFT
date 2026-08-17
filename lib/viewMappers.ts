@@ -54,9 +54,9 @@ interface CollectionDetailLike extends CollectionLike {
   maxSupply?: number;
   creator?: { address?: string } | null;
   mintPhases?: {
-    whitelist?: { enabled?: boolean; priceEth?: number; allocation?: number; walletLimit?: number };
-    og?: { enabled?: boolean; priceEth?: number; allocation?: number; walletLimit?: number };
-    public?: { enabled?: boolean; priceEth?: number; allocation?: number; walletLimit?: number };
+    whitelist?: { enabled?: boolean; priceEth?: number; allocation?: number; walletLimit?: number; startsAt?: Date | string | null; endsAt?: Date | string | null };
+    og?: { enabled?: boolean; priceEth?: number; allocation?: number; walletLimit?: number; startsAt?: Date | string | null; endsAt?: Date | string | null };
+    public?: { enabled?: boolean; priceEth?: number; allocation?: number; walletLimit?: number; startsAt?: Date | string | null; endsAt?: Date | string | null };
   };
   stats: CollectionLike["stats"] & { volume7dEth: number; totalVolumeEth: number; sales: number };
 }
@@ -134,11 +134,17 @@ export function toItemView(item: ItemLike): ItemView {
 }
 
 export function toCollectionDetailView(c: CollectionDetailLike): CollectionDetailView {
-  const phase = (value: { enabled?: boolean; priceEth?: number; allocation?: number; walletLimit?: number } | undefined) => ({
+  const phase = (
+    value:
+      | { enabled?: boolean; priceEth?: number; allocation?: number; walletLimit?: number; startsAt?: Date | string | null; endsAt?: Date | string | null }
+      | undefined
+  ) => ({
     enabled: !!value?.enabled,
     priceEth: value?.priceEth ?? 0,
     allocation: value?.allocation ?? 0,
     walletLimit: value?.walletLimit ?? 0,
+    startsAt: value?.startsAt ? new Date(value.startsAt).toISOString() : null,
+    endsAt: value?.endsAt ? new Date(value.endsAt).toISOString() : null,
   });
   return {
     ...toCollectionView(c),

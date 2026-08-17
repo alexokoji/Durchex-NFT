@@ -59,6 +59,8 @@ export interface MintPhaseView {
   priceEth: number;
   allocation: number;
   walletLimit: number;
+  startsAt: string | null;
+  endsAt: string | null;
 }
 
 export interface UserRef {

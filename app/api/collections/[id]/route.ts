@@ -47,6 +47,8 @@ export async function PATCH(req: NextRequest, context: { params: Promise<{ id: s
         allocation: patch[phase].allocation ?? current.allocation,
         walletLimit: patch[phase].walletLimit ?? current.walletLimit,
         allowlist: patch[phase].allowlist ?? current.allowlist,
+        startsAt: "startsAt" in patch[phase] ? patch[phase].startsAt : current.startsAt,
+        endsAt: "endsAt" in patch[phase] ? patch[phase].endsAt : current.endsAt,
       },
       requiresAllowlist
     );

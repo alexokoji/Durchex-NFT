@@ -7,6 +7,7 @@ import { useConnectModal } from "@rainbow-me/rainbowkit";
 import { Loader2, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { DROP_ABI } from "@/lib/web3/dropAbi";
+import { isPhaseLive } from "@/lib/mintPhases";
 
 export type DropMintConfig = {
   collectionId?: string;
@@ -14,11 +15,19 @@ export type DropMintConfig = {
   chainId: number;
   phases: { whitelist: MintPhase; og: MintPhase; public: MintPhase };
 };
-export type MintPhase = { enabled: boolean; priceEth: number; allocation: number; walletLimit: number; proof?: `0x${string}`[] };
+export type MintPhase = {
+  enabled: boolean;
+  priceEth: number;
+  allocation: number;
+  walletLimit: number;
+  startsAt?: string | null;
+  endsAt?: string | null;
+  proof?: `0x${string}`[];
+};
 
 const ORDER = [
-  { key: "whitelist", label: "Whitelist", value: 0 },
-  { key: "og", label: "OG", value: 1 },
+  { key: "whitelist", label: "GTD", value: 0 },
+  { key: "og", label: "FCFS", value: 1 },
   { key: "public", label: "Public", value: 2 },
 ] as const;
 
@@ -32,7 +41,7 @@ export function DropMintPanel({ drop }: { drop: DropMintConfig }) {
   const [state, setState] = useState<"idle" | "switching" | "confirming" | "mining" | "done">("idle");
   const [error, setError] = useState<string | null>(null);
   const [proofs, setProofs] = useState<Record<string, `0x${string}`[]>>({});
-  const active = ORDER.find(({ key }) => drop.phases[key].enabled);
+  const active = ORDER.find(({ key }) => isPhaseLive(drop.phases[key]));
 
   useEffect(() => {
     if (!address || !drop.collectionId) return;

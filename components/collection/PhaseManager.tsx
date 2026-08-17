@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Loader2, Upload, Settings2 } from "lucide-react";
 import { useSession } from "@/hooks/useSession";
+import { PHASE_LABELS, PhaseKey } from "@/lib/mintPhases";
 
 type Phase = {
   enabled: boolean;
@@ -11,19 +12,25 @@ type Phase = {
   walletLimit: number;
   allowlist: string[];
   minted: number;
+  startsAt: string | null;
+  endsAt: string | null;
 };
-type Phases = { whitelist: Phase; og: Phase; public: Phase };
+type Phases = Record<PhaseKey, Phase>;
 
-const LABELS: Record<keyof Phases, string> = {
-  whitelist: "Whitelist (GTD)",
-  og: "OG (GTD)",
-  public: "Public (FCFS)",
-};
+function toLocalInputValue(iso: string | null) {
+  if (!iso) return "";
+  const date = new Date(iso);
+  const offsetMs = date.getTimezoneOffset() * 60000;
+  return new Date(date.getTime() - offsetMs).toISOString().slice(0, 16);
+}
+function fromLocalInputValue(value: string): string | null {
+  return value ? new Date(value).toISOString() : null;
+}
 
 export function PhaseManager({ collectionId, creatorAddress }: { collectionId: string; creatorAddress: string | null }) {
   const { user } = useSession();
   const [phases, setPhases] = useState<Phases | null>(null);
-  const [saving, setSaving] = useState<keyof Phases | null>(null);
+  const [saving, setSaving] = useState<PhaseKey | null>(null);
   const [error, setError] = useState<string | null>(null);
   const isOwner = !!user && !!creatorAddress && user.address.toLowerCase() === creatorAddress.toLowerCase();
 
@@ -36,7 +43,7 @@ export function PhaseManager({ collectionId, creatorAddress }: { collectionId: s
 
   if (!isOwner || !phases) return null;
 
-  async function save(key: keyof Phases, patch: Partial<Phase>) {
+  async function save(key: PhaseKey, patch: Partial<Phase>) {
     setSaving(key);
     setError(null);
     const optimistic = { ...phases!, [key]: { ...phases![key], ...patch } };
@@ -64,12 +71,12 @@ export function PhaseManager({ collectionId, creatorAddress }: { collectionId: s
         <Settings2 className="w-4 h-4 text-purple-300" /> Manage mint phases
       </div>
       <p className="text-xs text-white/45 mb-4">
-        Only one phase should usually be live at a time — toggle the next one on and the current one off,
-        no need to relaunch the collection.
+        Toggle the next phase on and the current one off — no need to relaunch the collection. Set a start/end
+        time on a phase to have it turn on and off automatically instead.
       </p>
       <div className="space-y-3">
-        {(Object.keys(LABELS) as (keyof Phases)[]).map((key) => (
-          <PhaseRow key={key} phaseKey={key} label={LABELS[key]} phase={phases[key]} saving={saving === key} onSave={(patch) => save(key, patch)} />
+        {(Object.keys(PHASE_LABELS) as PhaseKey[]).map((key) => (
+          <PhaseRow key={key} phaseKey={key} label={PHASE_LABELS[key]} phase={phases[key]} saving={saving === key} onSave={(patch) => save(key, patch)} />
         ))}
       </div>
       {error && <p className="text-xs text-danger mt-3">{error}</p>}
@@ -84,7 +91,7 @@ function PhaseRow({
   saving,
   onSave,
 }: {
-  phaseKey: keyof Phases;
+  phaseKey: PhaseKey;
   label: string;
   phase: Phase;
   saving: boolean;
@@ -94,6 +101,7 @@ function PhaseRow({
   const [allowlistText, setAllowlistText] = useState(phase.allowlist.join("\n"));
   const fileRef = useRef<HTMLInputElement>(null);
   const hasAllowlist = phaseKey !== "public";
+  const isGtd = phaseKey === "whitelist";
 
   useEffect(() => {
     const id = setTimeout(() => {
@@ -125,6 +133,9 @@ function PhaseRow({
           <div className="text-[11px] text-white/40 mt-0.5">
             {phase.minted}/{phase.allocation || "∞"} minted
             {phase.walletLimit > 0 ? ` · ${phase.walletLimit}/wallet` : ""}
+            {isGtd
+              ? " · guaranteed for allowlisted wallets"
+              : " · first come, first served — closes automatically once sold out"}
           </div>
         </div>
         <label className="flex items-center gap-2 cursor-pointer">
@@ -168,6 +179,31 @@ function PhaseRow({
         />
       </div>
 
+      <div className="grid sm:grid-cols-2 gap-2 mt-2">
+        <div>
+          <label className="text-[10px] text-white/35 block mb-1">Starts (optional)</label>
+          <input
+            type="datetime-local"
+            value={toLocalInputValue(draft.startsAt)}
+            onChange={(e) => setDraft((d) => ({ ...d, startsAt: fromLocalInputValue(e.target.value) }))}
+            className="w-full bg-white/5 border border-white/10 rounded px-2 py-1.5 text-xs text-white"
+          />
+        </div>
+        <div>
+          <label className="text-[10px] text-white/35 block mb-1">Ends (optional)</label>
+          <input
+            type="datetime-local"
+            value={toLocalInputValue(draft.endsAt)}
+            onChange={(e) => setDraft((d) => ({ ...d, endsAt: fromLocalInputValue(e.target.value) }))}
+            className="w-full bg-white/5 border border-white/10 rounded px-2 py-1.5 text-xs text-white"
+          />
+        </div>
+      </div>
+      <p className="text-[10px] text-white/30 mt-1">
+        Leave blank to control manually with the Live/Off toggle above. Set both to have it start and stop on
+        its own — handy for scheduling the next phase to kick in the moment this one ends.
+      </p>
+
       <label className="flex items-center gap-1.5 mt-2 text-[11px] text-white/50 cursor-pointer w-fit">
         <input
           type="checkbox"
@@ -175,7 +211,7 @@ function PhaseRow({
           onChange={(e) => setDraft((d) => ({ ...d, walletLimit: e.target.checked ? 1 : 0 }))}
           className="accent-purple-500 w-3.5 h-3.5"
         />
-        Limit to 1 mint per wallet — once a wallet mints here, it can only mint again if you move it to another phase
+        Limit to 1 mint per wallet
       </label>
 
       {hasAllowlist && (
@@ -212,6 +248,8 @@ function PhaseRow({
             priceEth: draft.priceEth,
             allocation: draft.allocation,
             walletLimit: draft.walletLimit,
+            startsAt: draft.startsAt,
+            endsAt: draft.endsAt,
             allowlist: hasAllowlist ? parseAddresses(allowlistText) : undefined,
           })
         }

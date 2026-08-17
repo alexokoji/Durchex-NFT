@@ -5,6 +5,7 @@ import { Collection } from "@/lib/models/Collection";
 import { PhaseClaim } from "@/lib/models/PhaseClaim";
 import { getCurrentUser } from "@/lib/auth/currentUser";
 import { merkleProof, merkleRoot } from "@/lib/web3/merkle";
+import { isPhaseLive } from "@/lib/mintPhases";
 
 export async function GET(request: NextRequest, context: { params: Promise<{ id: string }> }) {
   const user = await getCurrentUser(request);
@@ -18,7 +19,7 @@ export async function GET(request: NextRequest, context: { params: Promise<{ id:
 
   const result = (['whitelist', 'og'] as const).reduce((all, phase) => {
     const config = collection.mintPhases?.[phase];
-    if (!config?.enabled) {
+    if (!isPhaseLive(config)) {
       return { ...all, [phase]: { enabled: false, eligible: false, root: null, proof: [], claimed: 0, remaining: 0 } };
     }
     const addresses = (config.allowlist ?? []).filter((address: string) => isAddress(address));

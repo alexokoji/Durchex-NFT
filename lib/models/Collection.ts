@@ -26,6 +26,9 @@ const CollectionSchema = new Schema(
     },
     royaltyBps: { type: Number, default: 500 },
     mintPhases: {
+      // "whitelist" = GTD: every allowlisted wallet is guaranteed its
+      // walletLimit any time the phase is live — allocation is a supply
+      // cap, not something wallets race each other for.
       whitelist: {
         enabled: { type: Boolean, default: false },
         priceEth: { type: Number, default: 0 },
@@ -33,7 +36,11 @@ const CollectionSchema = new Schema(
         walletLimit: { type: Number, default: 0 },
         allowlist: { type: [String], default: [] },
         minted: { type: Number, default: 0 },
+        startsAt: { type: Date, default: null },
+        endsAt: { type: Date, default: null },
       },
+      // "og" = FCFS: allowlisted, but a shared limited pool — first come,
+      // first served, and the phase auto-closes once it sells out.
       og: {
         enabled: { type: Boolean, default: false },
         priceEth: { type: Number, default: 0 },
@@ -41,13 +48,18 @@ const CollectionSchema = new Schema(
         walletLimit: { type: Number, default: 0 },
         allowlist: { type: [String], default: [] },
         minted: { type: Number, default: 0 },
+        startsAt: { type: Date, default: null },
+        endsAt: { type: Date, default: null },
       },
+      // "public" = open FCFS: same sold-out-closes behavior as og, no allowlist.
       public: {
         enabled: { type: Boolean, default: false },
         priceEth: { type: Number, default: 0 },
         allocation: { type: Number, default: 0 },
         walletLimit: { type: Number, default: 0 },
         minted: { type: Number, default: 0 },
+        startsAt: { type: Date, default: null },
+        endsAt: { type: Date, default: null },
       },
     },
     verified: { type: Boolean, default: false },

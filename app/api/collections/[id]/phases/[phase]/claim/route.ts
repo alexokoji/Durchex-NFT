@@ -3,14 +3,14 @@ import { connectDB } from "@/lib/db";
 import { Collection } from "@/lib/models/Collection";
 import { PhaseClaim } from "@/lib/models/PhaseClaim";
 import { getCurrentUser } from "@/lib/auth/currentUser";
-import { PHASE_KEYS, PhaseKey } from "@/lib/mintPhases";
+import { PHASE_KEYS, PhaseKey, RACES_ALLOCATION, isPhaseLive } from "@/lib/mintPhases";
 
-// Records a mint against a phase's allocation and the wallet's per-phase cap.
-// This is the off-chain enforcement layer for collections that mint through
-// the shared lazy-mint contracts rather than a dedicated per-collection drop
-// contract — toggling a phase off in the PATCH route above is what actually
-// gates access; this endpoint is what stops a phase from being over-claimed
-// while it's on.
+// Records a mint against a phase's per-wallet cap and (for FCFS phases)
+// its shared allocation. This is the off-chain enforcement layer for
+// collections that mint through the shared lazy-mint contracts rather than
+// a dedicated per-collection drop contract — toggling/scheduling a phase in
+// the PATCH route above is what actually gates access; this endpoint is
+// what stops a phase from being over-claimed while it's live.
 export async function POST(req: NextRequest, context: { params: Promise<{ id: string; phase: string }> }) {
   const user = await getCurrentUser(req);
   if (!user) return NextResponse.json({ error: "Sign in required" }, { status: 401 });
@@ -19,13 +19,14 @@ export async function POST(req: NextRequest, context: { params: Promise<{ id: st
     return NextResponse.json({ error: "Invalid phase" }, { status: 400 });
   }
   const key = phase as PhaseKey;
+  const racesAllocation = RACES_ALLOCATION[key];
   const quantity = Math.max(1, Math.floor(Number((await req.json().catch(() => ({}))).quantity ?? 1)));
 
   await connectDB();
   const collection = await Collection.findById(id).select(`mintPhases.${key}`);
   if (!collection) return NextResponse.json({ error: "Collection not found" }, { status: 404 });
   const config = collection.mintPhases[key];
-  if (!config.enabled) {
+  if (!isPhaseLive(config)) {
     return NextResponse.json({ error: "This phase isn't open right now" }, { status: 403 });
   }
   if (key !== "public" && !config.allowlist.includes(user.address)) {
@@ -40,17 +41,27 @@ export async function POST(req: NextRequest, context: { params: Promise<{ id: st
       { status: 409 }
     );
   }
-  if (config.allocation > 0 && config.minted + quantity > config.allocation) {
+  // GTD (whitelist) doesn't race the shared allocation — every allowlisted
+  // wallet is guaranteed its walletLimit any time the phase is live.
+  if (racesAllocation && config.allocation > 0 && config.minted + quantity > config.allocation) {
     return NextResponse.json({ error: "This phase is sold out" }, { status: 409 });
   }
 
+  const sellsOut = racesAllocation && config.allocation > 0 && config.minted + quantity >= config.allocation;
   const updated = await Collection.findOneAndUpdate(
     {
       _id: id,
       [`mintPhases.${key}.enabled`]: true,
-      ...(config.allocation > 0 ? { [`mintPhases.${key}.minted`]: { $lte: config.allocation - quantity } } : {}),
+      ...(racesAllocation && config.allocation > 0
+        ? { [`mintPhases.${key}.minted`]: { $lte: config.allocation - quantity } }
+        : {}),
     },
-    { $inc: { [`mintPhases.${key}.minted`]: quantity } },
+    {
+      $inc: { [`mintPhases.${key}.minted`]: quantity },
+      // FCFS phases close themselves the moment they sell out, rather than
+      // staying "enabled" with nothing left to claim.
+      ...(sellsOut ? { $set: { [`mintPhases.${key}.enabled`]: false } } : {}),
+    },
     { new: true }
   ).select(`mintPhases.${key}`);
   if (!updated) {
@@ -67,5 +78,6 @@ export async function POST(req: NextRequest, context: { params: Promise<{ id: st
     claimed: alreadyClaimed + quantity,
     minted: updated.mintPhases[key].minted,
     allocation: updated.mintPhases[key].allocation,
+    soldOut: sellsOut,
   });
 }
