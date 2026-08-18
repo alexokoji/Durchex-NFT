@@ -1,6 +1,5 @@
 "use client";
 
-import { useRouter } from "next/navigation";
 import { useState } from "react";
 import clsx from "clsx";
 import { Sparkles, Link2, Hash, Network, Check, Gavel, Tag, Radio } from "lucide-react";
@@ -8,6 +7,7 @@ import { TraitPill } from "@/components/nft/TraitPill";
 import { GeneratedArt } from "@/components/nft/GeneratedArt";
 import { ActivityRow } from "@/components/activity/ActivityRow";
 import { useSession } from "@/hooks/useSession";
+import { AcceptOfferButton } from "@/components/item/AcceptOfferButton";
 import { ActivityView, BidView, ItemDetailView } from "@/lib/types";
 
 const TABS = ["Properties", "Offers", "Activity", "Details"] as const;
@@ -63,7 +63,7 @@ export function ItemTabs({
         (offers.length > 0 ? (
           <div className="space-y-2.5">
             {offers.map((o) => (
-              <OfferRow key={o.id} offer={o} canAccept={isOwner && o.status === "active"} />
+              <OfferRow key={o.id} offer={o} item={item} canAccept={isOwner && o.status === "active"} />
             ))}
           </div>
         ) : (
@@ -98,27 +98,15 @@ export function ItemTabs({
   );
 }
 
-function OfferRow({ offer, canAccept }: { offer: BidView; canAccept: boolean }) {
-  const router = useRouter();
-  const [accepting, setAccepting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  async function accept() {
-    setAccepting(true);
-    setError(null);
-    try {
-      const res = await fetch(`/api/bids/${offer.id}/accept`, { method: "POST" });
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        throw new Error(data.error ?? "Failed to accept offer");
-      }
-      router.refresh();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to accept offer");
-      setAccepting(false);
-    }
-  }
-
+function OfferRow({
+  offer,
+  item,
+  canAccept,
+}: {
+  offer: BidView;
+  item: ItemDetailView;
+  canAccept: boolean;
+}) {
   return (
     <div className="flex items-center justify-between gap-3 p-3 rounded-xl bg-white/5 border border-white/10">
       <div className="flex items-center gap-2.5 min-w-0">
@@ -143,21 +131,19 @@ function OfferRow({ offer, canAccept }: { offer: BidView; canAccept: boolean }) 
         <span className="text-sm font-semibold text-white tabular-nums">
           {offer.amountEth.toFixed(2)} ETH
         </span>
-        {canAccept && (
-          <button
-            onClick={accept}
-            disabled={accepting}
-            className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-purple-700/25 border border-purple-500/40 text-xs font-medium text-white hover:bg-purple-700/40 transition disabled:opacity-50"
-          >
-            <Check className="w-3.5 h-3.5" />
-            {accepting ? "Accepting…" : "Accept"}
-          </button>
+        {/* Auction bids settle through the auction flow, not the offers
+            contract, so only plain offers get an accept action here. */}
+        {canAccept && offer.type === "offer" && (
+          <AcceptOfferButton
+            prepareUrl={`/api/bids/${offer.id}/accept`}
+            nftContract={item.contractAddress}
+            chainId={item.chainId}
+          />
         )}
         {offer.status === "accepted" && (
           <span className="text-xs text-success font-medium">Accepted</span>
         )}
       </div>
-      {error && <p className="text-xs text-danger">{error}</p>}
     </div>
   );
 }

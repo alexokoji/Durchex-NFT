@@ -23,6 +23,8 @@
     "DurchexNFT1155": "0xe353063FA269752F9487AF3E4af7800122a0b0a0",
     "DurchexMarketplace": "0x42C971DAab6942f80c531675BB4Bf1cF57d30d05",
     "feeRecipient": "0xf1b1f1410D82Bb5e4bc775a6DdFba895E396314d",
-    "deployedAt": "2026-08-18T10:57:39.627Z"
+    "deployedAt": "2026-08-18T10:57:39.627Z",
+    "DurchexOffers": "0x6c25bdD92906eb97601410198D398526bA792468",
+    "paymentToken": "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2"
   }
 }

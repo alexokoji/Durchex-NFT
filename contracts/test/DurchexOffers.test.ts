@@ -273,6 +273,38 @@ describe("DurchexOffers (collection offers)", () => {
     expect(await nft.ownerOf(2)).to.equal(buyer.address);
   });
 
+  // An offer on one specific NFT is just a collection offer whose eligible
+  // set has a single member: the root is the leaf itself and the proof is
+  // empty. This is what lets per-item NFT offers reuse this contract
+  // unchanged, so it's worth pinning down explicitly.
+  it("supports a single-token offer (an NFT offer) with root = leaf and an empty proof", async () => {
+    const { offers, nft, buyer, seller } = await loadFixture(deployFixture);
+    const price = ethers.parseEther("1");
+    const { offer, signature } = await signOffer(offers, buyer, {
+      nft: await nft.getAddress(),
+      criteriaRoot: leafOf(1), // single-leaf tree
+      pricePerItem: price,
+      quantity: 1,
+    });
+
+    // The one token it names fills it, with no proof needed.
+    await expect(offers.connect(seller).acceptCollectionOffer(offer, signature, 1, 1, [])).to.not.be.reverted;
+    expect(await nft.ownerOf(1)).to.equal(buyer.address);
+  });
+
+  it("a single-token offer cannot be filled by any other token", async () => {
+    const { offers, nft, buyer, seller } = await loadFixture(deployFixture);
+    const { offer, signature } = await signOffer(offers, buyer, {
+      nft: await nft.getAddress(),
+      criteriaRoot: leafOf(1),
+      pricePerItem: ethers.parseEther("1"),
+      quantity: 1,
+    });
+    await expect(
+      offers.connect(seller).acceptCollectionOffer(offer, signature, 2, 1, [])
+    ).to.be.revertedWith("DurchexOffers: token not eligible for this offer");
+  });
+
   it("refuses to let a buyer fill their own offer", async () => {
     const { offers, nft, buyer } = await loadFixture(deployFixture);
     const { offer, signature } = await signOffer(offers, buyer, {

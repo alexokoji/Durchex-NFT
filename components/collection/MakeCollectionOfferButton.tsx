@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Tag, Loader2, X, Info } from "lucide-react";
 import { useAccount, useSwitchChain, useSignTypedData, useReadContract, useWriteContract } from "wagmi";
@@ -44,6 +44,43 @@ export function MakeCollectionOfferButton({ collection }: { collection: Collecti
   const [expirySeconds, setExpirySeconds] = useState(EXPIRY_OPTIONS[1].seconds);
   const [phase, setPhase] = useState<"idle" | "switching" | "approving" | "signing" | "saving">("idle");
   const [error, setError] = useState<string | null>(null);
+
+  // Trait criteria: narrowing the eligible set is all a "criteria offer"
+  // is, so this reuses the same merkle-root machinery as an open offer.
+  type TraitGroup = { traitType: string; values: { value: string; count: number }[] };
+  const [traits, setTraits] = useState<TraitGroup[]>([]);
+  const [traitType, setTraitType] = useState("");
+  const [traitValues, setTraitValues] = useState<string[]>([]);
+  const [eligibleCount, setEligibleCount] = useState<number | null>(null);
+
+  const criteria = traitType && traitValues.length ? { traitType, values: traitValues } : null;
+
+  useEffect(() => {
+    if (!open) return;
+    fetch(`/api/collections/${collection.id}/traits`)
+      .then((r) => (r.ok ? r.json() : { traits: [] }))
+      .then((d) => setTraits(d.traits ?? []));
+  }, [open, collection.id]);
+
+  // Keep the "how many NFTs could fill this" figure honest as the buyer
+  // adjusts criteria — it's the clearest signal of what they're committing to.
+  useEffect(() => {
+    if (!open) return;
+    let cancelled = false;
+    fetch(`/api/collections/${collection.id}/offers/criteria-root`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ criteria }),
+    })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        if (!cancelled) setEligibleCount(d?.eligibleCount ?? 0);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [open, collection.id, traitType, traitValues.join(",")]);
 
   const offersAddress = offersAddressFor(collection.chainId);
   const weth = wethAddressFor(collection.chainId);
@@ -98,7 +135,7 @@ export function MakeCollectionOfferButton({ collection }: { collection: Collecti
       const rootRes = await fetch(`/api/collections/${collection.id}/offers/criteria-root`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ criteria: null }),
+        body: JSON.stringify({ criteria }),
       });
       const rootData = await rootRes.json();
       if (!rootRes.ok) throw new Error(rootData.error ?? "Couldn't prepare the offer");
@@ -125,7 +162,7 @@ export function MakeCollectionOfferButton({ collection }: { collection: Collecti
         body: JSON.stringify({
           pricePerItemEth: price,
           quantity: qty,
-          criteria: null,
+          criteria,
           criteriaRoot: rootData.criteriaRoot,
           nonce: nonce.toString(),
           deadline: typedData.message.deadline.toString(),
@@ -206,9 +243,78 @@ export function MakeCollectionOfferButton({ collection }: { collection: Collecti
                 </div>
               </div>
 
-              <div className="rounded-lg border border-white/10 bg-white/[0.02] p-3 flex items-center justify-between text-sm">
-                <span className="text-white/45 text-xs">Total maximum</span>
-                <span className="text-white font-semibold tabular-nums">{total.toFixed(3)} WETH</span>
+              {traits.length > 0 && (
+                <div>
+                  <label className="text-xs font-medium text-white/50 mb-1.5 block">
+                    Trait criteria <span className="text-white/30">(optional)</span>
+                  </label>
+                  <select
+                    value={traitType}
+                    onChange={(e) => {
+                      setTraitType(e.target.value);
+                      setTraitValues([]);
+                    }}
+                    className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-purple-500/60"
+                  >
+                    <option value="" className="bg-surface-1">
+                      Any NFT in the collection
+                    </option>
+                    {traits.map((t) => (
+                      <option key={t.traitType} value={t.traitType} className="bg-surface-1">
+                        {t.traitType}
+                      </option>
+                    ))}
+                  </select>
+
+                  {traitType && (
+                    <div className="flex flex-wrap gap-1.5 mt-2">
+                      {traits
+                        .find((t) => t.traitType === traitType)
+                        ?.values.map((v) => {
+                          const selected = traitValues.includes(v.value);
+                          return (
+                            <button
+                              key={v.value}
+                              type="button"
+                              onClick={() =>
+                                setTraitValues((cur) =>
+                                  selected ? cur.filter((x) => x !== v.value) : [...cur, v.value]
+                                )
+                              }
+                              className={`rounded-full border px-2.5 py-1 text-[11px] transition ${
+                                selected
+                                  ? "border-purple-400 bg-purple-500/15 text-purple-100"
+                                  : "border-white/10 text-white/50 hover:border-white/25"
+                              }`}
+                            >
+                              {v.value} <span className="text-white/30">{v.count}</span>
+                            </button>
+                          );
+                        })}
+                    </div>
+                  )}
+                  {traitType && traitValues.length === 0 && (
+                    <p className="text-[10px] text-white/30 mt-1.5">
+                      Pick at least one value, or the offer stays open to the whole collection.
+                    </p>
+                  )}
+                </div>
+              )}
+
+              <div className="rounded-lg border border-white/10 bg-white/[0.02] p-3 space-y-1.5">
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-white/45 text-xs">Total maximum</span>
+                  <span className="text-white font-semibold tabular-nums">{total.toFixed(3)} WETH</span>
+                </div>
+                {eligibleCount !== null && (
+                  <div className="flex items-center justify-between text-[11px]">
+                    <span className="text-white/40">Eligible NFTs</span>
+                    <span className="text-white/60 tabular-nums">
+                      {eligibleCount}
+                      {criteria ? ` matching ${criteria.traitType}` : " in collection"}
+                    </span>
+                  </div>
+                )}
               </div>
 
               <div className="flex items-start gap-2 text-[11px] text-white/45 bg-white/5 border border-white/10 rounded-lg p-3">

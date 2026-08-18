@@ -5,6 +5,16 @@ import { useRouter } from "next/navigation";
 import clsx from "clsx";
 import { Zap, Gavel, Heart, Share2, ArrowRight } from "lucide-react";
 import { useConnectModal } from "@rainbow-me/rainbowkit";
+import { useAccount, useSwitchChain, useWriteContract, useReadContract, useSignTypedData } from "wagmi";
+import { parseEther, formatEther } from "viem";
+import {
+  buildCollectionOfferTypedData,
+  generateOfferNonce,
+  leafOf,
+  offersAddressFor,
+  wethAddressFor,
+  ERC20_ABI,
+} from "@/lib/web3/offerCriteria";
 import { Button } from "@/components/ui/Button";
 import { CountdownTimer } from "@/components/nft/CountdownTimer";
 import { useFavorite } from "@/hooks/useFavorite";
@@ -105,6 +115,7 @@ function ClassicPricePanel({ item }: { item: ItemDetailView }) {
           {showBidForm ? (
             <BidOfferForm
               itemId={item.id}
+              item={item}
               type="auction_bid"
               minAmount={item.highestBidEth ?? item.priceEth}
               onDone={() => {
@@ -116,6 +127,7 @@ function ClassicPricePanel({ item }: { item: ItemDetailView }) {
           ) : showOfferForm ? (
             <BidOfferForm
               itemId={item.id}
+              item={item}
               type="offer"
               minAmount={0}
               onDone={() => {
@@ -220,20 +232,46 @@ function ClassicPricePanel({ item }: { item: ItemDetailView }) {
 
 function BidOfferForm({
   itemId,
+  item,
   type,
   minAmount,
   onDone,
   onCancel,
 }: {
   itemId: string;
+  item: ItemDetailView;
   type: "auction_bid" | "offer";
   minAmount: number;
   onDone: () => void;
   onCancel: () => void;
 }) {
+  const { address, chainId: connectedChainId } = useAccount();
+  const { switchChainAsync } = useSwitchChain();
+  const { writeContractAsync } = useWriteContract();
+  const { signTypedDataAsync } = useSignTypedData();
   const [amount, setAmount] = useState(type === "auction_bid" ? (minAmount + 0.05).toFixed(2) : "");
   const [submitting, setSubmitting] = useState(false);
+  const [phase, setPhase] = useState<"idle" | "approving" | "signing" | "saving">("idle");
   const [error, setError] = useState<string | null>(null);
+
+  const offersAddress = offersAddressFor(item.chainId);
+  const weth = wethAddressFor(item.chainId);
+  const { data: allowance, refetch: refetchAllowance } = useReadContract({
+    address: weth,
+    abi: ERC20_ABI,
+    functionName: "allowance",
+    args: address && offersAddress ? [address, offersAddress] : undefined,
+    chainId: item.chainId,
+    query: { enabled: !!address && !!offersAddress && !!weth && type === "offer" },
+  });
+  const { data: wethBalance } = useReadContract({
+    address: weth,
+    abi: ERC20_ABI,
+    functionName: "balanceOf",
+    args: address ? [address] : undefined,
+    chainId: item.chainId,
+    query: { enabled: !!address && !!weth && type === "offer" },
+  });
 
   async function submit() {
     const amountEth = Number(amount);
@@ -244,16 +282,80 @@ function BidOfferForm({
     setSubmitting(true);
     setError(null);
     try {
+      let extra: Record<string, unknown> = {};
+
+      // An offer has to be a signed, WETH-backed commitment, otherwise
+      // accepting it can't actually move money — which is how this used to
+      // silently do nothing. Auction bids keep their own settlement path.
+      if (type === "offer") {
+        if (!address) throw new Error("Connect your wallet to make an offer");
+        if (!offersAddress || !weth) throw new Error("Offers aren't available on this network yet");
+        if (!item.tokenId) throw new Error("This NFT hasn't been minted yet");
+
+        const amountWei = parseEther(amountEth.toString());
+        // Offers are WETH-denominated because the seller submits the
+        // accepting transaction and the buyer isn't there to send ETH.
+        // Say that plainly rather than letting the wallet fail cryptically.
+        if (wethBalance !== undefined && (wethBalance as bigint) < amountWei) {
+          throw new Error(
+            `You need ${amountEth} WETH to back this offer — wrap some ETH first (you hold ${Number(
+              formatEther(wethBalance as bigint)
+            ).toFixed(4)} WETH)`
+          );
+        }
+        if (connectedChainId !== item.chainId) await switchChainAsync({ chainId: item.chainId });
+
+        if (allowance === undefined || (allowance as bigint) < amountWei) {
+          setPhase("approving");
+          await writeContractAsync({
+            address: weth,
+            abi: ERC20_ABI,
+            functionName: "approve",
+            args: [offersAddress, amountWei],
+            chainId: item.chainId,
+          });
+          await new Promise((r) => setTimeout(r, 2000));
+          await refetchAllowance();
+        }
+
+        setPhase("signing");
+        const nonce = generateOfferNonce();
+        const typedData = buildCollectionOfferTypedData({
+          chainId: item.chainId,
+          verifyingContract: offersAddress,
+          nft: item.contractAddress,
+          isERC1155: item.standard === "ERC1155",
+          // Eligible set of exactly one token: this offer can only ever be
+          // filled by this NFT.
+          criteriaRoot: leafOf(item.tokenId),
+          pricePerItemEth: amountEth,
+          quantity: 1,
+          deadlineSeconds: 7 * 24 * 60 * 60,
+          nonce,
+          buyer: address as `0x${string}`,
+        });
+        const signature = await signTypedDataAsync(typedData);
+        extra = {
+          signature,
+          nonce: nonce.toString(),
+          criteriaRoot: typedData.message.criteriaRoot,
+          deadline: typedData.message.deadline.toString(),
+        };
+      }
+
+      setPhase("saving");
       const res = await fetch("/api/bids", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ itemId, type, amountEth }),
+        body: JSON.stringify({ itemId, type, amountEth, ...extra }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Failed to submit");
+      setPhase("idle");
       onDone();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to submit");
+      setError(err instanceof Error ? err.message.split("\n")[0] : "Failed to submit");
+      setPhase("idle");
       setSubmitting(false);
     }
   }
@@ -274,7 +376,7 @@ function BidOfferForm({
           className="flex-1 bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-purple-500/60"
         />
         <Button size="md" onClick={submit} disabled={submitting} icon={<ArrowRight className="w-4 h-4" />}>
-          {submitting ? "…" : "Submit"}
+          {phase === "approving" ? "Approve…" : phase === "signing" ? "Sign…" : submitting ? "…" : "Submit"}
         </Button>
         <Button variant="ghost" size="md" onClick={onCancel}>
           Cancel

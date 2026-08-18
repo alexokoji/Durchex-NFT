@@ -20,6 +20,20 @@ const BidSchema = new Schema(
       index: true,
     },
     expiresAt: { type: Date, default: null },
+
+    // Settlement data for type:"offer". An NFT offer is expressed as a
+    // DurchexOffers CollectionOffer whose eligible set holds exactly one
+    // token (criteriaRoot = leafOf(tokenId)), so it reuses that contract
+    // unchanged rather than needing its own. Absent on legacy offers made
+    // before settlement existed — those can never be accepted, and the
+    // accept route says so rather than pretending to work.
+    buyerAddress: { type: String, default: null, lowercase: true },
+    nft: { type: String, default: null },
+    criteriaRoot: { type: String, default: null },
+    nonce: { type: String, default: null },
+    deadline: { type: Date, default: null },
+    signature: { type: String, default: null },
+    chainId: { type: Number, default: null },
   },
   { timestamps: true }
 );

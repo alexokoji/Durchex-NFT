@@ -3,6 +3,8 @@ import { connectDB } from "@/lib/db";
 import { Item } from "@/lib/models/Item";
 import { Bid } from "@/lib/models/Bid";
 import { Listing } from "@/lib/models/Listing";
+import { Collection } from "@/lib/models/Collection";
+import { leafOf } from "@/lib/web3/offerCriteria";
 import { getCurrentUser } from "@/lib/auth/currentUser";
 import { recordActivity } from "@/lib/activity";
 import { createNotification } from "@/lib/notifications";
@@ -144,6 +146,40 @@ export async function POST(req: NextRequest) {
         })
       : null;
 
+  // An offer must be a real, signed, WETH-backed commitment — otherwise
+  // accepting it later can't move any money, which is exactly how this
+  // used to be broken. The eligible set is derived here from the item's own
+  // tokenId so a buyer can't sign an offer that covers anything else.
+  let offerSettlement: Record<string, unknown> = {};
+  if (type === "offer") {
+    if (!item.isMinted || !item.tokenId) {
+      return NextResponse.json(
+        { error: "This NFT hasn't been minted yet, so an offer can't be secured against it" },
+        { status: 400 }
+      );
+    }
+    if (typeof body.signature !== "string" || !body.nonce || !body.criteriaRoot) {
+      return NextResponse.json({ error: "A signed offer is required" }, { status: 400 });
+    }
+    const collection = await Collection.findById(item.collection).select("contractAddress chainId").lean();
+    const expectedRoot = leafOf(String(item.tokenId));
+    if (String(body.criteriaRoot).toLowerCase() !== expectedRoot.toLowerCase()) {
+      return NextResponse.json(
+        { error: "Offer doesn't match this NFT — refresh and try again" },
+        { status: 409 }
+      );
+    }
+    offerSettlement = {
+      buyerAddress: user.address,
+      nft: collection?.contractAddress,
+      criteriaRoot: expectedRoot,
+      nonce: String(body.nonce),
+      deadline: body.deadline ? new Date(Number(body.deadline) * 1000) : null,
+      signature: body.signature,
+      chainId: collection?.chainId,
+    };
+  }
+
   const bid = await Bid.create({
     item: item._id,
     bidder: user._id,
@@ -151,7 +187,11 @@ export async function POST(req: NextRequest) {
     amountEth,
     quantity: item.standard === "ERC1155" ? quantity : 1,
     expiresAt:
-      type === "offer" ? new Date(Date.now() + OFFER_EXPIRY_DAYS * 24 * 60 * 60 * 1000) : null,
+      type === "offer"
+        ? (offerSettlement.deadline as Date | null) ??
+          new Date(Date.now() + OFFER_EXPIRY_DAYS * 24 * 60 * 60 * 1000)
+        : null,
+    ...offerSettlement,
   });
 
   await recordActivity({

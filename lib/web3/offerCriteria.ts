@@ -133,10 +133,8 @@ export function buildCollectionOfferTypedData({
 }
 
 // Live DurchexOffers deployments and the WETH each is denominated in.
-// Mainnet is intentionally absent until the flow has been exercised on
-// Sepolia — collection offers simply don't render on a chain with no
-// deployment, so mainnet keeps working exactly as before.
 export const OFFERS_ADDRESSES: Record<number, `0x${string}`> = {
+  1: "0x6c25bdD92906eb97601410198D398526bA792468", // Ethereum mainnet
   11155111: "0x2F2E298386c522D041c9de9eceCBFc50A8299721", // Sepolia
 };
 export const WETH_ADDRESSES: Record<number, `0x${string}`> = {
