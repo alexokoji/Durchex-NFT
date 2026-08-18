@@ -1,11 +1,11 @@
 "use client";
 
 import { useState } from "react";
-import { ConnectButton } from "@rainbow-me/rainbowkit";
 import { useAccount } from "wagmi";
 import { Wallet, ShieldCheck, ShieldX, Loader2, Search, RotateCcw } from "lucide-react";
 import clsx from "clsx";
 import { Button } from "@/components/ui/Button";
+import { useConnectFlow } from "@/components/wallet/ConnectFlow";
 
 type PhaseResult = { eligible: boolean; label: string | null };
 type CheckResult = {
@@ -82,6 +82,7 @@ function PhaseCard({ phase, result }: { phase: (typeof PHASES)[number]; result: 
 
 export function WalletCheckerPanel() {
   const { address, isConnected } = useAccount();
+  const { openConnect } = useConnectFlow();
   const [result, setResult] = useState<CheckResult | null>(null);
   const [checking, setChecking] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -120,13 +121,9 @@ export function WalletCheckerPanel() {
             <p className="text-sm text-white/45 mb-6">
               We only read your address — no signature, no transaction, nothing leaves your wallet.
             </p>
-            <ConnectButton.Custom>
-              {({ openConnectModal, mounted }) => (
-                <Button onClick={openConnectModal} disabled={!mounted} size="lg" icon={<Wallet className="w-4 h-4" />}>
-                  Connect Wallet
-                </Button>
-              )}
-            </ConnectButton.Custom>
+            <Button onClick={openConnect} size="lg" icon={<Wallet className="w-4 h-4" />}>
+              Connect Wallet
+            </Button>
           </>
         ) : (
           <>

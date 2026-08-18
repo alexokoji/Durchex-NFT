@@ -13,12 +13,13 @@ import {
   hardhat,
 } from "wagmi/chains";
 import { SUPPORTED_EVM_CHAIN_IDS } from "@/lib/web3/supportedChains";
+import { walletGroups } from "@/lib/web3/wallets";
 
 // A public placeholder so wallet connect doesn't hard-crash without a real
 // WalletConnect Cloud project id in dev. Injected wallets (MetaMask, etc.)
 // still work fine without one — only the WalletConnect QR/relay path needs it.
 // Get a real one at https://cloud.walletconnect.com for production.
-const WALLETCONNECT_PROJECT_ID =
+export const WALLETCONNECT_PROJECT_ID =
   process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID || "caa9727fd26fe72353d75ddc7fcde24c";
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL || "https://durchex-two.vercel.app";
 
@@ -39,6 +40,9 @@ export const wagmiConfig = getDefaultConfig({
   appUrl: APP_URL,
   appIcon: `${APP_URL}/icon.svg`,
   projectId: WALLETCONNECT_PROJECT_ID,
+  // Explicit list (see lib/web3/wallets.ts) instead of RainbowKit's default
+  // one, which leads with a bare "WalletConnect" entry.
+  wallets: walletGroups(WALLETCONNECT_PROJECT_ID),
   chains: [mainnet, base, polygon, arbitrum, optimism, avalanche, bsc, hyperliquid, polygonAmoy, sepolia, hardhat],
   ssr: true,
 });

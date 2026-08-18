@@ -6,6 +6,7 @@ import { ConnectButton } from "@rainbow-me/rainbowkit";
 import { useAccount, useDisconnect, useSwitchChain } from "wagmi";
 import { ChevronDown, LogOut, Wallet, AlertTriangle, RotateCcw, User, Check, Loader2 } from "lucide-react";
 import { GeneratedArt } from "@/components/nft/GeneratedArt";
+import { useConnectFlow } from "@/components/wallet/ConnectFlow";
 import { useSession } from "@/hooks/useSession";
 import { useAutoSiweSignIn } from "@/hooks/useAutoSiweSignIn";
 import { CHAIN_META, PRIMARY_CHAIN_IDS } from "@/lib/web3/config";
@@ -20,6 +21,7 @@ export function ConnectWalletButton() {
   const { user, isLoading } = useSession();
   const { isSigningIn, error, retry } = useAutoSiweSignIn();
   const { switchChainAsync, isPending: isSwitchingChain } = useSwitchChain();
+  const { openConnect } = useConnectFlow();
   const [menuOpen, setMenuOpen] = useState(false);
   const [switchingTo, setSwitchingTo] = useState<number | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -40,7 +42,7 @@ export function ConnectWalletButton() {
 
   return (
     <ConnectButton.Custom>
-      {({ account, chain, openConnectModal, openChainModal, mounted }) => {
+      {({ account, chain, openChainModal, mounted }) => {
         const ready = mounted;
         const connected = ready && account && chain;
 
@@ -51,7 +53,7 @@ export function ConnectWalletButton() {
         if (!connected) {
           return (
             <button
-              onClick={openConnectModal}
+              onClick={openConnect}
               className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold bg-gradient-to-b from-purple-600 to-purple-700 text-white shadow-[0_8px_24px_rgba(124,58,237,0.45)] hover:shadow-[0_10px_32px_rgba(124,58,237,0.6)] hover:-translate-y-0.5 border border-purple-500/40 transition-all"
             >
               <Wallet className="w-4 h-4" />

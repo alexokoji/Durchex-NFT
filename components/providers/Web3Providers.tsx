@@ -6,6 +6,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { RainbowKitProvider, darkTheme } from "@rainbow-me/rainbowkit";
 import "@rainbow-me/rainbowkit/styles.css";
 import { wagmiConfig } from "@/lib/web3/config";
+import { ConnectFlowProvider } from "@/components/wallet/ConnectFlow";
 
 const baseRainbowKitTheme = darkTheme({
   accentColor: "#7C3AED",
@@ -34,7 +35,9 @@ export function Web3Providers({ children }: { children: ReactNode }) {
   return (
     <WagmiProvider config={wagmiConfig}>
       <QueryClientProvider client={queryClient}>
-        <RainbowKitProvider theme={rainbowKitTheme}>{children}</RainbowKitProvider>
+        <RainbowKitProvider theme={rainbowKitTheme}>
+          <ConnectFlowProvider>{children}</ConnectFlowProvider>
+        </RainbowKitProvider>
       </QueryClientProvider>
     </WagmiProvider>
   );
