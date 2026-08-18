@@ -69,7 +69,19 @@ export async function POST(req: NextRequest, context: { params: Promise<{ id: st
     return NextResponse.json({ error: "You don't hold enough of this item to list that quantity" }, { status: 400 });
   }
 
-  const collection = await Collection.findById(item.collection).select("contractAddress").lean();
+  const collection = await Collection.findById(item.collection)
+    .select("contractAddress listingEnabled listingOpensAt")
+    .lean();
+
+  // The creator controls when holders may resell. ERC-721 resale has always
+  // honoured this (see PATCH /api/items/[id]); the edition path was missing
+  // the same gate, so 1155 holders could list while the collection was
+  // still closed.
+  const listingOpen =
+    collection && (collection.listingEnabled || (collection.listingOpensAt && collection.listingOpensAt <= new Date()));
+  if (!listingOpen) {
+    return NextResponse.json({ error: "Listing is not open yet for this collection" }, { status: 403 });
+  }
 
   // Auction lots: nothing to sign yet — the seller only signs a Listing1155
   // at settlement, once the winner and final price are actually known.

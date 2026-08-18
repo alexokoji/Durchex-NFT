@@ -46,7 +46,9 @@ export async function verifyAndSyncPurchase({
 }: {
   txHash: `0x${string}`;
   chainId: number;
-  expectedBuyer: string;
+  /** null = trust the on-chain event's buyer (used by the backfill replay,
+   *  which has no session to match against). */
+  expectedBuyer: string | null;
   saleType?: SaleType;
 }) {
   const chain = CHAINS[chainId];
@@ -79,7 +81,7 @@ export async function verifyAndSyncPurchase({
   for (const log of logs) {
     if (log.eventName === "VoucherRedeemed") {
       const { nft, tokenId, buyer, price } = log.args;
-      if (buyer.toLowerCase() !== expectedBuyer.toLowerCase()) {
+      if (expectedBuyer && buyer.toLowerCase() !== expectedBuyer.toLowerCase()) {
         return { ok: false as const, error: "This transaction wasn't made by you" };
       }
       const result = await handleVoucherRedeemed(nft, tokenId, buyer, price, txHash, saleType);
@@ -87,7 +89,7 @@ export async function verifyAndSyncPurchase({
     }
     if (log.eventName === "ListingFilled") {
       const { nft, tokenId, seller, buyer, price } = log.args;
-      if (buyer.toLowerCase() !== expectedBuyer.toLowerCase()) {
+      if (expectedBuyer && buyer.toLowerCase() !== expectedBuyer.toLowerCase()) {
         return { ok: false as const, error: "This transaction wasn't made by you" };
       }
       const result = await handleResale(nft, tokenId, seller, buyer, price, txHash, saleType);
@@ -95,7 +97,7 @@ export async function verifyAndSyncPurchase({
     }
     if (log.eventName === "EditionRedeemed") {
       const { nft, tokenId, buyer, quantity, totalPrice } = log.args;
-      if (buyer.toLowerCase() !== expectedBuyer.toLowerCase()) {
+      if (expectedBuyer && buyer.toLowerCase() !== expectedBuyer.toLowerCase()) {
         return { ok: false as const, error: "This transaction wasn't made by you" };
       }
       const result = await handleEditionRedeemed(nft, tokenId, buyer, quantity, totalPrice, txHash, saleType);
@@ -103,7 +105,7 @@ export async function verifyAndSyncPurchase({
     }
     if (log.eventName === "Listing1155Filled") {
       const { nft, tokenId, seller, buyer, quantity, totalPrice } = log.args;
-      if (buyer.toLowerCase() !== expectedBuyer.toLowerCase()) {
+      if (expectedBuyer && buyer.toLowerCase() !== expectedBuyer.toLowerCase()) {
         return { ok: false as const, error: "This transaction wasn't made by you" };
       }
       const result = await handleListing1155Filled(nft, tokenId, seller, buyer, quantity, totalPrice, txHash, saleType);

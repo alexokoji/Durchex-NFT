@@ -9,6 +9,7 @@ import clsx from "clsx";
 import { Button } from "@/components/ui/Button";
 import { useTxSuccess } from "@/components/tx/TxSuccess";
 import { MARKETPLACE_ABI, marketplaceAddressFor } from "@/lib/web3/marketplaceAbi";
+import { settlePurchase } from "@/lib/web3/settlePurchase";
 import { PHASE_LABELS, PhaseKey } from "@/lib/mintPhases";
 import { ItemDetailView } from "@/lib/types";
 
@@ -88,10 +89,28 @@ export function BuyEditionButton({
       return;
     }
     setError(null);
+    // Reserve the wallet's phase allowance *before* taking payment.
+    // Recording it afterwards can only ever describe what happened, never
+    // prevent it: a wallet could mint past its cap and the count would
+    // simply follow along. Reserving first makes the cap binding, and makes
+    // concurrent mints from the same wallet race the database rather than
+    // both succeeding.
+    let reserved = false;
     try {
       if (connectedChainId !== item.chainId) {
         setPhase("switching");
         await switchChainAsync({ chainId: item.chainId });
+      }
+
+      if (selectedMintPhase) {
+        const res = await fetch(`/api/collections/${item.collectionId}/phases/${selectedMintPhase}/claim`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action: "reserve", quantity: qty }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data.error ?? "This phase can't be minted right now");
+        reserved = true;
       }
 
       setPhase("confirm");
@@ -119,24 +138,12 @@ export function BuyEditionButton({
         chainId: item.chainId,
       });
 
+      // Payment has happened; the reservation now corresponds to a real
+      // mint and must not be released even if everything below fails.
+      reserved = false;
+
       setPhase("mining");
-      await publicClient?.waitForTransactionReceipt({ hash });
-
-      await fetch("/api/purchases/confirm", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ txHash: hash, chainId: item.chainId }),
-      }).catch(() => {});
-
-      // Record the claim against whichever phase this wallet minted
-      // through, in units — that's what allocation and wallet caps count.
-      if (selectedMintPhase) {
-        await fetch(`/api/collections/${item.collectionId}/phases/${selectedMintPhase}/claim`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ quantity: qty }),
-        }).catch(() => {});
-      }
+      await settlePurchase({ publicClient, hash, chainId: item.chainId });
 
       setPhase("done");
       celebrate({
@@ -151,6 +158,15 @@ export function BuyEditionButton({
       });
       setTimeout(() => router.refresh(), 500);
     } catch (err) {
+      // The mint never happened, so hand the reserved units back rather
+      // than permanently eating part of this wallet's allowance.
+      if (reserved && selectedMintPhase) {
+        await fetch(`/api/collections/${item.collectionId}/phases/${selectedMintPhase}/claim`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action: "release", quantity: qty }),
+        }).catch(() => {});
+      }
       setError(err instanceof Error ? err.message.split("\n")[0] : "Transaction failed");
       setPhase("idle");
     }

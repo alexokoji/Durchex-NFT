@@ -20,9 +20,31 @@ export async function POST(req: NextRequest, context: { params: Promise<{ id: st
   }
   const key = phase as PhaseKey;
   const racesAllocation = RACES_ALLOCATION[key];
-  const quantity = Math.max(1, Math.floor(Number((await req.json().catch(() => ({}))).quantity ?? 1)));
+  const body = await req.json().catch(() => ({}));
+  const quantity = Math.max(1, Math.floor(Number(body.quantity ?? 1)));
+  const action = body.action === "release" ? "release" : "reserve";
 
   await connectDB();
+
+  // Releasing a reservation whose mint never happened (wallet rejected, or
+  // the transaction failed). Guarded so it can only ever give back units
+  // this wallet actually holds a reservation for — a replayed release must
+  // not be able to drive the counters negative and hand out free supply.
+  if (action === "release") {
+    const released = await PhaseClaim.findOneAndUpdate(
+      { collection: id, phase: key, wallet: user.address, count: { $gte: quantity } },
+      { $inc: { count: -quantity } },
+      { new: true }
+    );
+    if (!released) {
+      return NextResponse.json({ error: "Nothing to release" }, { status: 409 });
+    }
+    await Collection.updateOne(
+      { _id: id, [`mintPhases.${key}.minted`]: { $gte: quantity } },
+      { $inc: { [`mintPhases.${key}.minted`]: -quantity } }
+    );
+    return NextResponse.json({ released: quantity, claimed: released.count });
+  }
   const collection = await Collection.findById(id).select(`mintPhases.${key}`);
   if (!collection) return NextResponse.json({ error: "Collection not found" }, { status: 404 });
   const config = collection.mintPhases[key];
@@ -33,17 +55,41 @@ export async function POST(req: NextRequest, context: { params: Promise<{ id: st
     return NextResponse.json({ error: "Your wallet isn't on the allowlist for this phase" }, { status: 403 });
   }
 
-  const existingClaim = await PhaseClaim.findOne({ collection: id, phase: key, wallet: user.address }).lean();
-  const alreadyClaimed = existingClaim?.count ?? 0;
-  if (config.walletLimit > 0 && alreadyClaimed + quantity > config.walletLimit) {
+  // Reserve this wallet's units atomically. Reading the count and then
+  // incrementing separately lets two concurrent mints both pass the check
+  // and blow through the cap, so the limit has to live in the update's own
+  // filter. The doc is created first so the conditional update below has
+  // something to match on a wallet's very first mint.
+  await PhaseClaim.updateOne(
+    { collection: id, phase: key, wallet: user.address },
+    { $setOnInsert: { count: 0 } },
+    { upsert: true }
+  );
+  const reserved = await PhaseClaim.findOneAndUpdate(
+    {
+      collection: id,
+      phase: key,
+      wallet: user.address,
+      ...(config.walletLimit > 0 ? { count: { $lte: config.walletLimit - quantity } } : {}),
+    },
+    { $inc: { count: quantity } },
+    { new: true }
+  );
+  if (!reserved) {
+    const current = await PhaseClaim.findOne({ collection: id, phase: key, wallet: user.address }).lean();
     return NextResponse.json(
-      { error: `This wallet can mint at most ${config.walletLimit} in this phase (already claimed ${alreadyClaimed}).` },
+      {
+        error: `This wallet can mint at most ${config.walletLimit} in this phase (already claimed ${current?.count ?? 0}).`,
+      },
       { status: 409 }
     );
   }
+  const alreadyClaimed = reserved.count - quantity;
+
   // GTD (whitelist) doesn't race the shared allocation — every allowlisted
   // wallet is guaranteed its walletLimit any time the phase is live.
   if (racesAllocation && config.allocation > 0 && config.minted + quantity > config.allocation) {
+    await PhaseClaim.updateOne({ _id: reserved._id }, { $inc: { count: -quantity } });
     return NextResponse.json({ error: "This phase is sold out" }, { status: 409 });
   }
 
@@ -61,6 +107,10 @@ export async function POST(req: NextRequest, context: { params: Promise<{ id: st
     { new: true }
   ).select(`mintPhases.${key}`);
   if (!updated) {
+    // The shared allocation ran out between the check above and this
+    // increment — give the wallet its reserved units back rather than
+    // silently consuming part of its cap for a mint that won't happen.
+    await PhaseClaim.updateOne({ _id: reserved._id }, { $inc: { count: -quantity } });
     return NextResponse.json({ error: "This phase is sold out" }, { status: 409 });
   }
 
@@ -80,12 +130,6 @@ export async function POST(req: NextRequest, context: { params: Promise<{ id: st
       { $set: { [`mintPhases.${key}.enabled`]: false } }
     );
   }
-
-  await PhaseClaim.findOneAndUpdate(
-    { collection: id, phase: key, wallet: user.address },
-    { $inc: { count: quantity } },
-    { upsert: true }
-  );
 
   return NextResponse.json({
     claimed: alreadyClaimed + quantity,

@@ -8,6 +8,7 @@ import { useConnectModal } from "@rainbow-me/rainbowkit";
 import { Button } from "@/components/ui/Button";
 import { useTxSuccess } from "@/components/tx/TxSuccess";
 import { MARKETPLACE_ABI, marketplaceAddressFor } from "@/lib/web3/marketplaceAbi";
+import { settlePurchase } from "@/lib/web3/settlePurchase";
 import { explorerTxUrl } from "@/lib/web3/explorer";
 import { PHASE_LABELS, PhaseKey } from "@/lib/mintPhases";
 import { ItemDetailView } from "@/lib/types";
@@ -101,28 +102,8 @@ export function BuyLazyButton({ item, phase: forcedPhase }: { item: ItemDetailVi
       setTxHash(hash);
 
       setTxPhase("mining");
-      await publicClient?.waitForTransactionReceipt({ hash });
+      await settlePurchase({ publicClient, hash, chainId: item.chainId });
 
-      // No indexer runs continuously in this deployment, so tell the server
-      // to re-verify this exact transaction on-chain itself and sync
-      // MongoDB — see /api/purchases/confirm. Best-effort: the purchase
-      // already succeeded on-chain regardless of whether this call works.
-      await fetch("/api/purchases/confirm", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ txHash: hash, chainId: item.chainId }),
-      }).catch(() => {});
-
-      // Records this mint against whichever phase the buyer minted through —
-      // per-wallet/allocation caps, same off-chain enforcement layer
-      // DropMintPanel uses.
-      if (selectedMintPhase) {
-        await fetch(`/api/collections/${item.collectionId}/phases/${selectedMintPhase}/claim`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ quantity: 1 }),
-        }).catch(() => {});
-      }
 
       setTxPhase("done");
       celebrate({
