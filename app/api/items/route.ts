@@ -6,6 +6,7 @@ import { User } from "@/lib/models/User";
 import { getCurrentUser } from "@/lib/auth/currentUser";
 import { recordActivity } from "@/lib/activity";
 import { recalculateCollectionFloor } from "@/lib/floorPrice";
+import { nextVoucherNonce } from "@/lib/web3/voucherNonce";
 
 interface CreateItemBody {
   collectionId: string;
@@ -76,11 +77,31 @@ export async function POST(req: NextRequest) {
   if (!!body.voucher !== !!body.signature) {
     return NextResponse.json({ error: "A lazy-mint voucher needs both a signature and voucher data" }, { status: 400 });
   }
-  if (body.voucher && body.voucher.nonce !== (user.nextVoucherNonce ?? 0)) {
-    return NextResponse.json(
-      { error: "Voucher nonce is stale — refresh and try again" },
-      { status: 409 }
-    );
+  // Validate against the nonce the *contract* will demand, not a per-user
+  // counter. The counter is global while the contract tracks nonces per
+  // deployment, so once more than one chain is live the two drift and every
+  // voucher signed afterwards reverts on redemption.
+  if (body.voucher) {
+    let expectedNonce: number;
+    try {
+      expectedNonce = await nextVoucherNonce({
+        creatorId: user._id,
+        creatorAddress: user.address,
+        contractAddress: collection.contractAddress,
+        chainId: collection.chainId,
+      });
+    } catch (err) {
+      return NextResponse.json(
+        { error: err instanceof Error ? err.message : "Couldn't verify the voucher nonce" },
+        { status: 503 }
+      );
+    }
+    if (body.voucher.nonce !== expectedNonce) {
+      return NextResponse.json(
+        { error: `Voucher nonce is stale — expected ${expectedNonce}. Refresh and try again.` },
+        { status: 409 }
+      );
+    }
   }
   // tokenId must be unique across ALL collections, not just this one —
   // collections share the same deployed DurchexNFT contract by default

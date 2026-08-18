@@ -137,6 +137,18 @@ export default function CreatePage() {
       const tokenId = Date.now();
       const metadataUri = `${window.location.origin}/api/metadata/${collection.slug}/${tokenId}`;
       const canLazyMint = isAddress(collection.contractAddress) && chainId === collection.chainId;
+
+      // The nonce has to come from the contract this voucher targets, not
+      // from the user record: nonces live per deployment, and each chain
+      // has its own, so a per-user counter drifts and the mint reverts.
+      let voucherNonce = 0;
+      if (canLazyMint) {
+        const nonceRes = await fetch(`/api/collections/${collection.id}/voucher-nonce`);
+        const nonceData = await nonceRes.json();
+        if (!nonceRes.ok) throw new Error(nonceData.error ?? "Couldn't prepare the listing");
+        voucherNonce = nonceData.nonce;
+      }
+
       const typedData = canLazyMint ? buildVoucherTypedData({
         chainId: collection.chainId,
         verifyingContract: collection.contractAddress,
@@ -145,7 +157,7 @@ export default function CreatePage() {
         priceEth: mode === "not_listed" ? 0 : Number(priceEth),
         creator: address,
         royaltyBps: collection.royaltyBps,
-        nonce: user.nextVoucherNonce,
+        nonce: voucherNonce,
       }) : null;
       const signature = typedData ? await signTypedDataAsync(typedData) : undefined;
 
@@ -169,7 +181,7 @@ export default function CreatePage() {
             minPrice: typedData.message.minPrice.toString(),
             creator: address,
             royaltyBps: collection.royaltyBps,
-            nonce: user.nextVoucherNonce,
+            nonce: voucherNonce,
             deadline: typedData.message.deadline.toString(),
           } : undefined,
           signature,
