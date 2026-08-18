@@ -61,9 +61,19 @@ export async function verifyAndSyncPurchase({
   const marketplaceAddress = marketplaceAddressFor(chainId);
   if (!marketplaceAddress) return { ok: false as const, error: "Marketplace contract not configured for this chain" };
 
+  // Server-side RPC, per chain. Falls back to the chain default when none
+  // is configured. This is the endpoint that decides whether a purchase is
+  // recorded at all, so it must not be the rate-limited public one.
+  const configuredRpc =
+    process.env[`RPC_URL_${chainId}`] ?? (chainId === mainnet.id ? process.env.MAINNET_RPC_URL : undefined);
   const client = createPublicClient({
     chain,
-    transport: chainId === hardhat.id ? http("http://127.0.0.1:8545") : http(),
+    transport:
+      chainId === hardhat.id
+        ? http("http://127.0.0.1:8545")
+        : configuredRpc
+          ? http(configuredRpc, { timeout: 20_000 })
+          : http(),
   });
 
   let receipt;

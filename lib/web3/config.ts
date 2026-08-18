@@ -1,4 +1,5 @@
 import { getDefaultConfig } from "@rainbow-me/rainbowkit";
+import { http } from "wagmi";
 import {
   mainnet,
   base,
@@ -34,7 +35,38 @@ const APP_URL = process.env.NEXT_PUBLIC_APP_URL || "https://durchex-two.vercel.a
 // gets tested end-to-end without needing a funded testnet account. Harmless
 // to list even when nothing's running on it; a wallet just won't be able to
 // switch to it.
+/**
+ * Browser-side RPC endpoints, per chain.
+ *
+ * Without these wagmi falls back to each chain's default public endpoint,
+ * which for mainnet is heavily rate-limited — that's what left mints
+ * hanging on "Minting on-chain…" while the purchase had actually settled.
+ * A dedicated endpoint makes receipt polling reliable.
+ *
+ * These are NEXT_PUBLIC_ by necessity: the browser has to make the calls,
+ * so the URL is visible to anyone using the site. That's normal for a
+ * dApp, but it does mean the key should be domain-restricted in the
+ * provider's dashboard rather than treated as a secret.
+ */
+const rpcUrls: Record<number, string | undefined> = {
+  [mainnet.id]: process.env.NEXT_PUBLIC_RPC_URL_1,
+  [sepolia.id]: process.env.NEXT_PUBLIC_RPC_URL_11155111,
+  [base.id]: process.env.NEXT_PUBLIC_RPC_URL_8453,
+  [polygon.id]: process.env.NEXT_PUBLIC_RPC_URL_137,
+  [arbitrum.id]: process.env.NEXT_PUBLIC_RPC_URL_42161,
+  [optimism.id]: process.env.NEXT_PUBLIC_RPC_URL_10,
+};
+
+// Chains with no configured URL fall through to wagmi's default transport,
+// so adding a key for one network never breaks the others.
+const transports = Object.fromEntries(
+  [mainnet, base, polygon, arbitrum, optimism, avalanche, bsc, hyperliquid, polygonAmoy, sepolia, hardhat].map(
+    (chain) => [chain.id, rpcUrls[chain.id] ? http(rpcUrls[chain.id]) : http()]
+  )
+);
+
 export const wagmiConfig = getDefaultConfig({
+  transports,
   appName: "Durchex",
   appDescription: "Durchex is a multi-chain NFT marketplace for creators and collectors.",
   appUrl: APP_URL,
