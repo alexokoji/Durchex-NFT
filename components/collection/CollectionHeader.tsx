@@ -5,6 +5,9 @@ import { DropMintPanel } from "@/components/drop/DropMintPanel";
 import { PhaseManager } from "@/components/collection/PhaseManager";
 import { ListingControl } from "@/components/collection/ListingControl";
 import { ContractAttach } from "@/components/collection/ContractAttach";
+import { BuyFloorButton } from "@/components/collection/BuyFloorButton";
+import { MakeCollectionOfferButton } from "@/components/collection/MakeCollectionOfferButton";
+import { CollectionOffersList } from "@/components/collection/CollectionOffersList";
 
 export function CollectionHeader({ collection }: { collection: CollectionDetailView }) {
   return (
@@ -37,6 +40,11 @@ export function CollectionHeader({ collection }: { collection: CollectionDetailV
         <Stat label="Collection Supply" value={collection.maxSupply > 0 ? collection.maxSupply.toLocaleString() : "Unlimited"} />
         <Stat label="Owners" value={collection.owners.toLocaleString()} />
       </div>
+
+      <div className="mt-6 px-4 sm:px-8 flex flex-wrap gap-2">
+        <BuyFloorButton collection={collection} />
+        <MakeCollectionOfferButton collection={collection} />
+      </div>
       {collection.contractType === "drop" && (
         <div className="px-4 sm:px-8">
           <DropMintPanel drop={{ collectionId: collection.id, contractAddress: collection.contractAddress, chainId: collection.chainId, phases: collection.mintPhases }} />
@@ -51,6 +59,7 @@ export function CollectionHeader({ collection }: { collection: CollectionDetailV
         />
         <PhaseManager collectionId={collection.id} creatorAddress={collection.creatorAddress} />
         <ListingControl collectionId={collection.id} creatorAddress={collection.creatorAddress} />
+        <CollectionOffersList collection={collection} />
       </div>
     </div>
   );

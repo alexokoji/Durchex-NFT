@@ -16,7 +16,7 @@ import { User } from "@/lib/models/User";
 import { ItemBalance } from "@/lib/models/ItemBalance";
 import { Listing } from "@/lib/models/Listing";
 import { Activity } from "@/lib/models/Activity";
-import { recordActivity } from "@/lib/activity";
+import { recordActivity, type SaleType } from "@/lib/activity";
 import { recalculateCollectionFloor } from "@/lib/floorPrice";
 
 export async function resolveOrCreateUser(address: string) {
@@ -41,7 +41,8 @@ export async function handleVoucherRedeemed(
   tokenId: bigint,
   buyer: string,
   price: bigint,
-  txHash: string
+  txHash: string,
+  saleType: SaleType = "BUY_NOW"
 ) {
   const item = await Item.findOne({ "voucher.tokenId": tokenId.toString(), isMinted: false });
   if (!item) return { synced: false as const, reason: "already synced or no matching lazy item" };
@@ -79,6 +80,7 @@ export async function handleVoucherRedeemed(
       from: item.creator,
       to: buyerUser._id,
       priceEth,
+      saleType,
       txHash,
     }),
     recalculateCollectionFloor(collection._id),
@@ -94,7 +96,8 @@ export async function handleResale(
   seller: string,
   buyer: string,
   price: bigint,
-  txHash: string
+  txHash: string,
+  saleType: SaleType = "BUY_NOW"
 ) {
   const item = await Item.findOne({ tokenId: tokenId.toString() });
   if (!item) return { synced: false as const, reason: "no matching item" };
@@ -135,6 +138,7 @@ export async function handleResale(
       from: (await User.findOne({ address: seller.toLowerCase() }))?._id,
       to: buyerUser._id,
       priceEth,
+      saleType,
       txHash,
     }),
     recalculateCollectionFloor(collection._id),
@@ -156,7 +160,8 @@ export async function handleEditionRedeemed(
   buyer: string,
   quantity: bigint,
   totalPrice: bigint,
-  txHash: string
+  txHash: string,
+  saleType: SaleType = "BUY_NOW"
 ) {
   const item = await Item.findOne({ "editionVoucher.tokenId": tokenId.toString(), standard: "ERC1155" });
   if (!item) return { synced: false as const, reason: "no matching edition item" };
@@ -201,6 +206,7 @@ export async function handleEditionRedeemed(
       to: buyerUser._id,
       priceEth: totalPriceEth,
       quantity: qty,
+      saleType,
       txHash,
     }),
     recalculateCollectionFloor(collection._id),
@@ -222,7 +228,8 @@ export async function handleListing1155Filled(
   buyer: string,
   quantity: bigint,
   totalPrice: bigint,
-  txHash: string
+  txHash: string,
+  saleType: SaleType = "BUY_NOW"
 ) {
   const item = await Item.findOne({ tokenId: tokenId.toString(), standard: "ERC1155" });
   if (!item) return { synced: false as const, reason: "no matching item" };
@@ -263,6 +270,7 @@ export async function handleListing1155Filled(
       to: buyerUser._id,
       priceEth: totalPriceEth,
       quantity: qty,
+      saleType,
       txHash,
     }),
     recalculateCollectionFloor(collection._id),

@@ -23,6 +23,7 @@ import {
 } from "viem/chains";
 import { handleVoucherRedeemed, handleResale, handleEditionRedeemed, handleListing1155Filled } from "@/lib/web3/chainSync";
 import { marketplaceAddressFor } from "@/lib/web3/marketplaceAbi";
+import type { SaleType } from "@/lib/activity";
 
 const CHAINS: Record<number, Chain> = Object.fromEntries(
   [mainnet, sepolia, polygon, polygonAmoy, base, arbitrum, optimism, avalanche, bsc, hyperliquid, hardhat].map(
@@ -41,10 +42,12 @@ export async function verifyAndSyncPurchase({
   txHash,
   chainId,
   expectedBuyer,
+  saleType = "BUY_NOW",
 }: {
   txHash: `0x${string}`;
   chainId: number;
   expectedBuyer: string;
+  saleType?: SaleType;
 }) {
   const chain = CHAINS[chainId];
   if (!chain) return { ok: false as const, error: "Unsupported chain" };
@@ -79,7 +82,7 @@ export async function verifyAndSyncPurchase({
       if (buyer.toLowerCase() !== expectedBuyer.toLowerCase()) {
         return { ok: false as const, error: "This transaction wasn't made by you" };
       }
-      const result = await handleVoucherRedeemed(nft, tokenId, buyer, price, txHash);
+      const result = await handleVoucherRedeemed(nft, tokenId, buyer, price, txHash, saleType);
       return { ok: true as const, ...result };
     }
     if (log.eventName === "ListingFilled") {
@@ -87,7 +90,7 @@ export async function verifyAndSyncPurchase({
       if (buyer.toLowerCase() !== expectedBuyer.toLowerCase()) {
         return { ok: false as const, error: "This transaction wasn't made by you" };
       }
-      const result = await handleResale(nft, tokenId, seller, buyer, price, txHash);
+      const result = await handleResale(nft, tokenId, seller, buyer, price, txHash, saleType);
       return { ok: true as const, ...result };
     }
     if (log.eventName === "EditionRedeemed") {
@@ -95,7 +98,7 @@ export async function verifyAndSyncPurchase({
       if (buyer.toLowerCase() !== expectedBuyer.toLowerCase()) {
         return { ok: false as const, error: "This transaction wasn't made by you" };
       }
-      const result = await handleEditionRedeemed(nft, tokenId, buyer, quantity, totalPrice, txHash);
+      const result = await handleEditionRedeemed(nft, tokenId, buyer, quantity, totalPrice, txHash, saleType);
       return { ok: true as const, ...result };
     }
     if (log.eventName === "Listing1155Filled") {
@@ -103,7 +106,7 @@ export async function verifyAndSyncPurchase({
       if (buyer.toLowerCase() !== expectedBuyer.toLowerCase()) {
         return { ok: false as const, error: "This transaction wasn't made by you" };
       }
-      const result = await handleListing1155Filled(nft, tokenId, seller, buyer, quantity, totalPrice, txHash);
+      const result = await handleListing1155Filled(nft, tokenId, seller, buyer, quantity, totalPrice, txHash, saleType);
       return { ok: true as const, ...result };
     }
   }

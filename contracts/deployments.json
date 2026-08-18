@@ -13,7 +13,9 @@
     "DurchexPass": "0xa5a24412C42131f11cfd0c1E5Eb01A97d5A49083",
     "feeRecipient": "0xf1b1f1410D82Bb5e4bc775a6DdFba895E396314d",
     "deployedAt": "2026-08-18T10:54:16.028Z",
-    "DurchexNFT1155": "0x4f8a0a7E7A706E9F3016b21b98f4aD489781D7fD"
+    "DurchexNFT1155": "0x4f8a0a7E7A706E9F3016b21b98f4aD489781D7fD",
+    "DurchexOffers": "0x2F2E298386c522D041c9de9eceCBFc50A8299721",
+    "paymentToken": "0xfFf9976782d46CC05630D1f6eBAb18b2324d6B14"
   },
   "mainnet": {
     "chainId": 1,
