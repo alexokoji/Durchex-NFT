@@ -41,7 +41,6 @@ export async function GET(_req: NextRequest, context: { params: Promise<{ id: st
     collection: id,
     status: "active",
     $or: [{ deadline: null }, { deadline: { $gt: now } }],
-    $expr: { $lt: ["$filledQuantity", "$quantity"] },
   })
     .sort({ pricePerItemEth: -1 }) // best offer first
     .limit(50)
@@ -49,7 +48,12 @@ export async function GET(_req: NextRequest, context: { params: Promise<{ id: st
     .lean();
 
   return NextResponse.json({
-    offers: offers.map((o) => ({
+    // Fully-filled offers are dropped here rather than in the query, since
+    // comparing two fields needs $expr and mongoose mis-casts it on this
+    // schema — see the floor route for the same workaround.
+    offers: offers
+      .filter((o) => o.filledQuantity < o.quantity)
+      .map((o) => ({
       id: String(o._id),
       buyer: o.buyer,
       buyerAddress: o.buyerAddress,

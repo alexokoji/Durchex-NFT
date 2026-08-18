@@ -116,7 +116,6 @@ export async function GET(_req: NextRequest, context: { params: Promise<{ id: st
     status: "active",
     pricePerUnitEth: { $gt: 0 },
     signature: { $ne: null },
-    $expr: { $lt: ["$filledQuantity", "$quantity"] },
   })
     .populate("seller", "username address")
     .lean();
@@ -132,6 +131,10 @@ export async function GET(_req: NextRequest, context: { params: Promise<{ id: st
   const resaleItemById = new Map(resaleItems.map((i) => [String(i._id), i]));
 
   for (const l of resale1155) {
+    // "Still has unsold units" is filtered here rather than in the query:
+    // comparing two fields needs $expr, which mongoose fails to cast
+    // against this schema (same breakage as the auction bid guard).
+    if (l.filledQuantity >= l.quantity) continue;
     if (l.deadline && new Date(l.deadline) <= now) continue; // expired
     const item = resaleItemById.get(String(l.item));
     if (!item) continue;
