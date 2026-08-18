@@ -207,20 +207,19 @@ export function CollectionPicker({
             </div>
           </div>
 
-          {form.standard === "ERC1155" && (
-            <p className="text-[11px] text-amber-200 bg-amber-400/10 border border-amber-300/20 rounded-lg p-3">
-              ERC-1155 items don&rsquo;t use GTD/FCFS/Public mint phases — each item sets its own per-unit price and total
-              supply when you create it, and any wallet can buy any quantity while supply lasts.
-            </p>
-          )}
-
-          {form.standard === "ERC721" && (
           <div className="pt-1">
             <div className="text-xs font-medium text-white/50 mb-2">Optional mint phases</div>
             <p className="text-[11px] text-white/35 mb-3">
               Configure your launch now — enforced immediately once enabled. GTD, FCFS and Public can all be
               live at once; a wallet eligible for more than one picks which to mint through. You can toggle
               any of them on/off later from the collection page without recreating anything.
+              {form.standard === "ERC1155" && (
+                <>
+                  {" "}
+                  On a multi-edition collection, allocations and wallet caps count <em>units</em>, so a wallet cap
+                  of 3 lets a wallet mint 3 editions in total across this phase.
+                </>
+              )}
             </p>
             <div className="space-y-2">
               {PHASE_KEYS.map((phase) => (
@@ -238,7 +237,6 @@ export function CollectionPicker({
               ))}
             </div>
           </div>
-          )}
 
           <div>
             <label className="text-xs font-medium text-white/50 mb-1.5 block">Category</label>
