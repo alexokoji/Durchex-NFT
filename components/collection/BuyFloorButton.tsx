@@ -7,6 +7,7 @@ import { Zap, Loader2, X, AlertTriangle } from "lucide-react";
 import { useAccount, useSwitchChain, useWriteContract, usePublicClient } from "wagmi";
 import { useConnectModal } from "@rainbow-me/rainbowkit";
 import { Button } from "@/components/ui/Button";
+import { useTxSuccess } from "@/components/tx/TxSuccess";
 import { GeneratedArt } from "@/components/nft/GeneratedArt";
 import { BuyLazyButton } from "@/components/item/BuyLazyButton";
 import { BuyListedButton } from "@/components/item/BuyListedButton";
@@ -53,6 +54,7 @@ export function BuyFloorButton({ collection }: { collection: CollectionDetailVie
   const { switchChainAsync } = useSwitchChain();
   const { writeContractAsync } = useWriteContract();
 
+  const { celebrate } = useTxSuccess();
   const [open, setOpen] = useState(false);
   const [floor, setFloor] = useState<Floor | null>(null);
   const [loading, setLoading] = useState(false);
@@ -158,6 +160,16 @@ export function BuyFloorButton({ collection }: { collection: CollectionDetailVie
         body: JSON.stringify({ txHash: hash, chainId, saleType: "BUY_FLOOR" }),
       }).catch(() => {});
       setOpen(false);
+      celebrate({
+        action: "buy",
+        imageUrl: confirmed.item.imageUrl,
+        seedKey: confirmed.item.id,
+        subject: confirmed.item.name,
+        detail: `${confirmed.pricePerUnitEth} ETH`,
+        txHash: hash,
+        chainId,
+        profileHref: address ? `/profile/${address}` : undefined,
+      });
       router.refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message.split("\n")[0] : "Transaction failed");

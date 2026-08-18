@@ -6,6 +6,7 @@ import { Zap, Loader2 } from "lucide-react";
 import { useAccount, useSwitchChain, useWriteContract, usePublicClient } from "wagmi";
 import { useConnectModal } from "@rainbow-me/rainbowkit";
 import { Button } from "@/components/ui/Button";
+import { useTxSuccess } from "@/components/tx/TxSuccess";
 import { MARKETPLACE_ABI, marketplaceAddressFor } from "@/lib/web3/marketplaceAbi";
 import { ItemDetailView } from "@/lib/types";
 
@@ -17,6 +18,7 @@ export function BuyListedButton({ item }: { item: ItemDetailView }) {
   const { switchChainAsync } = useSwitchChain();
   const { writeContractAsync } = useWriteContract();
   const publicClient = usePublicClient({ chainId: item.chainId });
+  const { celebrate } = useTxSuccess();
 
   const [phase, setPhase] = useState<"idle" | "switching" | "confirm" | "mining" | "done">("idle");
   const [error, setError] = useState<string | null>(null);
@@ -68,6 +70,16 @@ export function BuyListedButton({ item }: { item: ItemDetailView }) {
       }).catch(() => {});
 
       setPhase("done");
+      celebrate({
+        action: "buy",
+        imageUrl: item.imageUrl,
+        seedKey: item.id,
+        subject: item.name,
+        detail: `${item.priceEth} ETH`,
+        txHash: hash,
+        chainId: item.chainId,
+        profileHref: address ? `/profile/${address}` : undefined,
+      });
       setTimeout(() => router.refresh(), 500);
     } catch (err) {
       setError(err instanceof Error ? err.message.split("\n")[0] : "Transaction failed");
@@ -78,7 +90,7 @@ export function BuyListedButton({ item }: { item: ItemDetailView }) {
   if (phase === "done") {
     return (
       <div className="rounded-xl bg-success/10 border border-success/30 p-4 text-center">
-        <p className="text-sm font-medium text-success mb-1">Purchased on-chain 🎉</p>
+        <p className="text-sm font-medium text-success mb-1">Purchased on-chain</p>
         <p className="text-xs text-white/40">Syncing ownership — refreshing…</p>
       </div>
     );

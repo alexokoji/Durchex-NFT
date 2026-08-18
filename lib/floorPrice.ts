@@ -49,5 +49,18 @@ export async function recalculateCollectionFloor(collectionId: Types.ObjectId | 
   );
   const floor = candidates.length > 0 ? Math.min(...candidates) : 0;
 
-  await Collection.updateOne({ _id: id }, { $set: { "stats.floorEth": floor } });
+  // Roll the daily snapshot forward whenever the stored one has aged past
+  // 24h, so the header's "1D floor %" compares against a real yesterday
+  // rather than an arbitrary earlier reading. The value being replaced is
+  // the floor as it stood at the last roll — i.e. a day ago.
+  const existing = await Collection.findById(id).select("stats.floorEth stats.floorSnapshotAt").lean();
+  const snapshotAt: Date | null = existing?.stats?.floorSnapshotAt ?? null;
+  const stale = !snapshotAt || Date.now() - new Date(snapshotAt).getTime() >= 24 * 60 * 60 * 1000;
+  const update: Record<string, unknown> = { "stats.floorEth": floor };
+  if (stale) {
+    update["stats.floorEth24hAgo"] = existing?.stats?.floorEth ?? floor;
+    update["stats.floorSnapshotAt"] = new Date();
+  }
+
+  await Collection.updateOne({ _id: id }, { $set: update });
 }

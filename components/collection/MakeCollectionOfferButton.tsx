@@ -7,6 +7,7 @@ import { useAccount, useSwitchChain, useSignTypedData, useReadContract, useWrite
 import { useConnectModal } from "@rainbow-me/rainbowkit";
 import { parseEther } from "viem";
 import { Button } from "@/components/ui/Button";
+import { useTxSuccess } from "@/components/tx/TxSuccess";
 import {
   buildCollectionOfferTypedData,
   generateOfferNonce,
@@ -40,6 +41,7 @@ export function MakeCollectionOfferButton({ collection }: { collection: Collecti
 
   const [open, setOpen] = useState(false);
   const [pricePerItem, setPricePerItem] = useState("");
+  const { celebrate } = useTxSuccess();
   const [quantity, setQuantity] = useState("1");
   const [expirySeconds, setExpirySeconds] = useState(EXPIRY_OPTIONS[1].seconds);
   const [phase, setPhase] = useState<"idle" | "switching" | "approving" | "signing" | "saving">("idle");
@@ -174,6 +176,14 @@ export function MakeCollectionOfferButton({ collection }: { collection: Collecti
 
       setPhase("idle");
       setOpen(false);
+      celebrate({
+        action: "offer",
+        imageUrl: collection.logoUrl || null,
+        seedKey: `logo-${collection.slug}`,
+        subject: collection.name,
+        detail: `${qty} × ${price} WETH`,
+        secondary: { label: "View collection", href: `/collection/${collection.slug}` },
+      });
       setPricePerItem("");
       setQuantity("1");
       router.refresh();

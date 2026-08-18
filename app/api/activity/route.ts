@@ -7,6 +7,8 @@ export async function GET(req: NextRequest) {
   const filters: ActivityFilters = {
     type: (sp.get("type") as ActivityFilters["type"]) ?? undefined,
     itemId: sp.get("item") ?? undefined,
+    userId: sp.get("user") ?? undefined,
+    collectionId: sp.get("collection") ?? undefined,
     page: sp.get("page") ? Number(sp.get("page")) : 1,
     pageSize: 30,
   };

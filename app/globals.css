@@ -126,3 +126,16 @@ body {
 .tabular-nums {
   font-variant-numeric: tabular-nums;
 }
+
+/* Falling confetti for the transaction success modal. Each piece carries
+   its own --tx-rot so they don't all tumble in lockstep. */
+@keyframes tx-confetti {
+  0% { transform: translateY(0) rotate(0deg); opacity: 1; }
+  85% { opacity: 1; }
+  100% { transform: translateY(115vh) rotate(var(--tx-rot, 360deg)); opacity: 0; }
+}
+.tx-confetti-piece {
+  animation-name: tx-confetti;
+  animation-timing-function: linear;
+  animation-fill-mode: forwards;
+}

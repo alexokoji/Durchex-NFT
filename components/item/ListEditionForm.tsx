@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Tag, Loader2 } from "lucide-react";
 import { useAccount, useSwitchChain, useWriteContract, useReadContract, useSignTypedData } from "wagmi";
 import { Button } from "@/components/ui/Button";
+import { useTxSuccess } from "@/components/tx/TxSuccess";
 import { ERC721_APPROVAL_ABI, marketplaceAddressFor } from "@/lib/web3/marketplaceAbi";
 import { buildListing1155TypedData, generateListing1155Nonce } from "@/lib/web3/listing1155";
 import { ItemDetailView } from "@/lib/types";
@@ -18,6 +19,7 @@ export function ListEditionForm({ item }: { item: ItemDetailView }) {
   const { signTypedDataAsync } = useSignTypedData();
 
   const marketplaceAddress = marketplaceAddressFor(item.chainId);
+  const { celebrate } = useTxSuccess();
   const [balance, setBalance] = useState(0);
   const [mode, setMode] = useState<"fixed" | "auction">("fixed");
   const [quantity, setQuantity] = useState("");
@@ -133,6 +135,14 @@ export function ListEditionForm({ item }: { item: ItemDetailView }) {
       }
 
       setPhase("idle");
+      celebrate({
+        action: "list",
+        imageUrl: item.imageUrl,
+        seedKey: item.id,
+        subject: item.name,
+        detail: mode === "auction" ? `${qty} up for auction from ${price} ETH` : `${qty} × ${price} ETH`,
+        secondary: { label: "View NFT", href: `/assets/${item.id}` },
+      });
       setQuantity("");
       setPriceEth("");
       router.refresh();

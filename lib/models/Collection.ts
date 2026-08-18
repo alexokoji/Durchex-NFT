@@ -75,8 +75,22 @@ const CollectionSchema = new Schema(
     // everything else — most collections were never a scheduled "drop".
     dropStartsAt: { type: Date, default: null },
     dropEndsAt: { type: Date, default: null },
+    // Public-facing links shown in the collection header. Empty when the
+    // creator hasn't supplied one — the header hides those icons rather
+    // than linking nowhere.
+    links: {
+      website: { type: String, default: "" },
+      twitter: { type: String, default: "" },
+      discord: { type: String, default: "" },
+    },
     stats: {
       floorEth: { type: Number, default: 0 },
+      // Yesterday's floor, rolled forward by recalculateCollectionFloor once
+      // the snapshot is more than a day old. Without a stored history there
+      // is nothing to compare today's floor against, so "1D floor %" would
+      // be unanswerable.
+      floorEth24hAgo: { type: Number, default: 0 },
+      floorSnapshotAt: { type: Date, default: null },
       volume24hEth: { type: Number, default: 0 },
       volume7dEth: { type: Number, default: 0 },
       totalVolumeEth: { type: Number, default: 0 },

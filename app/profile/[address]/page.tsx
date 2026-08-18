@@ -1,5 +1,5 @@
 import { notFound } from "next/navigation";
-import { getProfileByAddress, getItemsByOwner, getItemsByCreator, getFavoritedItems } from "@/lib/queries";
+import { getProfileByAddress, getItemsByOwner, getItemsByCreator, getFavoritedItems, getActivity } from "@/lib/queries";
 import { ProfileHeader } from "@/components/profile/ProfileHeader";
 import { ProfileTabs } from "@/components/profile/ProfileTabs";
 
@@ -15,16 +15,25 @@ export default async function ProfilePage({ params }: PageProps) {
   const profile = await getProfileByAddress(address);
   if (!profile) notFound();
 
-  const [owned, created, favorited] = await Promise.all([
+  const [owned, created, favorited, activity] = await Promise.all([
     getItemsByOwner(profile.id),
     getItemsByCreator(profile.id),
     getFavoritedItems(profile.id),
+    getActivity({ userId: profile.id, page: 1 }),
   ]);
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 py-10">
       <ProfileHeader profile={profile} />
-      <ProfileTabs owned={owned} created={created} favorited={favorited} />
+      <ProfileTabs
+        owned={owned}
+        created={created}
+        favorited={favorited}
+        activity={activity.activity}
+        activityPageCount={activity.pageCount}
+        activityCount={activity.total}
+        userId={profile.id}
+      />
     </div>
   );
 }

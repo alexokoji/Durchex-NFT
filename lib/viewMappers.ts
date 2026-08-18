@@ -60,7 +60,16 @@ interface CollectionDetailLike extends CollectionLike {
     og?: { enabled?: boolean; priceEth?: number; allocation?: number; walletLimit?: number; startsAt?: Date | string | null; endsAt?: Date | string | null };
     public?: { enabled?: boolean; priceEth?: number; allocation?: number; walletLimit?: number; startsAt?: Date | string | null; endsAt?: Date | string | null };
   };
-  stats: CollectionLike["stats"] & { volume7dEth: number; totalVolumeEth: number; sales: number };
+  links?: { website?: string; twitter?: string; discord?: string };
+  createdAt?: Date | string;
+  /** Highest live collection offer, resolved by the query layer. */
+  topOfferEth?: number | null;
+  stats: CollectionLike["stats"] & {
+    volume7dEth: number;
+    totalVolumeEth: number;
+    sales: number;
+    floorEth24hAgo?: number;
+  };
 }
 
 interface UserLike {
@@ -68,6 +77,15 @@ interface UserLike {
   username: string;
   isVerified?: boolean;
 }
+
+type PhaseLike = {
+  enabled?: boolean;
+  priceEth?: number;
+  allocation?: number;
+  walletLimit?: number;
+  startsAt?: Date | string | null;
+  endsAt?: Date | string | null;
+};
 
 interface ItemDetailLike extends ItemLike {
   description: string;
@@ -77,7 +95,18 @@ interface ItemDetailLike extends ItemLike {
   traits: { trait_type: string; value: string; rarity?: number }[];
   owner: UserLike | null;
   creator: UserLike | null;
-  collection: CollectionLike & { contractAddress: string; chainId: number };
+  collection: CollectionLike & {
+    contractAddress: string;
+    chainId: number;
+    royaltyBps?: number;
+    maxSupply?: number;
+    contractType?: "lazy" | "drop";
+    mintPhases?: {
+      whitelist?: PhaseLike;
+      og?: PhaseLike;
+      public?: PhaseLike;
+    };
+  };
   voucher?: {
     tokenId?: string | null;
     uri?: string | null;
@@ -187,11 +216,35 @@ export function toCollectionDetailView(c: CollectionDetailLike): CollectionDetai
     sales: c.stats.sales,
     contractType: c.contractType ?? "lazy",
     maxSupply: c.maxSupply ?? 0,
+    // Only a real baseline gives a meaningful percentage: a collection whose
+    // floor was 0 yesterday (nothing listed) has no move to express.
+    floorChange1dPct:
+      c.stats.floorEth24hAgo && c.stats.floorEth24hAgo > 0
+        ? ((c.stats.floorEth - c.stats.floorEth24hAgo) / c.stats.floorEth24hAgo) * 100
+        : null,
+    topOfferEth: c.topOfferEth ?? null,
+    links: {
+      website: c.links?.website ?? "",
+      twitter: c.links?.twitter ?? "",
+      discord: c.links?.discord ?? "",
+    },
+    createdAt: c.createdAt ? new Date(c.createdAt).toISOString() : new Date().toISOString(),
     mintPhases: {
       whitelist: phase(c.mintPhases?.whitelist),
       og: phase(c.mintPhases?.og),
       public: phase(c.mintPhases?.public),
     },
+  };
+}
+
+function itemPhase(value: PhaseLike | undefined) {
+  return {
+    enabled: !!value?.enabled,
+    priceEth: value?.priceEth ?? 0,
+    allocation: value?.allocation ?? 0,
+    walletLimit: value?.walletLimit ?? 0,
+    startsAt: value?.startsAt ? new Date(value.startsAt).toISOString() : null,
+    endsAt: value?.endsAt ? new Date(value.endsAt).toISOString() : null,
   };
 }
 
@@ -215,6 +268,14 @@ export function toItemDetailView(item: ItemDetailLike): ItemDetailView {
     })),
     owner: toUserRef(item.owner),
     creator: toUserRef(item.creator),
+    mintPhases: {
+      whitelist: itemPhase(item.collection.mintPhases?.whitelist),
+      og: itemPhase(item.collection.mintPhases?.og),
+      public: itemPhase(item.collection.mintPhases?.public),
+    },
+    collectionMaxSupply: item.collection.maxSupply ?? 0,
+    royaltyBps: item.collection.royaltyBps ?? 0,
+    contractType: item.collection.contractType ?? "lazy",
     voucher:
       item.voucher &&
       item.voucher.tokenId &&

@@ -7,6 +7,7 @@ import { useAccount, useSwitchChain, useWriteContract, usePublicClient, useReadC
 import { useConnectModal } from "@rainbow-me/rainbowkit";
 import { ERC721_APPROVAL_ABI } from "@/lib/web3/marketplaceAbi";
 import { OFFERS_ABI, offersAddressFor } from "@/lib/web3/offerCriteria";
+import { useTxSuccess } from "@/components/tx/TxSuccess";
 
 /**
  * Accepts an offer on-chain via DurchexOffers. Works for both per-item NFT
@@ -37,6 +38,7 @@ export function AcceptOfferButton({
   const { switchChainAsync } = useSwitchChain();
   const { writeContractAsync } = useWriteContract();
   const publicClient = usePublicClient({ chainId });
+  const { celebrate } = useTxSuccess();
 
   const [phase, setPhase] = useState<"idle" | "preparing" | "approving" | "confirm" | "mining" | "done">("idle");
   const [error, setError] = useState<string | null>(null);
@@ -118,6 +120,13 @@ export function AcceptOfferButton({
       }).catch(() => {});
 
       setPhase("done");
+      celebrate({
+        action: "accept",
+        detail: data.offer?.pricePerItemEth ? `${data.offer.pricePerItemEth} WETH` : undefined,
+        txHash: hash,
+        chainId,
+        profileHref: address ? `/profile/${address}` : undefined,
+      });
       onDone?.();
       setTimeout(() => router.refresh(), 500);
     } catch (err) {

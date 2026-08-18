@@ -5,6 +5,7 @@ import { Item } from "@/lib/models/Item";
 import { User } from "@/lib/models/User";
 import { Favorite } from "@/lib/models/Favorite";
 import { Bid } from "@/lib/models/Bid";
+import { CollectionOffer } from "@/lib/models/CollectionOffer";
 import { Activity } from "@/lib/models/Activity";
 import { Notification } from "@/lib/models/Notification";
 import { DropNotify } from "@/lib/models/DropNotify";
@@ -230,7 +231,20 @@ export async function getCollectionBySlug(slug: string): Promise<CollectionDetai
   doc.stats.owners = ownersAgg[0]?.count ?? 0;
   doc.stats.items = await Item.countDocuments({ collection: doc._id });
 
-  return toCollectionDetailView(doc as never);
+  // "Top offer" is the best standing collection-wide bid — the number a
+  // holder could accept right now without listing. Expired offers are
+  // excluded even if a sweeper hasn't marked them yet.
+  const now = new Date();
+  const topOffer = await CollectionOffer.findOne({
+    collection: doc._id,
+    status: "active",
+    $or: [{ deadline: null }, { deadline: { $gt: now } }],
+  })
+    .sort({ pricePerItemEth: -1 })
+    .select("pricePerItemEth")
+    .lean();
+
+  return toCollectionDetailView({ ...doc, topOfferEth: topOffer?.pricePerItemEth ?? null } as never);
 }
 
 export async function getCollectionTraitFacets(collectionId: string) {
@@ -414,17 +428,25 @@ export type ActivityType = "sale" | "list" | "bid" | "offer" | "mint" | "transfe
 export interface ActivityFilters {
   type?: ActivityType;
   itemId?: string;
+  /** Everything a wallet took part in, whether it was the sender or receiver. */
+  userId?: string;
+  collectionId?: string;
   page?: number;
   pageSize?: number;
 }
 
 export async function getActivity(filters: ActivityFilters) {
   await connectDB();
-  const { type, itemId, page = 1, pageSize = 30 } = filters;
+  const { type, itemId, userId, collectionId, page = 1, pageSize = 30 } = filters;
 
   const match: Record<string, unknown> = {};
   if (type) match.type = type;
   if (itemId) match.item = itemId;
+  if (userId) match.$or = [{ from: userId }, { to: userId }];
+  if (collectionId) {
+    const ids = await Item.find({ collection: collectionId }).select("_id").lean();
+    match.item = { $in: ids.map((doc) => doc._id) };
+  }
 
   const [docs, total] = await Promise.all([
     Activity.find(match)

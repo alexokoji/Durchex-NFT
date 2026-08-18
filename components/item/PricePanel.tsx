@@ -16,6 +16,7 @@ import {
   ERC20_ABI,
 } from "@/lib/web3/offerCriteria";
 import { Button } from "@/components/ui/Button";
+import { useTxSuccess } from "@/components/tx/TxSuccess";
 import { CountdownTimer } from "@/components/nft/CountdownTimer";
 import { useFavorite } from "@/hooks/useFavorite";
 import { useSession } from "@/hooks/useSession";
@@ -23,10 +24,16 @@ import { BuyLazyButton } from "@/components/item/BuyLazyButton";
 import { BuyListedButton } from "@/components/item/BuyListedButton";
 import { ListForSaleForm } from "@/components/item/ListForSaleForm";
 import { EditionPanel } from "@/components/item/EditionPanel";
+import { MintPanel, itemUsesMintPhases } from "@/components/item/MintPanel";
 import { marketplaceAddressFor } from "@/lib/web3/marketplaceAbi";
 import { ItemDetailView } from "@/lib/types";
 
 export function PricePanel({ item }: { item: ItemDetailView }) {
+  // A collection running mint phases gets the phase picker, its timers and
+  // the mint terms instead of a bare buy button — but only while the item is
+  // still unminted, i.e. there is actually a mint to take part in. Once it's
+  // minted, it's an ordinary resale and the normal panel applies.
+  if (!item.isMinted && itemUsesMintPhases(item)) return <MintPanel item={item} />;
   if (item.standard === "ERC1155") return <EditionPanel item={item} />;
   return <ClassicPricePanel item={item} />;
 }
@@ -249,6 +256,7 @@ function BidOfferForm({
   const { switchChainAsync } = useSwitchChain();
   const { writeContractAsync } = useWriteContract();
   const { signTypedDataAsync } = useSignTypedData();
+  const { celebrate } = useTxSuccess();
   const [amount, setAmount] = useState(type === "auction_bid" ? (minAmount + 0.05).toFixed(2) : "");
   const [submitting, setSubmitting] = useState(false);
   const [phase, setPhase] = useState<"idle" | "approving" | "signing" | "saving">("idle");
@@ -352,6 +360,16 @@ function BidOfferForm({
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Failed to submit");
       setPhase("idle");
+      // Offers and bids settle later, so there's no receipt to link yet —
+      // the follow-up is the item's own offers tab.
+      celebrate({
+        action: type === "auction_bid" ? "bid" : "offer",
+        imageUrl: item.imageUrl,
+        seedKey: item.id,
+        subject: item.name,
+        detail: `${amountEth} ETH`,
+        secondary: { label: "View NFT", href: `/assets/${itemId}` },
+      });
       onDone();
     } catch (err) {
       setError(err instanceof Error ? err.message.split("\n")[0] : "Failed to submit");

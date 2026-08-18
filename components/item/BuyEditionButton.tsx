@@ -21,7 +21,16 @@ type Gate = { configured: boolean; eligiblePhases: PhaseKey[]; canMint: boolean 
  * difference that matters: allocations and wallet caps count *units*, not
  * items, since one purchase can take several editions at once.
  */
-export function BuyEditionButton({ item, phase: forcedPhase }: { item: ItemDetailView; phase?: PhaseKey }) {
+export function BuyEditionButton({
+  item,
+  phase: forcedPhase,
+  quantity: forcedQuantity,
+}: {
+  item: ItemDetailView;
+  phase?: PhaseKey;
+  /** Supplied by MintPanel, which renders its own quantity stepper. */
+  quantity?: number;
+}) {
   const router = useRouter();
   const { address, chainId: connectedChainId } = useAccount();
   const { openConnectModal } = useConnectModal();
@@ -30,7 +39,9 @@ export function BuyEditionButton({ item, phase: forcedPhase }: { item: ItemDetai
   const publicClient = usePublicClient({ chainId: item.chainId });
   const { celebrate } = useTxSuccess();
 
-  const [quantity, setQuantity] = useState("1");
+  const [ownQuantity, setOwnQuantity] = useState("1");
+  const quantity = forcedQuantity !== undefined ? String(forcedQuantity) : ownQuantity;
+  const setQuantity = setOwnQuantity;
   const [phase, setPhase] = useState<"idle" | "switching" | "confirm" | "mining" | "done">("idle");
   const [error, setError] = useState<string | null>(null);
   const [gate, setGate] = useState<Gate | null>(null);

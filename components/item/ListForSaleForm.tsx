@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Tag, Loader2 } from "lucide-react";
 import { useAccount, useSwitchChain, useWriteContract, useReadContract, useSignTypedData } from "wagmi";
 import { Button } from "@/components/ui/Button";
+import { useTxSuccess } from "@/components/tx/TxSuccess";
 import { ERC721_APPROVAL_ABI, marketplaceAddressFor } from "@/lib/web3/marketplaceAbi";
 import { buildListingTypedData, generateListingNonce } from "@/lib/web3/listing";
 import { ItemDetailView } from "@/lib/types";
@@ -24,6 +25,7 @@ export function ListForSaleForm({ item }: { item: ItemDetailView }) {
   const { writeContractAsync } = useWriteContract();
   const { signTypedDataAsync } = useSignTypedData();
   const marketplaceAddress = marketplaceAddressFor(item.chainId);
+  const { celebrate } = useTxSuccess();
   const [priceEth, setPriceEth] = useState("");
   const [phase, setPhase] = useState<"idle" | "switching" | "approving" | "signing" | "saving">("idle");
   const [error, setError] = useState<string | null>(null);
@@ -102,6 +104,16 @@ export function ListForSaleForm({ item }: { item: ItemDetailView }) {
       if (!res.ok) throw new Error(data.error ?? "Failed to list");
 
       setPhase("idle");
+      // A listing is signed off-chain, so there's no transaction to receipt —
+      // the follow-up is the item page itself.
+      celebrate({
+        action: "list",
+        imageUrl: item.imageUrl,
+        seedKey: item.id,
+        subject: item.name,
+        detail: `${price} ETH`,
+        secondary: { label: "View NFT", href: `/assets/${item.id}` },
+      });
       router.refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message.split("\n")[0] : "Failed to list");

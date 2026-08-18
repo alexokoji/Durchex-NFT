@@ -21,7 +21,10 @@ export function ProfileHeader({ profile }: { profile: ProfileView }) {
 
   return (
     <div className="relative">
-      <div className="h-40 sm:h-56 rounded-2xl overflow-hidden">
+      {/* `relative` matters: without it the gradient below anchors to the
+          outer container instead of the banner and paints over the name,
+          follower counts and joined date further down the page. */}
+      <div className="relative h-40 sm:h-56 rounded-2xl overflow-hidden">
         <GeneratedArt seedKey={`banner-${profile.address}`} className="w-full h-full" />
         <div className="absolute inset-0 bg-gradient-to-t from-void via-void/10 to-transparent" />
       </div>
@@ -64,7 +67,7 @@ export function ProfileHeader({ profile }: { profile: ProfileView }) {
         )}
       </div>
 
-      <div className="px-4 sm:px-8 mt-5">
+      <div className="relative z-10 px-4 sm:px-8 mt-5">
         {profile.bio && <p className="text-sm text-white/55 max-w-xl leading-relaxed mb-3">{profile.bio}</p>}
         <div className="flex flex-wrap items-center gap-x-5 gap-y-2 text-sm text-white/50">
           <span>

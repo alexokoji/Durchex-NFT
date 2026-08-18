@@ -51,6 +51,12 @@ export interface CollectionDetailView extends CollectionView {
   sales: number;
   contractType: "lazy" | "drop";
   maxSupply: number;
+  /** Percentage move in the floor over the last day; null with no baseline. */
+  floorChange1dPct: number | null;
+  /** Highest live collection-wide offer, in WETH. Null when none stands. */
+  topOfferEth: number | null;
+  links: { website: string; twitter: string; discord: string };
+  createdAt: string;
   mintPhases: {
     whitelist: MintPhaseView;
     og: MintPhaseView;
@@ -136,6 +142,14 @@ export interface ItemDetailView extends ItemView {
   totalSupply: number;
   mintedSupply: number;
   editionVoucher: EditionVoucherView | null;
+  // The parent collection's mint configuration, carried onto the item so
+  // its page can show the phase picker, timers and terms without a second
+  // round trip. Phases are optional — a collection that never configured
+  // any mints exactly as before.
+  mintPhases: { whitelist: MintPhaseView; og: MintPhaseView; public: MintPhaseView };
+  collectionMaxSupply: number;
+  royaltyBps: number;
+  contractType: "lazy" | "drop";
 }
 
 export interface SearchResults {

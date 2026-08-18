@@ -6,6 +6,7 @@ import { Zap, Loader2, ExternalLink, Lock } from "lucide-react";
 import { useAccount, useSwitchChain, useWriteContract, usePublicClient } from "wagmi";
 import { useConnectModal } from "@rainbow-me/rainbowkit";
 import { Button } from "@/components/ui/Button";
+import { useTxSuccess } from "@/components/tx/TxSuccess";
 import { MARKETPLACE_ABI, marketplaceAddressFor } from "@/lib/web3/marketplaceAbi";
 import { explorerTxUrl } from "@/lib/web3/explorer";
 import { PHASE_LABELS, PhaseKey } from "@/lib/mintPhases";
@@ -26,19 +27,24 @@ type Gate = { configured: boolean; eligiblePhases: PhaseKey[]; canMint: boolean 
  * one gets to pick which one to mint through; a collection that's never
  * touched phases mints exactly like before, unrestricted.
  */
-export function BuyLazyButton({ item }: { item: ItemDetailView }) {
+export function BuyLazyButton({ item, phase: forcedPhase }: { item: ItemDetailView; phase?: PhaseKey }) {
   const router = useRouter();
   const { address, chainId: connectedChainId } = useAccount();
   const { openConnectModal } = useConnectModal();
   const { switchChainAsync } = useSwitchChain();
   const { writeContractAsync } = useWriteContract();
   const publicClient = usePublicClient({ chainId: item.chainId });
+  const { celebrate } = useTxSuccess();
 
   const [txPhase, setTxPhase] = useState<"idle" | "switching" | "confirm" | "mining" | "done">("idle");
   const [error, setError] = useState<string | null>(null);
   const [txHash, setTxHash] = useState<string | null>(null);
   const [gate, setGate] = useState<Gate | null>(null);
-  const [selectedMintPhase, setSelectedMintPhase] = useState<PhaseKey | null>(null);
+  // MintPanel owns the phase choice when it wraps this button; on its own
+  // (no phase prop) the button still picks and offers phases itself.
+  const [ownPhase, setOwnPhase] = useState<PhaseKey | null>(null);
+  const selectedMintPhase = forcedPhase ?? ownPhase;
+  const setSelectedMintPhase = setOwnPhase;
 
   useEffect(() => {
     if (!address) {
@@ -119,6 +125,16 @@ export function BuyLazyButton({ item }: { item: ItemDetailView }) {
       }
 
       setTxPhase("done");
+      celebrate({
+        action: "mint",
+        imageUrl: item.imageUrl,
+        seedKey: item.id,
+        subject: item.name,
+        detail: `${item.priceEth} ETH`,
+        txHash: hash,
+        chainId: item.chainId,
+        profileHref: address ? `/profile/${address}` : undefined,
+      });
       setTimeout(() => router.refresh(), 500);
     } catch (err) {
       setError(err instanceof Error ? err.message.split("\n")[0] : "Transaction failed");
@@ -128,8 +144,10 @@ export function BuyLazyButton({ item }: { item: ItemDetailView }) {
 
   if (txPhase === "done") {
     return (
+      // The celebration itself is the modal; this is just the quiet status
+      // left behind on the page while ownership syncs.
       <div className="rounded-xl bg-success/10 border border-success/30 p-4 text-center">
-        <p className="text-sm font-medium text-success mb-1">Purchased on-chain 🎉</p>
+        <p className="text-sm font-medium text-success mb-1">Purchased on-chain</p>
         <p className="text-xs text-white/40">Syncing ownership — refreshing…</p>
       </div>
     );
@@ -148,7 +166,7 @@ export function BuyLazyButton({ item }: { item: ItemDetailView }) {
     );
   }
 
-  const showPhasePicker = address && gate?.configured && gate.eligiblePhases.length > 1;
+  const showPhasePicker = !forcedPhase && address && gate?.configured && gate.eligiblePhases.length > 1;
 
   return (
     <div>

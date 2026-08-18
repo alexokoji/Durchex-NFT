@@ -6,6 +6,7 @@ import { useAccount, useSwitchChain, useWriteContract, usePublicClient } from "w
 import { useConnectModal } from "@rainbow-me/rainbowkit";
 import { Loader2, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/Button";
+import { useTxSuccess } from "@/components/tx/TxSuccess";
 import { DROP_ABI } from "@/lib/web3/dropAbi";
 import { isPhaseLive } from "@/lib/mintPhases";
 
@@ -37,6 +38,7 @@ export function DropMintPanel({ drop }: { drop: DropMintConfig }) {
   const { switchChainAsync } = useSwitchChain();
   const { writeContractAsync } = useWriteContract();
   const client = usePublicClient({ chainId: drop.chainId });
+  const { celebrate } = useTxSuccess();
   const [quantity, setQuantity] = useState(1);
   const [state, setState] = useState<"idle" | "switching" | "confirming" | "mining" | "done">("idle");
   const [error, setError] = useState<string | null>(null);
@@ -73,6 +75,15 @@ export function DropMintPanel({ drop }: { drop: DropMintConfig }) {
         }).catch(() => {});
       }
       setState("done");
+      celebrate({
+        action: "mint",
+        seedKey: drop.contractAddress,
+        subject: `${quantity} NFT${quantity > 1 ? "s" : ""}`,
+        detail: `${total.toFixed(4)} ETH · ${selected.label} phase`,
+        txHash: hash,
+        chainId: drop.chainId,
+        profileHref: address ? `/profile/${address}` : undefined,
+      });
     } catch (err) { setError(err instanceof Error ? err.message.split("\n")[0] : "Mint failed"); setState("idle"); }
   }
 

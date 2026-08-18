@@ -10,10 +10,18 @@ export function ActivityFeed({
   initialActivity,
   initialPageCount,
   type,
+  userId,
+  collectionId,
+  emptyLabel = "No activity yet.",
 }: {
   initialActivity: ActivityView[];
   initialPageCount: number;
   type?: ActivityType;
+  /** Scopes the feed (and its "load more") to one wallet's history. */
+  userId?: string;
+  /** Scopes the feed to a single collection. */
+  collectionId?: string;
+  emptyLabel?: string;
 }) {
   const [activity, setActivity] = useState(initialActivity);
   const [page, setPage] = useState(1);
@@ -24,6 +32,8 @@ export function ActivityFeed({
     setLoading(true);
     const sp = new URLSearchParams();
     if (type) sp.set("type", type);
+    if (userId) sp.set("user", userId);
+    if (collectionId) sp.set("collection", collectionId);
     sp.set("page", String(page + 1));
     const res = await fetch(`/api/activity?${sp.toString()}`);
     const data = await res.json();
@@ -37,7 +47,7 @@ export function ActivityFeed({
     return (
       <div className="flex flex-col items-center justify-center py-20 text-center">
         <Radio className="w-10 h-10 text-purple-500/40 mb-3" />
-        <p className="text-sm text-white/40">No activity yet.</p>
+        <p className="text-sm text-white/40">{emptyLabel}</p>
       </div>
     );
   }
