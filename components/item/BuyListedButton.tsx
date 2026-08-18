@@ -6,7 +6,7 @@ import { Zap, Loader2 } from "lucide-react";
 import { useAccount, useSwitchChain, useWriteContract, usePublicClient } from "wagmi";
 import { useConnectModal } from "@rainbow-me/rainbowkit";
 import { Button } from "@/components/ui/Button";
-import { MARKETPLACE_ABI, MARKETPLACE_ADDRESS } from "@/lib/web3/marketplaceAbi";
+import { MARKETPLACE_ABI, marketplaceAddressFor } from "@/lib/web3/marketplaceAbi";
 import { ItemDetailView } from "@/lib/types";
 
 /** Real on-chain resale purchase: calls DurchexMarketplace.buyListed. */
@@ -21,7 +21,8 @@ export function BuyListedButton({ item }: { item: ItemDetailView }) {
   const [phase, setPhase] = useState<"idle" | "switching" | "confirm" | "mining" | "done">("idle");
   const [error, setError] = useState<string | null>(null);
 
-  if (!item.tokenId || !item.owner || !MARKETPLACE_ADDRESS || !item.listing) return null;
+  const marketplaceAddress = marketplaceAddressFor(item.chainId);
+  if (!item.tokenId || !item.owner || !marketplaceAddress || !item.listing) return null;
   const listing = item.listing;
 
   async function buy() {
@@ -38,7 +39,7 @@ export function BuyListedButton({ item }: { item: ItemDetailView }) {
 
       setPhase("confirm");
       const hash = await writeContractAsync({
-        address: MARKETPLACE_ADDRESS!,
+        address: marketplaceAddress!,
         abi: MARKETPLACE_ABI,
         functionName: "buyListed",
         args: [

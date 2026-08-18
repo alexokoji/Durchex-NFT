@@ -13,7 +13,7 @@ import { BuyLazyButton } from "@/components/item/BuyLazyButton";
 import { BuyListedButton } from "@/components/item/BuyListedButton";
 import { ListForSaleForm } from "@/components/item/ListForSaleForm";
 import { EditionPanel } from "@/components/item/EditionPanel";
-import { MARKETPLACE_ADDRESS } from "@/lib/web3/marketplaceAbi";
+import { marketplaceAddressFor } from "@/lib/web3/marketplaceAbi";
 import { ItemDetailView } from "@/lib/types";
 
 export function PricePanel({ item }: { item: ItemDetailView }) {
@@ -43,12 +43,15 @@ function ClassicPricePanel({ item }: { item: ItemDetailView }) {
   // the current scheme, since every voucher built today always carries a
   // real future deadline. Older items fall through to "not for sale"
   // instead of showing a buy button that would revert on-chain.
+  // Resolved from the item's own chain — mainnet and Sepolia have separate
+  // marketplace deployments.
+  const marketplaceAddress = marketplaceAddressFor(item.chainId);
   const isLiveOnChainBuy =
-    !isAuction && !item.isMinted && !!item.voucher && Number(item.voucher.deadline) > 0 && !!MARKETPLACE_ADDRESS;
+    !isAuction && !item.isMinted && !!item.voucher && Number(item.voucher.deadline) > 0 && !!marketplaceAddress;
   const isStaleUnmintedListing =
     !isAuction && !item.isMinted && !!item.voucher && Number(item.voucher.deadline) === 0;
   const isLiveResaleBuy =
-    !isAuction && item.isMinted && item.status === "fixed_price" && !!item.tokenId && !!item.listing && !!MARKETPLACE_ADDRESS;
+    !isAuction && item.isMinted && item.status === "fixed_price" && !!item.tokenId && !!item.listing && !!marketplaceAddress;
   // A minted item that isn't currently listed for resale at all — nothing
   // is "not wired up" here, there's just no live listing to buy. Distinct
   // from isLiveResaleBuy being false because the marketplace contract isn't

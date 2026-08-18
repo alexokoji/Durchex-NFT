@@ -5,8 +5,16 @@ import { Loader2, Info } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 
 export function SettingsPanel() {
+  type OnChain = {
+    platformFeeBps: number;
+    maxPlatformFeeBps: number;
+    paused: boolean;
+    marketplaceAddress: string;
+    chainId: number;
+  };
   const [royaltyCapBps, setRoyaltyCapBps] = useState<number | null>(null);
-  const [platformFeeBps, setPlatformFeeBps] = useState<number | null>(null);
+  const [contractMaxRoyaltyBps, setContractMaxRoyaltyBps] = useState(3000);
+  const [onChain, setOnChain] = useState<OnChain | null>(null);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
 
@@ -15,7 +23,8 @@ export function SettingsPanel() {
       .then((r) => r.json())
       .then((data) => {
         setRoyaltyCapBps(data.royaltyCapBps);
-        setPlatformFeeBps(data.platformFeeBps);
+        if (data.contractMaxRoyaltyBps) setContractMaxRoyaltyBps(data.contractMaxRoyaltyBps);
+        setOnChain(data.onChain ?? null);
       });
   }, []);
 
@@ -43,13 +52,16 @@ export function SettingsPanel() {
         <div className="space-y-6">
           <div className="surface-card p-5">
             <label className="text-sm font-medium text-white mb-1.5 block">Creator royalty cap</label>
-            <p className="text-xs text-white/45 mb-3">The maximum royalty percentage a creator can set on a new or existing collection.</p>
+            <p className="text-xs text-white/45 mb-3">
+              The maximum royalty percentage a creator can set. The contract independently rejects anything above{" "}
+              {(contractMaxRoyaltyBps / 100).toFixed(0)}%, so this can only tighten that limit, never exceed it.
+            </p>
             <div className="flex items-center gap-2">
               <input
                 type="number"
                 step="0.1"
                 min="0"
-                max="50"
+                max={contractMaxRoyaltyBps / 100}
                 value={(royaltyCapBps / 100).toFixed(1)}
                 onChange={(e) => setRoyaltyCapBps(Math.round(Number(e.target.value) * 100))}
                 className="w-24 bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-purple-500/60"
@@ -59,15 +71,35 @@ export function SettingsPanel() {
           </div>
 
           <div className="surface-card p-5">
-            <label className="text-sm font-medium text-white mb-1.5 block">Platform fee</label>
-            <div className="flex items-start gap-2 text-xs text-amber-100 bg-amber-400/10 border border-amber-300/20 rounded-lg p-3">
-              <Info className="w-4 h-4 shrink-0 mt-0.5" />
-              <span>
-                Currently {((platformFeeBps ?? 0) / 100).toFixed(1)}%, fixed as a constant in the deployed
-                DurchexMarketplace contract. Changing it requires redeploying the marketplace contract and
-                re-wiring it as trusted on DurchexNFT — not editable here.
-              </span>
-            </div>
+            <label className="text-sm font-medium text-white mb-1.5 block">Platform fee (on-chain)</label>
+            {onChain ? (
+              <>
+                <div className="flex items-baseline gap-2 mb-3">
+                  <span className="font-display text-2xl font-semibold text-white tabular-nums">
+                    {(onChain.platformFeeBps / 100).toFixed(1)}%
+                  </span>
+                  <span className="text-xs text-white/40">
+                    ceiling {(onChain.maxPlatformFeeBps / 100).toFixed(0)}%
+                  </span>
+                  {onChain.paused && (
+                    <span className="text-xs rounded-full px-2 py-0.5 border border-danger/40 bg-danger/10 text-danger">
+                      Trading paused
+                    </span>
+                  )}
+                </div>
+                <div className="flex items-start gap-2 text-xs text-white/50 bg-white/5 border border-white/10 rounded-lg p-3">
+                  <Info className="w-4 h-4 shrink-0 mt-0.5 text-purple-300" />
+                  <span>
+                    Read live from the marketplace contract. Adjustable by the contract owner between 0% and the
+                    immutable {(onChain.maxPlatformFeeBps / 100).toFixed(0)}% ceiling by calling{" "}
+                    <code className="text-purple-200">setPlatformFee</code> — no redeploy needed. Changing it
+                    requires the owner wallet, so it isn&rsquo;t editable from this panel.
+                  </span>
+                </div>
+              </>
+            ) : (
+              <p className="text-xs text-white/40">Couldn&rsquo;t read the marketplace contract right now.</p>
+            )}
           </div>
 
           <div className="flex items-center gap-3">

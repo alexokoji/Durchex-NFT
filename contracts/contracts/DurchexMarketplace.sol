@@ -3,6 +3,8 @@ pragma solidity ^0.8.24;
 
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/utils/Address.sol";
+import "@openzeppelin/contracts/utils/Pausable.sol";
+import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import "@openzeppelin/contracts/token/ERC1155/IERC1155.sol";
 import "@openzeppelin/contracts/token/common/ERC2981.sol";
@@ -15,11 +17,17 @@ import "./DurchexNFT1155.sol";
 /// @notice Settlement, platform fee and royalty splitting for fixed-price
 /// sales (both lazy-minted and already-minted) and settled auctions.
 /// See docs/Durchex-NFT-Marketplace-Full-Specification.pdf section 5.2.
-contract DurchexMarketplace is ReentrancyGuard, EIP712 {
+contract DurchexMarketplace is ReentrancyGuard, Pausable, Ownable, EIP712 {
     using ECDSA for bytes32;
     using Address for address payable;
 
-    uint96 public constant PLATFORM_FEE_BPS = 1000; // 10%
+    /// @notice Hard ceiling on the platform fee, fixed at deploy time and
+    /// impossible to raise — buyers can verify the fee can never exceed
+    /// this no matter who owns the contract.
+    uint96 public constant MAX_PLATFORM_FEE_BPS = 2000; // 20%
+    /// @notice Current platform fee. Adjustable by the owner within
+    /// MAX_PLATFORM_FEE_BPS so a rate change never requires a redeploy.
+    uint96 public platformFeeBps = 1000; // 10%
     address public feeRecipient;
 
     /// @notice A seller-signed authorization to sell an already-minted
@@ -93,10 +101,45 @@ contract DurchexMarketplace is ReentrancyGuard, EIP712 {
         uint256 totalPrice
     );
     event Listing1155Cancelled(address indexed seller, uint256 nonce);
+    event PlatformFeeUpdated(uint96 bps);
+    event FeeRecipientUpdated(address indexed feeRecipient);
 
-    constructor(address _feeRecipient) EIP712("DurchexMarketplace", "1") {
+    constructor(address _feeRecipient) EIP712("DurchexMarketplace", "1") Ownable(msg.sender) {
         require(_feeRecipient != address(0), "DurchexMarketplace: zero fee recipient");
         feeRecipient = _feeRecipient;
+    }
+
+    /// @notice Change the platform fee without redeploying. Bounded by the
+    /// immutable MAX_PLATFORM_FEE_BPS ceiling.
+    function setPlatformFee(uint96 bps) external onlyOwner {
+        require(bps <= MAX_PLATFORM_FEE_BPS, "DurchexMarketplace: fee exceeds ceiling");
+        platformFeeBps = bps;
+        emit PlatformFeeUpdated(bps);
+    }
+
+    /// @notice Move fee income to a different wallet (e.g. a treasury or
+    /// multisig, or in response to a key compromise) without redeploying.
+    function setFeeRecipient(address _feeRecipient) external onlyOwner {
+        require(_feeRecipient != address(0), "DurchexMarketplace: zero fee recipient");
+        feeRecipient = _feeRecipient;
+        emit FeeRecipientUpdated(_feeRecipient);
+    }
+
+    /// @notice Emergency stop for all purchase paths. Cancellations stay
+    /// available while paused so sellers can always withdraw their listings.
+    function pause() external onlyOwner {
+        _pause();
+    }
+
+    function unpause() external onlyOwner {
+        _unpause();
+    }
+
+    /// @dev Renouncing would permanently strip the fee/pause controls this
+    /// contract depends on, so it's disabled — ownership can still be
+    /// transferred to a new owner via transferOwnership.
+    function renounceOwnership() public view override onlyOwner {
+        revert("DurchexMarketplace: renounce disabled");
     }
 
     function hashListing(Listing calldata l) public view returns (bytes32) {
@@ -160,11 +203,12 @@ contract DurchexMarketplace is ReentrancyGuard, EIP712 {
         DurchexNFT nft,
         DurchexNFT.NFTVoucher calldata voucher,
         bytes calldata signature
-    ) external payable nonReentrant {
+    ) external payable nonReentrant whenNotPaused {
         require(msg.value >= voucher.minPrice, "DurchexMarketplace: insufficient payment");
         uint256 tokenId = nft.redeem(msg.sender, voucher, signature);
-        _settle(voucher.creator, voucher.creator, voucher.royaltyBps, msg.value);
-        emit VoucherRedeemed(address(nft), tokenId, msg.sender, msg.value);
+        _settle(voucher.creator, voucher.creator, voucher.royaltyBps, voucher.minPrice);
+        _refundExcess(voucher.minPrice);
+        emit VoucherRedeemed(address(nft), tokenId, msg.sender, voucher.minPrice);
     }
 
     /// @notice Buy an already-minted item — standard resale, or a settled
@@ -174,7 +218,7 @@ contract DurchexMarketplace is ReentrancyGuard, EIP712 {
     /// listing to be signed by `listing.seller` — price and buyer
     /// restriction are cryptographically bound to what the seller actually
     /// authorized, not trusted as bare call arguments.
-    function buyListed(Listing calldata listing, bytes calldata signature) external payable nonReentrant {
+    function buyListed(Listing calldata listing, bytes calldata signature) external payable nonReentrant whenNotPaused {
         require(listing.deadline == 0 || block.timestamp <= listing.deadline, "DurchexMarketplace: listing expired");
         require(!usedListingNonce[listing.seller][listing.nonce], "DurchexMarketplace: listing cancelled or already used");
         require(listing.buyer == address(0) || listing.buyer == msg.sender, "DurchexMarketplace: not the authorized buyer");
@@ -192,6 +236,7 @@ contract DurchexMarketplace is ReentrancyGuard, EIP712 {
         (address royaltyReceiver, uint256 royaltyAmt) = ERC2981(listing.nft).royaltyInfo(listing.tokenId, listing.price);
         uint96 royaltyBps = listing.price == 0 ? 0 : uint96((royaltyAmt * 10000) / listing.price);
         _settle(listing.seller, royaltyReceiver, royaltyBps, listing.price);
+        _refundExcess(listing.price);
 
         emit ListingFilled(listing.nft, listing.tokenId, listing.seller, msg.sender, listing.price);
     }
@@ -205,13 +250,14 @@ contract DurchexMarketplace is ReentrancyGuard, EIP712 {
         uint256 quantity,
         DurchexNFT1155.EditionVoucher calldata voucher,
         bytes calldata signature
-    ) external payable nonReentrant {
+    ) external payable nonReentrant whenNotPaused {
         require(quantity > 0, "DurchexMarketplace: zero quantity");
         uint256 totalPrice = voucher.minPrice * quantity;
         require(msg.value >= totalPrice, "DurchexMarketplace: insufficient payment");
         uint256 tokenId = nft.redeem(msg.sender, quantity, voucher, signature);
-        _settle(voucher.creator, voucher.creator, voucher.royaltyBps, msg.value);
-        emit EditionRedeemed(address(nft), tokenId, msg.sender, quantity, msg.value);
+        _settle(voucher.creator, voucher.creator, voucher.royaltyBps, totalPrice);
+        _refundExcess(totalPrice);
+        emit EditionRedeemed(address(nft), tokenId, msg.sender, quantity, totalPrice);
     }
 
     /// @notice Buy `quantity` units of an already-minted ERC-1155 resale
@@ -222,7 +268,7 @@ contract DurchexMarketplace is ReentrancyGuard, EIP712 {
         Listing1155 calldata listing,
         uint256 quantity,
         bytes calldata signature
-    ) external payable nonReentrant {
+    ) external payable nonReentrant whenNotPaused {
         require(quantity > 0, "DurchexMarketplace: zero quantity");
         require(listing.deadline == 0 || block.timestamp <= listing.deadline, "DurchexMarketplace: listing expired");
         require(!listing1155Cancelled[listing.seller][listing.nonce], "DurchexMarketplace: listing cancelled");
@@ -249,8 +295,19 @@ contract DurchexMarketplace is ReentrancyGuard, EIP712 {
         (address royaltyReceiver, uint256 royaltyAmt) = ERC2981(listing.nft).royaltyInfo(listing.tokenId, totalPrice);
         uint96 royaltyBps = totalPrice == 0 ? 0 : uint96((royaltyAmt * 10000) / totalPrice);
         _settle(listing.seller, royaltyReceiver, royaltyBps, totalPrice);
+        _refundExcess(totalPrice);
 
         emit Listing1155Filled(listing.nft, listing.tokenId, listing.seller, msg.sender, quantity, totalPrice);
+    }
+
+    /// @dev Returns anything paid above the settled price. Without this,
+    /// overpayment would sit in the contract permanently — there is no
+    /// sweep function, so stuck ETH would be unrecoverable.
+    function _refundExcess(uint256 settledAmount) internal {
+        uint256 excess = msg.value - settledAmount;
+        if (excess > 0) {
+            payable(msg.sender).sendValue(excess);
+        }
     }
 
     function _settle(
@@ -259,8 +316,15 @@ contract DurchexMarketplace is ReentrancyGuard, EIP712 {
         uint96 royaltyBps,
         uint256 amount
     ) internal {
-        uint256 fee = (amount * PLATFORM_FEE_BPS) / 10000;
+        uint256 fee = (amount * platformFeeBps) / 10000;
         uint256 royalty = (amount * royaltyBps) / 10000;
+        // Defence in depth: the NFT contracts cap royaltyBps at mint time,
+        // but a token from some other ERC-2981 contract could report a
+        // royalty that, combined with the fee, exceeds the sale price.
+        // Clamp rather than underflow-revert so such a token stays sellable.
+        if (fee + royalty > amount) {
+            royalty = amount - fee;
+        }
         uint256 sellerProceeds = amount - fee - royalty;
 
         // Address.sendValue forwards all remaining gas (unlike the fixed

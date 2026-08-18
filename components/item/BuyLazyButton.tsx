@@ -6,7 +6,7 @@ import { Zap, Loader2, ExternalLink, Lock } from "lucide-react";
 import { useAccount, useSwitchChain, useWriteContract, usePublicClient } from "wagmi";
 import { useConnectModal } from "@rainbow-me/rainbowkit";
 import { Button } from "@/components/ui/Button";
-import { MARKETPLACE_ABI, MARKETPLACE_ADDRESS } from "@/lib/web3/marketplaceAbi";
+import { MARKETPLACE_ABI, marketplaceAddressFor } from "@/lib/web3/marketplaceAbi";
 import { explorerTxUrl } from "@/lib/web3/explorer";
 import { PHASE_LABELS, PhaseKey } from "@/lib/mintPhases";
 import { ItemDetailView } from "@/lib/types";
@@ -55,7 +55,8 @@ export function BuyLazyButton({ item }: { item: ItemDetailView }) {
       .catch(() => setGate(null));
   }, [address, item.collectionId]);
 
-  if (!item.voucher || !MARKETPLACE_ADDRESS) return null;
+  const marketplaceAddress = marketplaceAddressFor(item.chainId);
+  if (!item.voucher || !marketplaceAddress) return null;
   const voucher = item.voucher;
 
   async function buy() {
@@ -72,7 +73,7 @@ export function BuyLazyButton({ item }: { item: ItemDetailView }) {
 
       setTxPhase("confirm");
       const hash = await writeContractAsync({
-        address: MARKETPLACE_ADDRESS!,
+        address: marketplaceAddress!,
         abi: MARKETPLACE_ABI,
         functionName: "buyLazy",
         args: [

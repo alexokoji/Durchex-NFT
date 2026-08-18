@@ -137,6 +137,21 @@ export const ERC721_APPROVAL_ABI = [
   },
 ] as const;
 
-export const MARKETPLACE_ADDRESS = process.env.NEXT_PUBLIC_MARKETPLACE_ADDRESS as
-  | `0x${string}`
-  | undefined;
+// Live DurchexMarketplace deployments, keyed by chainId. This has to be a
+// map rather than a single address: collections store their own chainId, so
+// with mainnet and Sepolia both live the correct marketplace depends on
+// which chain the item belongs to. A single global would send mainnet
+// calldata to a Sepolia item (and make server-side purchase verification
+// reject perfectly valid purchases on the other chain).
+export const MARKETPLACE_ADDRESSES: Record<number, `0x${string}`> = {
+  1: "0x42C971DAab6942f80c531675BB4Bf1cF57d30d05", // Ethereum mainnet
+  11155111: "0x3f1Ef15a97BB939D4132339becD9305e3D7e011F", // Sepolia
+};
+
+/** The marketplace contract serving a given chain, or undefined if unsupported. */
+export function marketplaceAddressFor(chainId: number | undefined): `0x${string}` | undefined {
+  if (chainId === undefined) return undefined;
+  const override = process.env[`NEXT_PUBLIC_MARKETPLACE_ADDRESS_${chainId}`];
+  return (override as `0x${string}` | undefined) ?? MARKETPLACE_ADDRESSES[chainId];
+}
+

@@ -22,6 +22,7 @@ import {
   type Chain,
 } from "viem/chains";
 import { handleVoucherRedeemed, handleResale, handleEditionRedeemed, handleListing1155Filled } from "@/lib/web3/chainSync";
+import { marketplaceAddressFor } from "@/lib/web3/marketplaceAbi";
 
 const CHAINS: Record<number, Chain> = Object.fromEntries(
   [mainnet, sepolia, polygon, polygonAmoy, base, arbitrum, optimism, avalanche, bsc, hyperliquid, hardhat].map(
@@ -48,8 +49,12 @@ export async function verifyAndSyncPurchase({
   const chain = CHAINS[chainId];
   if (!chain) return { ok: false as const, error: "Unsupported chain" };
 
-  const marketplaceAddress = process.env.NEXT_PUBLIC_MARKETPLACE_ADDRESS;
-  if (!marketplaceAddress) return { ok: false as const, error: "Marketplace contract not configured" };
+  // Must resolve per-chain: mainnet and Sepolia have different marketplace
+  // deployments, and this address is what the receipt's `to` is checked
+  // against below — a single global would reject valid purchases on
+  // whichever chain wasn't configured.
+  const marketplaceAddress = marketplaceAddressFor(chainId);
+  if (!marketplaceAddress) return { ok: false as const, error: "Marketplace contract not configured for this chain" };
 
   const client = createPublicClient({
     chain,

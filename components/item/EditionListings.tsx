@@ -8,7 +8,7 @@ import { useConnectModal } from "@rainbow-me/rainbowkit";
 import { Button } from "@/components/ui/Button";
 import { CountdownTimer } from "@/components/nft/CountdownTimer";
 import { useSession } from "@/hooks/useSession";
-import { MARKETPLACE_ABI, MARKETPLACE_ADDRESS } from "@/lib/web3/marketplaceAbi";
+import { MARKETPLACE_ABI, marketplaceAddressFor } from "@/lib/web3/marketplaceAbi";
 import { buildListing1155TypedData } from "@/lib/web3/listing1155";
 import { ItemDetailView } from "@/lib/types";
 
@@ -65,7 +65,8 @@ export function EditionListings({ item }: { item: ItemDetailView }) {
   }
   useEffect(load, [item.id]);
 
-  if (!listings || listings.length === 0 || !MARKETPLACE_ADDRESS) return null;
+  const marketplaceAddress = marketplaceAddressFor(item.chainId);
+  if (!listings || listings.length === 0 || !marketplaceAddress) return null;
 
   async function buy(listing: ResaleListing) {
     if (!address) return openConnectModal?.();
@@ -80,7 +81,7 @@ export function EditionListings({ item }: { item: ItemDetailView }) {
       if (connectedChainId !== item.chainId) await switchChainAsync({ chainId: item.chainId });
       const unitPrice = BigInt(Math.round(listing.pricePerUnitEth * 1e18));
       const hash = await writeContractAsync({
-        address: MARKETPLACE_ADDRESS!,
+        address: marketplaceAddress!,
         abi: MARKETPLACE_ABI,
         functionName: "buyListed1155",
         args: [
@@ -150,7 +151,7 @@ export function EditionListings({ item }: { item: ItemDetailView }) {
       const pricePerUnitEth = listing.highestBidEth / listing.quantity;
       const typedData = buildListing1155TypedData({
         chainId: item.chainId,
-        verifyingContract: MARKETPLACE_ADDRESS!,
+        verifyingContract: marketplaceAddress!,
         nft: listing.nft,
         tokenId: listing.tokenId,
         seller: address as `0x${string}`,

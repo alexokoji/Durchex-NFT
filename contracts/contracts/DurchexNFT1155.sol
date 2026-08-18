@@ -28,6 +28,10 @@ contract DurchexNFT1155 is ERC1155URIStorage, ERC2981, EIP712, Ownable {
         uint256 deadline; // unix seconds; 0 = no expiry
     }
 
+    /// @notice Hard ceiling on creator royalties — see DurchexNFT for why
+    /// this must be enforced on-chain and not only in the app.
+    uint96 public constant MAX_ROYALTY_BPS = 3000; // 30%
+
     address public marketplace; // only this address may redeem
     mapping(uint256 tokenId => uint256) public minted;
     mapping(uint256 tokenId => bool) public cancelled;
@@ -48,6 +52,11 @@ contract DurchexNFT1155 is ERC1155URIStorage, ERC2981, EIP712, Ownable {
     function setMarketplace(address _marketplace) external onlyOwner {
         marketplace = _marketplace;
         emit MarketplaceUpdated(_marketplace);
+    }
+
+    /// @dev Disabled for the same reason as DurchexNFT.renounceOwnership.
+    function renounceOwnership() public view override onlyOwner {
+        revert("DurchexNFT1155: renounce disabled");
     }
 
     function hashVoucher(EditionVoucher calldata v) public view returns (bytes32) {
@@ -99,6 +108,7 @@ contract DurchexNFT1155 is ERC1155URIStorage, ERC2981, EIP712, Ownable {
         require(!cancelled[voucher.tokenId], "DurchexNFT1155: edition cancelled");
         require(voucher.deadline == 0 || block.timestamp <= voucher.deadline, "DurchexNFT1155: voucher expired");
         require(minted[voucher.tokenId] + quantity <= voucher.maxSupply, "DurchexNFT1155: exceeds max supply");
+        require(voucher.royaltyBps <= MAX_ROYALTY_BPS, "DurchexNFT1155: royalty exceeds cap");
 
         address signer = hashVoucher(voucher).recoverCalldata(signature);
         require(signer == voucher.creator, "DurchexNFT1155: invalid signature");

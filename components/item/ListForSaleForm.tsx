@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { Tag, Loader2 } from "lucide-react";
 import { useAccount, useSwitchChain, useWriteContract, useReadContract, useSignTypedData } from "wagmi";
 import { Button } from "@/components/ui/Button";
-import { ERC721_APPROVAL_ABI, MARKETPLACE_ADDRESS } from "@/lib/web3/marketplaceAbi";
+import { ERC721_APPROVAL_ABI, marketplaceAddressFor } from "@/lib/web3/marketplaceAbi";
 import { buildListingTypedData, generateListingNonce } from "@/lib/web3/listing";
 import { ItemDetailView } from "@/lib/types";
 
@@ -23,6 +23,7 @@ export function ListForSaleForm({ item }: { item: ItemDetailView }) {
   const { switchChainAsync } = useSwitchChain();
   const { writeContractAsync } = useWriteContract();
   const { signTypedDataAsync } = useSignTypedData();
+  const marketplaceAddress = marketplaceAddressFor(item.chainId);
   const [priceEth, setPriceEth] = useState("");
   const [phase, setPhase] = useState<"idle" | "switching" | "approving" | "signing" | "saving">("idle");
   const [error, setError] = useState<string | null>(null);
@@ -31,12 +32,12 @@ export function ListForSaleForm({ item }: { item: ItemDetailView }) {
     address: item.contractAddress as `0x${string}`,
     abi: ERC721_APPROVAL_ABI,
     functionName: "isApprovedForAll",
-    args: address && MARKETPLACE_ADDRESS ? [address, MARKETPLACE_ADDRESS] : undefined,
+    args: address && marketplaceAddress ? [address, marketplaceAddress] : undefined,
     chainId: item.chainId,
-    query: { enabled: !!address && !!MARKETPLACE_ADDRESS },
+    query: { enabled: !!address && !!marketplaceAddress },
   });
 
-  if (!MARKETPLACE_ADDRESS) return null;
+  if (!marketplaceAddress) return null;
 
   async function submit() {
     const price = Number(priceEth);
@@ -57,7 +58,7 @@ export function ListForSaleForm({ item }: { item: ItemDetailView }) {
           address: item.contractAddress as `0x${string}`,
           abi: ERC721_APPROVAL_ABI,
           functionName: "setApprovalForAll",
-          args: [MARKETPLACE_ADDRESS!, true],
+          args: [marketplaceAddress!, true],
           chainId: item.chainId,
         });
         // Wait a tick then re-check on-chain state rather than trusting the tx alone.
@@ -70,7 +71,7 @@ export function ListForSaleForm({ item }: { item: ItemDetailView }) {
       const nonce = generateListingNonce();
       const typedData = buildListingTypedData({
         chainId: item.chainId,
-        verifyingContract: MARKETPLACE_ADDRESS!,
+        verifyingContract: marketplaceAddress!,
         nft: item.contractAddress,
         tokenId: item.tokenId!,
         seller: address as `0x${string}`,

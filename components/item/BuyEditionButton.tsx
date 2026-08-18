@@ -6,7 +6,7 @@ import { Zap, Loader2 } from "lucide-react";
 import { useAccount, useSwitchChain, useWriteContract, usePublicClient } from "wagmi";
 import { useConnectModal } from "@rainbow-me/rainbowkit";
 import { Button } from "@/components/ui/Button";
-import { MARKETPLACE_ABI, MARKETPLACE_ADDRESS } from "@/lib/web3/marketplaceAbi";
+import { MARKETPLACE_ABI, marketplaceAddressFor } from "@/lib/web3/marketplaceAbi";
 import { ItemDetailView } from "@/lib/types";
 
 /** Buy `quantity` not-yet-minted units of an ERC-1155 edition's primary sale. */
@@ -24,7 +24,8 @@ export function BuyEditionButton({ item }: { item: ItemDetailView }) {
 
   const voucher = item.editionVoucher;
   const remaining = Math.max(0, item.totalSupply - item.mintedSupply);
-  if (!voucher || !MARKETPLACE_ADDRESS || remaining <= 0) return null;
+  const marketplaceAddress = marketplaceAddressFor(item.chainId);
+  if (!voucher || !marketplaceAddress || remaining <= 0) return null;
 
   async function buy() {
     if (!address) {
@@ -46,7 +47,7 @@ export function BuyEditionButton({ item }: { item: ItemDetailView }) {
       setPhase("confirm");
       const unitPrice = BigInt(voucher!.minPrice);
       const hash = await writeContractAsync({
-        address: MARKETPLACE_ADDRESS!,
+        address: marketplaceAddress!,
         abi: MARKETPLACE_ABI,
         functionName: "buyLazy1155",
         args: [

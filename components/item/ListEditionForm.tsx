@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { Tag, Loader2 } from "lucide-react";
 import { useAccount, useSwitchChain, useWriteContract, useReadContract, useSignTypedData } from "wagmi";
 import { Button } from "@/components/ui/Button";
-import { ERC721_APPROVAL_ABI, MARKETPLACE_ADDRESS } from "@/lib/web3/marketplaceAbi";
+import { ERC721_APPROVAL_ABI, marketplaceAddressFor } from "@/lib/web3/marketplaceAbi";
 import { buildListing1155TypedData, generateListing1155Nonce } from "@/lib/web3/listing1155";
 import { ItemDetailView } from "@/lib/types";
 
@@ -17,6 +17,7 @@ export function ListEditionForm({ item }: { item: ItemDetailView }) {
   const { writeContractAsync } = useWriteContract();
   const { signTypedDataAsync } = useSignTypedData();
 
+  const marketplaceAddress = marketplaceAddressFor(item.chainId);
   const [balance, setBalance] = useState(0);
   const [mode, setMode] = useState<"fixed" | "auction">("fixed");
   const [quantity, setQuantity] = useState("");
@@ -36,12 +37,12 @@ export function ListEditionForm({ item }: { item: ItemDetailView }) {
     address: item.contractAddress as `0x${string}`,
     abi: ERC721_APPROVAL_ABI,
     functionName: "isApprovedForAll",
-    args: address && MARKETPLACE_ADDRESS ? [address, MARKETPLACE_ADDRESS] : undefined,
+    args: address && marketplaceAddress ? [address, marketplaceAddress] : undefined,
     chainId: item.chainId,
-    query: { enabled: !!address && !!MARKETPLACE_ADDRESS },
+    query: { enabled: !!address && !!marketplaceAddress },
   });
 
-  if (!MARKETPLACE_ADDRESS || balance <= 0) return null;
+  if (!marketplaceAddress || balance <= 0) return null;
 
   async function submit() {
     const qty = Math.floor(Number(quantity));
@@ -67,7 +68,7 @@ export function ListEditionForm({ item }: { item: ItemDetailView }) {
           address: item.contractAddress as `0x${string}`,
           abi: ERC721_APPROVAL_ABI,
           functionName: "setApprovalForAll",
-          args: [MARKETPLACE_ADDRESS!, true],
+          args: [marketplaceAddress!, true],
           chainId: item.chainId,
         });
         await new Promise((r) => setTimeout(r, 2000));
@@ -97,7 +98,7 @@ export function ListEditionForm({ item }: { item: ItemDetailView }) {
         const nonce = generateListing1155Nonce();
         const typedData = buildListing1155TypedData({
           chainId: item.chainId,
-          verifyingContract: MARKETPLACE_ADDRESS!,
+          verifyingContract: marketplaceAddress!,
           nft: item.contractAddress,
           tokenId: item.tokenId!,
           seller: address as `0x${string}`,

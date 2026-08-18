@@ -26,6 +26,12 @@ contract DurchexNFT is ERC721URIStorage, ERC2981, EIP712, Ownable {
         uint256 deadline; // unix seconds; 0 = no expiry
     }
 
+    /// @notice Hard ceiling on creator royalties. Enforced here rather than
+    /// only in the app, because vouchers are signed client-side — without
+    /// an on-chain check a crafted voucher could set a royalty so high that
+    /// fee + royalty exceeds the sale price, permanently bricking that token.
+    uint96 public constant MAX_ROYALTY_BPS = 3000; // 30%
+
     address public marketplace; // only this address may redeem
     mapping(uint256 tokenId => bool) public minted;
     mapping(address creator => uint256 nonce) public nonces;
@@ -43,6 +49,13 @@ contract DurchexNFT is ERC721URIStorage, ERC2981, EIP712, Ownable {
     function setMarketplace(address _marketplace) external onlyOwner {
         marketplace = _marketplace;
         emit MarketplaceUpdated(_marketplace);
+    }
+
+    /// @dev Renouncing would make setMarketplace permanently uncallable,
+    /// stranding this contract on whatever marketplace it currently trusts.
+    /// Ownership can still be transferred.
+    function renounceOwnership() public view override onlyOwner {
+        revert("DurchexNFT: renounce disabled");
     }
 
     function hashVoucher(NFTVoucher calldata v) public view returns (bytes32) {
@@ -87,6 +100,7 @@ contract DurchexNFT is ERC721URIStorage, ERC2981, EIP712, Ownable {
         require(!minted[voucher.tokenId], "DurchexNFT: already minted");
         require(voucher.nonce == nonces[voucher.creator], "DurchexNFT: bad nonce");
         require(voucher.deadline == 0 || block.timestamp <= voucher.deadline, "DurchexNFT: voucher expired");
+        require(voucher.royaltyBps <= MAX_ROYALTY_BPS, "DurchexNFT: royalty exceeds cap");
 
         address signer = hashVoucher(voucher).recoverCalldata(signature);
         require(signer == voucher.creator, "DurchexNFT: invalid signature");
