@@ -7,6 +7,7 @@ import { RainbowKitProvider, darkTheme } from "@rainbow-me/rainbowkit";
 import "@rainbow-me/rainbowkit/styles.css";
 import { wagmiConfig } from "@/lib/web3/config";
 import { ConnectFlowProvider } from "@/components/wallet/ConnectFlow";
+import { TxSuccessProvider } from "@/components/tx/TxSuccess";
 
 const baseRainbowKitTheme = darkTheme({
   accentColor: "#7C3AED",
@@ -36,7 +37,9 @@ export function Web3Providers({ children }: { children: ReactNode }) {
     <WagmiProvider config={wagmiConfig}>
       <QueryClientProvider client={queryClient}>
         <RainbowKitProvider theme={rainbowKitTheme}>
-          <ConnectFlowProvider>{children}</ConnectFlowProvider>
+          <ConnectFlowProvider>
+            <TxSuccessProvider>{children}</TxSuccessProvider>
+          </ConnectFlowProvider>
         </RainbowKitProvider>
       </QueryClientProvider>
     </WagmiProvider>
