@@ -14,6 +14,7 @@ const NAV_LINKS = [
   { href: "/explore", label: "Explore" },
   { href: "/rankings", label: "Rankings" },
   { href: "/drops", label: "Drops" },
+  { href: "/wallet-checker", label: "Wallet Checker" },
   { href: "/stats", label: "Stats" },
   { href: "/creator", label: "Creator Studio" },
 ];
