@@ -52,13 +52,18 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "You can't bid on your own auction" }, { status: 400 });
     }
 
+    // Same atomic "beat the current high" guard as the 721 item-level
+    // auction path, but expressed without $expr/$cond — both branches
+    // written out explicitly, since $expr comparison casting against this
+    // schema was throwing (see git history for the diagnosis).
     const updated = await Listing.findOneAndUpdate(
       {
         _id: listing._id,
         status: "auction",
-        $expr: {
-          $gt: [amountEth, { $cond: [{ $gt: ["$highestBidEth", 0] }, "$highestBidEth", "$pricePerUnitEth"] }],
-        },
+        $or: [
+          { highestBidEth: { $gt: 0, $lt: amountEth } },
+          { highestBidEth: { $lte: 0 }, pricePerUnitEth: { $lt: amountEth } },
+        ],
       },
       { $set: { highestBidEth: amountEth, highestBidder: user._id } }
     );
