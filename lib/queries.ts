@@ -3,6 +3,7 @@ import { connectDB } from "@/lib/db";
 import { Collection } from "@/lib/models/Collection";
 import { Item } from "@/lib/models/Item";
 import { ItemBalance } from "@/lib/models/ItemBalance";
+import { collectionMintProgress } from "@/lib/collectionSupply";
 import { User } from "@/lib/models/User";
 import { Favorite } from "@/lib/models/Favorite";
 import { Bid } from "@/lib/models/Bid";
@@ -274,18 +275,7 @@ export async function getItemById(id: string): Promise<ItemDetailView | null> {
   // Fire-and-forget — never block the page render on a view-count write.
   Item.updateOne({ _id: id }, { $inc: { viewCount: 1 } }).catch(() => {});
 
-  // Resale opens on collection-wide mint-out, so the item page needs its
-  // parent's progress, not just its own.
-  const collectionId = (doc.collection as { _id: Types.ObjectId })._id;
-  const [collectionMintedSupply, collectionUnmintedCount] = await Promise.all([
-    Item.countDocuments({ collection: collectionId, isMinted: true }),
-    Item.countDocuments({ collection: collectionId, isMinted: false }),
-  ]);
-
-  return toItemDetailView({
-    ...doc,
-    collection: { ...doc.collection, collectionMintedSupply, collectionUnmintedCount },
-  } as never);
+  return toItemDetailView(doc as never);
 }
 
 export async function getRelatedItems(
@@ -328,13 +318,11 @@ export async function getCollectionBySlug(slug: string): Promise<CollectionDetai
   const ownerIds = new Set([...owners721, ...owners1155].map((o) => String(o._id)));
   doc.stats.owners = ownerIds.size;
   doc.stats.items = await Item.countDocuments({ collection: doc._id });
-  // Items actually minted on-chain, as opposed to stats.items (every Item
-  // doc, including unminted lazy vouchers pre-created for a drop) — this is
-  // what "sold out" means for gating the secondary-market buttons.
-  const [mintedSupply, unmintedCount] = await Promise.all([
-    Item.countDocuments({ collection: doc._id, isMinted: true }),
-    Item.countDocuments({ collection: doc._id, isMinted: false }),
-  ]);
+  // Units actually minted on-chain, as opposed to stats.items (every Item
+  // doc, including unminted lazy vouchers pre-created for a drop). Counted
+  // in units because an ERC-1155 row is an edition of many — this is what
+  // "minted out" means for gating the secondary market.
+  const { mintedUnits, totalUnits } = await collectionMintProgress(doc._id);
 
   // "Top offer" is the best standing collection-wide bid — the number a
   // holder could accept right now without listing. Expired offers are
@@ -349,7 +337,7 @@ export async function getCollectionBySlug(slug: string): Promise<CollectionDetai
     .select("pricePerItemEth")
     .lean();
 
-  return toCollectionDetailView({ ...doc, topOfferEth: topOffer?.pricePerItemEth ?? null, mintedSupply, unmintedCount } as never);
+  return toCollectionDetailView({ ...doc, topOfferEth: topOffer?.pricePerItemEth ?? null, mintedSupply: mintedUnits, totalUnits } as never);
 }
 
 export async function getCollectionTraitFacets(collectionId: string) {

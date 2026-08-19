@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { connectDB } from "@/lib/db";
 import { Item } from "@/lib/models/Item";
 import { Collection } from "@/lib/models/Collection";
-import { listingGate } from "@/lib/listing";
+import { isItemMintedOut, itemMintRemaining } from "@/lib/listing";
 import { ItemBalance } from "@/lib/models/ItemBalance";
 import { Listing } from "@/lib/models/Listing";
 import { getCurrentUser } from "@/lib/auth/currentUser";
@@ -71,21 +71,17 @@ export async function POST(req: NextRequest, context: { params: Promise<{ id: st
   }
 
   const collection = await Collection.findById(item.collection)
-    .select("contractAddress maxSupply")
+    .select("contractAddress")
     .lean();
   if (!collection) return NextResponse.json({ error: "Collection not found" }, { status: 404 });
 
-  // Same rule as ERC-721 resale (see PATCH /api/items/[id]): resale opens
-  // only once the whole collection is on-chain.
-  const [mintedSupply, unmintedCount] = await Promise.all([
-    Item.countDocuments({ collection: collection._id, isMinted: true }),
-    Item.countDocuments({ collection: collection._id, isMinted: false }),
-  ]);
-  const gate = listingGate({ maxSupply: collection.maxSupply, mintedSupply, unmintedCount });
-  if (!gate.open) {
+  // Same rule as ERC-721 resale (see PATCH /api/items/[id]), and the reason
+  // it matters most here: an edition's isMinted flips on the first unit
+  // sold, so only a unit count can tell whether it has finished minting.
+  if (!isItemMintedOut(item)) {
     return NextResponse.json(
       {
-        error: `Resale isn't available yet — it opens once this collection is fully minted, ${gate.remaining} still to mint.`,
+        error: `Resale isn't available yet — this edition is listable once all ${item.totalSupply ?? 0} are minted, ${itemMintRemaining(item)} still to mint.`,
       },
       { status: 403 }
     );

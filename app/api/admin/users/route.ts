@@ -13,7 +13,7 @@ export async function GET(req: NextRequest) {
   const users = await User.find(filter)
     .sort({ createdAt: -1 })
     .limit(200)
-    .select("address username role banned banReason isVerified followerCount createdAt")
+    .select("address username role banned banReason isVerified verificationTier followerCount createdAt")
     .lean();
   return NextResponse.json({ users });
 }

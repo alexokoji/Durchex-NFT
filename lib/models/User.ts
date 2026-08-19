@@ -7,6 +7,14 @@ const UserSchema = new Schema(
     bio: { type: String, default: "" },
     avatarSeed: { type: String, default: "" },
     bannerSeed: { type: String, default: "" },
+    // Uploaded profile art. Empty falls back to the generated art keyed on
+    // the wallet address, so every profile still looks like something.
+    avatarUrl: { type: String, default: "" },
+    bannerUrl: { type: String, default: "" },
+    // "white" is the creator badge, "purple" the identity-verified one.
+    // isVerified is kept in step with this so nothing that only knows
+    // about the boolean breaks.
+    verificationTier: { type: String, enum: ["none", "white", "purple"], default: "none" },
     isVerified: { type: Boolean, default: false },
     role: { type: String, enum: ["user", "moderator", "admin"], default: "user" },
     banned: { type: Boolean, default: false },

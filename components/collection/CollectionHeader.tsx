@@ -11,12 +11,10 @@ import { ResaleStatus } from "@/components/collection/ResaleStatus";
 import { DeleteCollection } from "@/components/collection/DeleteCollection";
 
 export function CollectionHeader({ collection }: { collection: CollectionDetailView }) {
-  // Resale opens by itself the moment the collection is fully minted —
-  // nobody toggles it. Until then the primary path is the mint panel below.
-  // floorEth is derived from live, valid listings — zero means nothing is
-  // actually for sale, so there is no floor to buy and the button would
-  // only ever open onto an empty sheet.
-  const hasListing = collection.floorEth > 0;
+  // The secondary market opens by itself once every NFT in the collection
+  // is minted — nobody toggles it. Until then the primary path is the mint
+  // panel below, and these buttons would only act on a market that has not
+  // started.
 
   return (
     <div>
@@ -38,7 +36,7 @@ export function CollectionHeader({ collection }: { collection: CollectionDetailV
 
       {collection.resaleOpen ? (
         <div className="mt-6 px-4 sm:px-8 flex flex-wrap gap-2">
-          {hasListing && <BuyFloorButton collection={collection} />}
+          <BuyFloorButton collection={collection} />
           <MakeCollectionOfferButton collection={collection} />
         </div>
       ) : (

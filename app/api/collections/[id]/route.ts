@@ -5,6 +5,7 @@ import { getCurrentUser } from "@/lib/auth/currentUser";
 import { normalizePhase, computePublicAllocation, effectivePublicAllocation } from "@/lib/mintPhases";
 import { Item } from "@/lib/models/Item";
 import { isMintedOut } from "@/lib/listing";
+import { collectionMintProgress } from "@/lib/collectionSupply";
 import { deleteCollectionCascade } from "@/lib/deleteCollection";
 
 export async function GET(req: NextRequest, context: { params: Promise<{ id: string }> }) {
@@ -21,15 +22,12 @@ export async function GET(req: NextRequest, context: { params: Promise<{ id: str
   }
   // Mint progress travels with this so the phase manager can say how far
   // off mint-out — and therefore resale — is.
-  const [mintedSupply, unmintedCount] = await Promise.all([
-    Item.countDocuments({ collection: collection._id, isMinted: true }),
-    Item.countDocuments({ collection: collection._id, isMinted: false }),
-  ]);
+  const { mintedUnits, totalUnits } = await collectionMintProgress(collection._id);
   return NextResponse.json({
     mintPhases: collection.mintPhases,
-    mintedOut: isMintedOut({ maxSupply: collection.maxSupply, mintedSupply, unmintedCount }),
-    mintedSupply,
-    unmintedCount,
+    mintedOut: isMintedOut({ maxSupply: collection.maxSupply, mintedUnits, totalUnits }),
+    mintedSupply: mintedUnits,
+    totalUnits,
     maxSupply: collection.maxSupply,
   });
 }
@@ -60,11 +58,8 @@ export async function PATCH(req: NextRequest, context: { params: Promise<{ id: s
   // them afterwards would rewrite the record of a sale that already
   // happened. Resale settings above are deliberately still editable —
   // opening resale is precisely what a creator does after minting out.
-  const [mintedSupply, unmintedCount] = await Promise.all([
-    Item.countDocuments({ collection: collection._id, isMinted: true }),
-    Item.countDocuments({ collection: collection._id, isMinted: false }),
-  ]);
-  if (isMintedOut({ maxSupply: collection.maxSupply, mintedSupply, unmintedCount })) {
+  const { mintedUnits, totalUnits } = await collectionMintProgress(collection._id);
+  if (isMintedOut({ maxSupply: collection.maxSupply, mintedUnits, totalUnits })) {
     return NextResponse.json(
       {
         error: "This collection is fully minted — its mint phases can no longer be changed.",

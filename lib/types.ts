@@ -51,14 +51,14 @@ export interface CollectionDetailView extends CollectionView {
   sales: number;
   contractType: "lazy" | "drop";
   maxSupply: number;
-  /** Items in this collection actually minted on-chain so far. */
+  /** Units of this collection actually minted on-chain so far. */
   mintedSupply: number;
-  /** Items that exist but have never been minted — with mintedSupply and
-   *  maxSupply, this is what decides whether resale can open at all. */
-  unmintedCount: number;
-  /** Resale is open — derived from mint-out, never set by anyone. */
+  /** Units that exist to be minted at all, across every item. */
+  totalUnits: number;
+  /** The whole collection is minted out — what opens its secondary market.
+   *  Derived, never set by anyone. */
   resaleOpen: boolean;
-  /** Units still to mint before resale opens. Zero once open. */
+  /** Units still to mint before that happens. Zero once open. */
   mintRemaining: number;
   /** Percentage move in the floor over the last day; null with no baseline. */
   floorChange1dPct: number | null;
@@ -146,10 +146,11 @@ export interface ItemDetailView extends ItemView {
   creator: UserRef | null;
   voucher: VoucherView | null;
   listing: ListingView | null;
-  /** Whether this item's collection has finished minting, which is what
-   *  opens resale. Mirrors the server-side gate in PATCH /api/items/[id]. */
+  /** Whether THIS item is fully minted — an edition of 50 needs all 50
+   *  on-chain. That is what lets its owner list it for resale, and it
+   *  mirrors the server-side gate in PATCH /api/items/[id]. */
   resaleOpen: boolean;
-  /** Units still to mint in the collection before resale opens. */
+  /** Units of this item still to mint before that. */
   mintRemaining: number;
   // ERC-1155 only.
   standard: "ERC721" | "ERC1155";

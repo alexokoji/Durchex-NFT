@@ -42,6 +42,10 @@ export async function PATCH(req: NextRequest) {
   user.username = username;
   user.bio = bio;
   user.socials = socials;
+  // Only touched when the client sends them, so a caller that just
+  // renames itself doesn't silently wipe the images.
+  if ("avatarUrl" in body) user.avatarUrl = String(body.avatarUrl ?? "").slice(0, 500);
+  if ("bannerUrl" in body) user.bannerUrl = String(body.bannerUrl ?? "").slice(0, 500);
   await user.save();
 
   return NextResponse.json({
@@ -49,5 +53,7 @@ export async function PATCH(req: NextRequest) {
     username: user.username,
     bio: user.bio,
     socials: user.socials,
+    avatarUrl: user.avatarUrl,
+    bannerUrl: user.bannerUrl,
   });
 }

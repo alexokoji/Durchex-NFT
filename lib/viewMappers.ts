@@ -8,7 +8,7 @@ import {
   NotificationView,
   UserRef,
 } from "@/lib/types";
-import { isMintedOut, mintRemaining } from "@/lib/listing";
+import { isItemMintedOut, isMintedOut, itemMintRemaining, mintRemaining } from "@/lib/listing";
 
 // Loose input types: only the fields we read, works for both lean() Mongoose
 // docs and plain seed objects.
@@ -67,7 +67,8 @@ interface CollectionDetailLike extends CollectionLike {
   topOfferEth?: number | null;
   /** Items actually minted on-chain so far, resolved by the query layer. */
   mintedSupply?: number;
-  unmintedCount?: number;
+  /** Units minted across the collection, from the query layer. */
+  totalUnits?: number;
   stats: CollectionLike["stats"] & {
     volume7dEth: number;
     totalVolumeEth: number;
@@ -104,10 +105,6 @@ interface ItemDetailLike extends ItemLike {
     chainId: number;
     royaltyBps?: number;
     maxSupply?: number;
-    /** Collection-wide mint progress, resolved by the query layer so the
-     *  item page can tell whether resale has opened. */
-    collectionMintedSupply?: number;
-    collectionUnmintedCount?: number;
     contractType?: "lazy" | "drop";
     mintPhases?: {
       whitelist?: PhaseLike;
@@ -152,20 +149,13 @@ interface ItemDetailLike extends ItemLike {
 
 const ETH_USD = 3400;
 
-// Both views answer "has resale opened?" from the same three numbers, so
-// the shape is built once here rather than restated at each call site.
+// Mint-out is measured in units, never in item rows — an ERC-1155 row is
+// an edition of many. See lib/collectionSupply.ts.
 function supplyOf(c: CollectionDetailLike) {
   return {
     maxSupply: c.maxSupply ?? 0,
-    mintedSupply: c.mintedSupply ?? 0,
-    unmintedCount: c.unmintedCount ?? 0,
-  };
-}
-function itemCollectionSupply(item: ItemDetailLike) {
-  return {
-    maxSupply: item.collection.maxSupply ?? 0,
-    mintedSupply: item.collection.collectionMintedSupply ?? 0,
-    unmintedCount: item.collection.collectionUnmintedCount ?? 0,
+    mintedUnits: c.mintedSupply ?? 0,
+    totalUnits: c.totalUnits ?? 0,
   };
 }
 
@@ -242,7 +232,7 @@ export function toCollectionDetailView(c: CollectionDetailLike): CollectionDetai
     contractType: c.contractType ?? "lazy",
     maxSupply: c.maxSupply ?? 0,
     mintedSupply: c.mintedSupply ?? 0,
-    unmintedCount: c.unmintedCount ?? 0,
+    totalUnits: c.totalUnits ?? 0,
     resaleOpen: isMintedOut(supplyOf(c)),
     mintRemaining: mintRemaining(supplyOf(c)),
     // Only a real baseline gives a meaningful percentage: a collection whose
@@ -291,8 +281,18 @@ export function toItemDetailView(item: ItemDetailLike): ItemDetailView {
     contractAddress: item.collection.contractAddress,
     // Default open: collections predating this field have it undefined,
     // and those have always permitted resale listing.
-    resaleOpen: isMintedOut(itemCollectionSupply(item)),
-    mintRemaining: mintRemaining(itemCollectionSupply(item)),
+    resaleOpen: isItemMintedOut({
+      standard: item.standard ?? "ERC721",
+      isMinted: item.isMinted,
+      totalSupply: item.totalSupply,
+      mintedSupply: item.mintedSupply,
+    }),
+    mintRemaining: itemMintRemaining({
+      standard: item.standard ?? "ERC721",
+      isMinted: item.isMinted,
+      totalSupply: item.totalSupply,
+      mintedSupply: item.mintedSupply,
+    }),
     viewCount: item.viewCount,
     traits: (item.traits ?? []).map((t) => ({
       traitType: t.trait_type,

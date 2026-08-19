@@ -5,7 +5,7 @@ import { Collection } from "@/lib/models/Collection";
 import { getCurrentUser } from "@/lib/auth/currentUser";
 import { recordActivity } from "@/lib/activity";
 import { recalculateCollectionFloor } from "@/lib/floorPrice";
-import { listingGate } from "@/lib/listing";
+import { isItemMintedOut, itemMintRemaining } from "@/lib/listing";
 
 // Lists, relists, or cancels a listing. Lazy (unminted) items get their
 // initial listing price set at creation via the voucher, but their creator
@@ -38,24 +38,21 @@ export async function PATCH(req: NextRequest, context: { params: Promise<{ id: s
       return NextResponse.json({ error: "Unminted items list automatically when created" }, { status: 400 });
     }
     const collection = await Collection.findById(item.collection)
-      .select("contractAddress maxSupply")
+      .select("contractAddress")
       .lean();
     if (!collection) return NextResponse.json({ error: "Collection not found" }, { status: 404 });
-    // Nothing lists until the collection is fully minted out. This is the
-    // whole rule — there is no flag anyone can set to bypass it.
-    const [mintedSupply, unmintedCount] = await Promise.all([
-      Item.countDocuments({ collection: collection._id, isMinted: true }),
-      Item.countDocuments({ collection: collection._id, isMinted: false }),
-    ]);
-    const gate = listingGate({ maxSupply: collection.maxSupply, mintedSupply, unmintedCount });
-    if (!gate.open) {
+    // Resale opens per item, once every unit of it is on-chain. An ERC-721
+    // is one unit, so being minted is enough; an edition of 50 needs all
+    // 50, since isMinted flips on the very first purchase.
+    if (!isItemMintedOut(item)) {
       return NextResponse.json(
         {
-          error: `Resale isn't available yet — it opens once this collection is fully minted, ${gate.remaining} still to mint.`,
+          error: `Resale isn't available yet — this item is fully listable once all of it is minted, ${itemMintRemaining(item)} still to mint.`,
         },
         { status: 403 }
       );
     }
+
     const priceEth = Number(body.priceEth);
     if (!Number.isFinite(priceEth) || priceEth <= 0) {
       return NextResponse.json({ error: "Enter a valid price" }, { status: 400 });

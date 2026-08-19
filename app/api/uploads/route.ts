@@ -13,7 +13,10 @@ export async function POST(request: NextRequest) {
       body,
       request,
       onBeforeGenerateToken: async (pathname) => {
-        if (!pathname.startsWith("nft-assets/")) throw new Error("Invalid upload path");
+        // profile-assets covers avatars, covers and verification ID
+        // documents — same signed-upload path, different prefix so the
+        // two kinds of media stay separable in storage.
+        if (!pathname.startsWith("nft-assets/") && !pathname.startsWith("profile-assets/")) throw new Error("Invalid upload path");
         return { allowedContentTypes: ALLOWED_MEDIA_TYPES, addRandomSuffix: true, tokenPayload: JSON.stringify({ userId: String(user._id) }) };
       },
       onUploadCompleted: async () => {},
