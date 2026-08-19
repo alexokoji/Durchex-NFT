@@ -143,7 +143,16 @@ export function BuyEditionButton({
       reserved = false;
 
       setPhase("mining");
-      await settlePurchase({ publicClient, hash, chainId: item.chainId });
+      // Success is shown as soon as the receipt lands; the database sync
+      // continues in the background. The buyer already owns the NFT at that
+      // point, so making them watch our bookkeeping finish was pure
+      // waiting. router.refresh() runs once the sync actually completes.
+      await settlePurchase({
+        publicClient,
+        hash,
+        chainId: item.chainId,
+        onReceipt: () => setPhase("done"),
+      });
 
       setPhase("done");
       celebrate({

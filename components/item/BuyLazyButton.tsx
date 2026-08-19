@@ -102,7 +102,16 @@ export function BuyLazyButton({ item, phase: forcedPhase }: { item: ItemDetailVi
       setTxHash(hash);
 
       setTxPhase("mining");
-      await settlePurchase({ publicClient, hash, chainId: item.chainId });
+      // Success is shown as soon as the receipt lands; the database sync
+      // continues in the background. The buyer already owns the NFT at that
+      // point, so making them watch our bookkeeping finish was pure
+      // waiting. router.refresh() runs once the sync actually completes.
+      await settlePurchase({
+        publicClient,
+        hash,
+        chainId: item.chainId,
+        onReceipt: () => setTxPhase("done"),
+      });
 
 
       setTxPhase("done");

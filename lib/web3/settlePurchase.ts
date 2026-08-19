@@ -21,6 +21,7 @@ export async function settlePurchase({
   hash,
   chainId,
   saleType,
+  onReceipt,
   receiptTimeoutMs = 45_000,
   attempts = 5,
 }: {
@@ -28,6 +29,15 @@ export async function settlePurchase({
   hash: `0x${string}`;
   chainId: number;
   saleType?: "BUY_NOW" | "BUY_FLOOR" | "NFT_OFFER" | "COLLECTION_OFFER" | "AUCTION";
+  /**
+   * Fired once the transaction is mined (or the receipt wait gives up),
+   * before the server-side sync begins. Callers use this to show success
+   * immediately: the buyer owns the NFT the moment the receipt lands, and
+   * recording that in our database is bookkeeping they shouldn't have to
+   * watch. Waiting for the whole function added the confirm round-trip —
+   * and any retry backoff — to what the user experienced as "minting".
+   */
+  onReceipt?: () => void;
   receiptTimeoutMs?: number;
   attempts?: number;
 }): Promise<{ confirmed: boolean }> {
@@ -37,6 +47,7 @@ export async function settlePurchase({
     // Timed out or the RPC failed. The transaction is still very likely
     // mined — fall through and let the server be the judge.
   }
+  onReceipt?.();
 
   // The server may legitimately not see the transaction for a few seconds
   // (propagation, or its own RPC lagging), so retry with backoff rather
@@ -52,7 +63,9 @@ export async function settlePurchase({
     } catch {
       // Network blip — keep trying.
     }
-    await new Promise((r) => setTimeout(r, 2000 * (attempt + 1)));
+    // Don't sleep after the final attempt — nothing follows it, and the
+    // caller is often waiting to refresh.
+    if (attempt < attempts - 1) await new Promise((r) => setTimeout(r, 1000 * (attempt + 1)));
   }
   return { confirmed: false };
 }
