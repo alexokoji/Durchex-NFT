@@ -36,15 +36,46 @@ function escapeRegExp(s: string) {
   return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
+// Admin "hidden" was stored and toggled but never read, so hiding a
+// collection did nothing at all. Every public read path now goes through
+// one of these: VISIBLE_COLLECTION for collection queries, and
+// excludeHidden() for item queries, which have no `hidden` field of their
+// own and have to be excluded by parent.
+//
+// Hiding is deliberately total — the collection page, its items, search,
+// rankings, drops and profile holdings all stop showing it. Admin routes
+// query the models directly and are unaffected, which is what lets an
+// admin find it again to unhide it.
+const VISIBLE_COLLECTION = { hidden: { $ne: true } } as const;
+
+async function hiddenCollectionIds(): Promise<Types.ObjectId[]> {
+  const docs = await Collection.find({ hidden: true }).select("_id").lean();
+  return docs.map((d) => d._id as Types.ObjectId);
+}
+
+/** Adds "not in a hidden collection" to an item-side filter, without
+ *  clobbering a `collection` constraint the caller already set. */
+async function excludeHidden(match: Record<string, unknown>): Promise<Record<string, unknown>> {
+  const hidden = await hiddenCollectionIds();
+  if (hidden.length === 0) return match;
+  const and = [...((match.$and as unknown[]) ?? []), { collection: { $nin: hidden } }];
+  return { ...match, $and: and };
+}
+
+/** Drops populated items whose parent collection is missing or hidden. */
+function visibleItems<T extends { collection?: unknown }>(docs: T[]): T[] {
+  return docs.filter((d) => !!d.collection && !(d.collection as { hidden?: boolean }).hidden);
+}
+
 export async function getTrendingCollections(limit = 8): Promise<CollectionView[]> {
   await connectDB();
-  const docs = await Collection.find().sort({ "stats.volume24hEth": -1 }).limit(limit).lean();
+  const docs = await Collection.find(VISIBLE_COLLECTION).sort({ "stats.volume24hEth": -1 }).limit(limit).lean();
   return docs.map((d) => toCollectionView(d as never));
 }
 
 export async function getLiveAuctions(limit = 8): Promise<ItemView[]> {
   await connectDB();
-  const docs = await Item.find({ status: "auction" })
+  const docs = await Item.find(await excludeHidden({ status: "auction" }))
     .sort({ auctionEndsAt: 1 })
     .limit(limit)
     .populate("collection")
@@ -54,7 +85,7 @@ export async function getLiveAuctions(limit = 8): Promise<ItemView[]> {
 
 export async function getFeaturedItems(limit = 12): Promise<ItemView[]> {
   await connectDB();
-  const docs = await Item.find({ status: { $in: ["fixed_price", "auction"] } })
+  const docs = await Item.find(await excludeHidden({ status: { $in: ["fixed_price", "auction"] } }))
     .sort({ favoriteCount: -1 })
     .limit(limit)
     .populate("collection")
@@ -68,8 +99,14 @@ export async function getFeaturedItems(limit = 12): Promise<ItemView[]> {
 // ranked by reach.
 export async function getTopCreators(limit = 6) {
   await connectDB();
+  const hidden = await hiddenCollectionIds();
   const rows = await Item.aggregate([
-    { $match: { creator: { $ne: null } } },
+    {
+      $match: {
+        creator: { $ne: null },
+        ...(hidden.length > 0 ? { collection: { $nin: hidden } } : {}),
+      },
+    },
     { $group: { _id: "$creator", itemCount: { $sum: 1 } } },
     { $lookup: { from: "users", localField: "_id", foreignField: "_id", as: "user" } },
     { $unwind: "$user" },
@@ -88,6 +125,7 @@ export async function getTopCreators(limit = 6) {
 export async function getPlatformStats() {
   await connectDB();
   const [collectionAgg] = await Collection.aggregate([
+    { $match: VISIBLE_COLLECTION },
     {
       $group: {
         _id: null,
@@ -154,11 +192,11 @@ export async function getExploreItems(filters: ExploreFilters) {
   const match: Record<string, unknown> = {};
 
   if (collectionSlug) {
-    const collection = await Collection.findOne({ slug: collectionSlug }).select("_id").lean();
+    const collection = await Collection.findOne({ slug: collectionSlug, ...VISIBLE_COLLECTION }).select("_id").lean();
     if (!collection) return { items: [], total: 0, page, pageSize, pageCount: 1 };
     match.collection = collection._id;
   } else if (category) {
-    const collectionIds = (await Collection.find({ category }).select("_id").lean()).map(
+    const collectionIds = (await Collection.find({ category, ...VISIBLE_COLLECTION }).select("_id").lean()).map(
       (c) => c._id
     );
     match.collection = { $in: collectionIds };
@@ -187,14 +225,16 @@ export async function getExploreItems(filters: ExploreFilters) {
     ending_soon: { auctionEndsAt: 1 },
   };
 
+  const visibleMatch = await excludeHidden(match);
+
   const [docs, total] = await Promise.all([
-    Item.find(match)
+    Item.find(visibleMatch)
       .sort(sortMap[sort] ?? sortMap.recent)
       .skip((page - 1) * pageSize)
       .limit(pageSize)
       .populate("collection")
       .lean(),
-    Item.countDocuments(match),
+    Item.countDocuments(visibleMatch),
   ]);
 
   return {
@@ -209,6 +249,7 @@ export async function getExploreItems(filters: ExploreFilters) {
 export async function getCategoryCounts() {
   await connectDB();
   const agg = await Collection.aggregate([
+    { $match: VISIBLE_COLLECTION },
     { $group: { _id: "$category", items: { $sum: "$stats.items" } } },
   ]);
   const map: Record<string, number> = {};
@@ -226,6 +267,9 @@ export async function getItemById(id: string): Promise<ItemDetailView | null> {
     .populate("creator")
     .lean();
   if (!doc || !doc.collection) return null;
+  // A hidden collection is hidden all the way down — its items 404 too,
+  // otherwise a direct link would still reach them.
+  if ((doc.collection as { hidden?: boolean }).hidden) return null;
 
   // Fire-and-forget — never block the page render on a view-count write.
   Item.updateOne({ _id: id }, { $inc: { viewCount: 1 } }).catch(() => {});
@@ -249,7 +293,7 @@ export async function getRelatedItems(
 
 export async function getCollectionBySlug(slug: string): Promise<CollectionDetailView | null> {
   await connectDB();
-  const doc = await Collection.findOne({ slug }).populate("creator", "address").lean();
+  const doc = await Collection.findOne({ slug, ...VISIBLE_COLLECTION }).populate("creator", "address").lean();
   if (!doc) return null;
 
   // stats.owners is only ever set at seed time — it never reflects real
@@ -359,7 +403,7 @@ export async function getItemsByOwner(userId: string): Promise<ItemView[]> {
     .sort({ createdAt: -1 })
     .populate("collection")
     .lean();
-  return docs.filter((d) => d.collection).map((d) => toItemView(d as never));
+  return visibleItems(docs).map((d) => toItemView(d as never));
 }
 
 export async function getItemsByCreator(userId: string): Promise<ItemView[]> {
@@ -368,7 +412,7 @@ export async function getItemsByCreator(userId: string): Promise<ItemView[]> {
     .sort({ createdAt: -1 })
     .populate("collection")
     .lean();
-  return docs.filter((d) => d.collection).map((d) => toItemView(d as never));
+  return visibleItems(docs).map((d) => toItemView(d as never));
 }
 
 export async function getFavoritedItems(userId: string): Promise<ItemView[]> {
@@ -379,7 +423,7 @@ export async function getFavoritedItems(userId: string): Promise<ItemView[]> {
   const byId = new Map(docs.map((d) => [String(d._id), d]));
   return itemIds
     .map((id) => byId.get(String(id)))
-    .filter((d): d is NonNullable<typeof d> => !!d && !!d.collection)
+    .filter((d): d is NonNullable<typeof d> => !!d && !!d.collection && !(d.collection as { hidden?: boolean }).hidden)
     .map((d) => toItemView(d as never));
 }
 
@@ -466,7 +510,7 @@ export async function getRankedCollections(
   limit = 50
 ): Promise<CollectionDetailView[]> {
   await connectDB();
-  const docs = await Collection.find()
+  const docs = await Collection.find(VISIBLE_COLLECTION)
     .sort({ [RANKINGS_SORT_FIELD[timeframe]]: -1 })
     .limit(limit)
     .lean();
@@ -516,6 +560,19 @@ export async function getActivity(filters: ActivityFilters) {
   if (collectionId) {
     const ids = await Item.find({ collection: collectionId }).select("_id").lean();
     match.item = { $in: ids.map((doc) => doc._id) };
+  }
+
+  // Activity carries no collection of its own, so hidden ones are excluded
+  // through the items that belong to them.
+  const hiddenIds = await hiddenCollectionIds();
+  if (hiddenIds.length > 0) {
+    const hiddenItems = await Item.find({ collection: { $in: hiddenIds } }).select("_id").lean();
+    if (hiddenItems.length > 0) {
+      match.$and = [
+        ...((match.$and as unknown[]) ?? []),
+        { item: { $nin: hiddenItems.map((d) => d._id) } },
+      ];
+    }
   }
 
   const [docs, total] = await Promise.all([
@@ -570,8 +627,8 @@ export async function search(query: string, limit = 8): Promise<SearchResults> {
   const re = new RegExp(escapeRegExp(trimmed), "i");
 
   const [itemDocs, collectionDocs, userDocs] = await Promise.all([
-    Item.find({ name: re }).limit(limit).populate("collection").lean(),
-    Collection.find({ name: re }).limit(limit).lean(),
+    excludeHidden({ name: re }).then((m) => Item.find(m).limit(limit).populate("collection").lean()),
+    Collection.find({ name: re, ...VISIBLE_COLLECTION }).limit(limit).lean(),
     User.find({ username: re }).limit(limit).lean(),
   ]);
 
@@ -586,7 +643,7 @@ export async function search(query: string, limit = 8): Promise<SearchResults> {
 export async function getActiveLiveDrop(): Promise<{ slug: string; name: string } | null> {
   await connectDB();
   const now = new Date();
-  const doc = await Collection.findOne({ dropStartsAt: { $lte: now }, dropEndsAt: { $gt: now } })
+  const doc = await Collection.findOne({ dropStartsAt: { $lte: now }, dropEndsAt: { $gt: now }, ...VISIBLE_COLLECTION })
     .sort({ dropStartsAt: -1 })
     .select("slug name")
     .lean();
@@ -595,7 +652,7 @@ export async function getActiveLiveDrop(): Promise<{ slug: string; name: string 
 
 export async function getDrops(viewerUserId?: string): Promise<DropView[]> {
   await connectDB();
-  const docs = await Collection.find({ dropStartsAt: { $ne: null } })
+  const docs = await Collection.find({ dropStartsAt: { $ne: null }, ...VISIBLE_COLLECTION })
     .sort({ dropStartsAt: 1 })
     .lean();
   if (docs.length === 0) return [];

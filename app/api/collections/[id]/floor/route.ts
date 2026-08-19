@@ -31,7 +31,8 @@ export async function GET(_req: NextRequest, context: { params: Promise<{ id: st
 
   await connectDB();
   const collection = await Collection.findById(id).select("_id hidden").lean();
-  if (!collection) return NextResponse.json({ error: "Collection not found" }, { status: 404 });
+  // A hidden collection has no public floor — it is off the marketplace.
+  if (!collection || collection.hidden) return NextResponse.json({ error: "Collection not found" }, { status: 404 });
 
   const now = new Date();
   const nowSec = Math.floor(now.getTime() / 1000);

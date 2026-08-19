@@ -40,7 +40,10 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "Sign in to view your collections" }, { status: 401 });
   }
   await connectDB();
-  const docs = await Collection.find(mine ? { creator: user!._id } : {})
+  // Browsing is public, so hidden collections are excluded — but "mine"
+  // is the creator's own list, where hiding it from them too would just
+  // look like their collection vanished.
+  const docs = await Collection.find(mine ? { creator: user!._id } : { hidden: { $ne: true } })
     .select("slug name category logoUrl bannerUrl contractAddress contractType chainId royaltyBps maxSupply verified stats.items")
     .sort({ name: 1 })
     .lean();
