@@ -1,11 +1,12 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { BadgeCheck, ChevronRight, Eye } from "lucide-react";
-import { getItemById, getRelatedItems, getItemOffers, getActivity } from "@/lib/queries";
+import { getItemById, getRelatedItems, getItemOffers, getActivity, getCollectionSummary } from "@/lib/queries";
 import { MediaPanel } from "@/components/item/MediaPanel";
 import { PricePanel } from "@/components/item/PricePanel";
 import { ItemTabs } from "@/components/item/ItemTabs";
 import { ItemStatStrip } from "@/components/item/ItemStatStrip";
+import { CollectionSummary } from "@/components/item/CollectionSummary";
 import { VerifiedBadge } from "@/components/ui/VerifiedBadge";
 import { UserChip } from "@/components/item/UserChip";
 import { NFTCard } from "@/components/nft/NFTCard";
@@ -24,10 +25,11 @@ export default async function ItemDetailPage({ params }: PageProps) {
   const item = await getItemById(id);
   if (!item) notFound();
 
-  const [related, offers, { activity }] = await Promise.all([
+  const [related, offers, { activity }, collectionSummary] = await Promise.all([
     getRelatedItems(item.collectionId, item.id),
     getItemOffers(item.id),
     getActivity({ itemId: item.id, pageSize: 20 }),
+    getCollectionSummary(item.collectionId),
   ]);
 
   return (
@@ -96,6 +98,12 @@ export default async function ItemDetailPage({ params }: PageProps) {
 
           {item.description && (
             <p className="text-sm text-white/55 leading-relaxed mt-6">{item.description}</p>
+          )}
+
+          {collectionSummary && (
+            <div className="mt-6">
+              <CollectionSummary summary={collectionSummary} />
+            </div>
           )}
 
           <ReportButton targetId={item.id} />

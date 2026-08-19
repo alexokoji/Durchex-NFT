@@ -5,6 +5,7 @@ import { Item } from "@/lib/models/Item";
 import { ItemBalance } from "@/lib/models/ItemBalance";
 import { Listing } from "@/lib/models/Listing";
 import { collectionMintProgress } from "@/lib/collectionSupply";
+import { getOnChainOwnerCount } from "@/lib/web3/collectionChainStats";
 import { readMintedSupply } from "@/lib/web3/onChainSupply";
 import { User } from "@/lib/models/User";
 import { Favorite } from "@/lib/models/Favorite";
@@ -355,7 +356,14 @@ export async function getCollectionBySlug(slug: string): Promise<CollectionDetai
     ]),
   ]);
   const ownerIds = new Set([...owners721, ...owners1155].map((o) => String(o._id)));
-  doc.stats.owners = ownerIds.size;
+  // The contract knows every holder; we only know the ones who acquired
+  // through us. Prefer the chain, fall back to our own count when the
+  // index can't answer — never to zero.
+  const chainOwners = await getOnChainOwnerCount({
+    contractAddress: doc.contractAddress ?? "",
+    chainId: doc.chainId ?? 1,
+  });
+  doc.stats.owners = chainOwners ?? ownerIds.size;
   doc.stats.items = await Item.countDocuments({ collection: doc._id });
   // Units actually minted on-chain, as opposed to stats.items (every Item
   // doc, including unminted lazy vouchers pre-created for a drop). Counted
@@ -729,4 +737,41 @@ export async function getDrops(viewerUserId?: string): Promise<DropView[]> {
     isNotifying: mineSet.has(String(d._id)),
     isLive: new Date(d.dropStartsAt as Date).getTime() <= now,
   }));
+}
+
+/**
+ * The headline numbers for a collection, for showing on pages that are
+ * about something else — an item page, principally.
+ *
+ * Owners and minted supply come from the chain via the same path the
+ * collection page uses, so the two never disagree with each other.
+ */
+export async function getCollectionSummary(collectionId: string): Promise<{
+  slug: string;
+  name: string;
+  floorEth: number;
+  owners: number;
+  mintedUnits: number;
+  totalVolumeEth: number;
+} | null> {
+  await connectDB();
+  if (!Types.ObjectId.isValid(collectionId)) return null;
+  const doc = await Collection.findById(collectionId)
+    .select("slug name contractAddress chainId stats hidden")
+    .lean();
+  if (!doc || doc.hidden) return null;
+
+  const [{ mintedUnits }, chainOwners] = await Promise.all([
+    collectionMintProgress(doc._id),
+    getOnChainOwnerCount({ contractAddress: doc.contractAddress ?? "", chainId: doc.chainId ?? 1 }),
+  ]);
+
+  return {
+    slug: doc.slug,
+    name: doc.name,
+    floorEth: doc.stats?.floorEth ?? 0,
+    owners: chainOwners ?? doc.stats?.owners ?? 0,
+    mintedUnits,
+    totalVolumeEth: doc.stats?.totalVolumeEth ?? 0,
+  };
 }
