@@ -4,6 +4,7 @@ import { Collection } from "@/lib/models/Collection";
 import { Item } from "@/lib/models/Item";
 import { ItemBalance } from "@/lib/models/ItemBalance";
 import { collectionMintProgress } from "@/lib/collectionSupply";
+import { readMintedSupply } from "@/lib/web3/onChainSupply";
 import { User } from "@/lib/models/User";
 import { Favorite } from "@/lib/models/Favorite";
 import { Bid } from "@/lib/models/Bid";
@@ -297,6 +298,20 @@ export async function getItemById(id: string): Promise<ItemDetailView | null> {
 
   // Fire-and-forget — never block the page render on a view-count write.
   Item.updateOne({ _id: id }, { $inc: { viewCount: 1 } }).catch(() => {});
+
+  // The contract's own counter is authoritative for how many units exist;
+  // ours only reflects the last purchase a browser managed to report. Read
+  // through to the chain and prefer it, falling back to the stored value
+  // when the RPC can't answer.
+  const collection = doc.collection as { contractAddress?: string; chainId?: number };
+  if (doc.standard === "ERC1155" && doc.tokenId && collection?.contractAddress) {
+    const onChain = await readMintedSupply({
+      contractAddress: collection.contractAddress,
+      chainId: collection.chainId ?? 1,
+      tokenId: String(doc.tokenId),
+    });
+    if (onChain !== null) doc.mintedSupply = onChain;
+  }
 
   return toItemDetailView(doc as never);
 }

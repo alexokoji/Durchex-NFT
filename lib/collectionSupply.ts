@@ -1,5 +1,6 @@
 import { Types } from "mongoose";
 import { Item } from "@/lib/models/Item";
+import { readMintedSupplies } from "@/lib/web3/onChainSupply";
 
 export type MintProgress = {
   /** Units actually on-chain, across both standards. */
@@ -22,6 +23,37 @@ export type MintProgress = {
 export async function collectionMintProgress(
   collectionId: Types.ObjectId | string
 ): Promise<MintProgress> {
+  // Editions get their minted count from the contract wherever possible —
+  // see lib/web3/onChainSupply.ts. Without this the collection gate is
+  // built on the same drifting numbers the item page was.
+  const editions = await Item.find({ collection: collectionId, standard: "ERC1155" })
+    .select("tokenId mintedSupply totalSupply")
+    .populate("collection", "contractAddress chainId")
+    .lean();
+  const chainCounts = await readMintedSupplies(
+    editions.map((e) => ({
+      id: String(e._id),
+      contractAddress: (e.collection as { contractAddress?: string })?.contractAddress ?? "",
+      chainId: (e.collection as { chainId?: number })?.chainId ?? 1,
+      tokenId: e.tokenId ? String(e.tokenId) : null,
+    }))
+  );
+  if (chainCounts.size > 0) {
+    await Promise.all(
+      editions
+        .filter((e) => {
+          const v = chainCounts.get(String(e._id));
+          return v !== undefined && v !== (e.mintedSupply ?? 0);
+        })
+        .map((e) =>
+          // Written back so the next read is right even if the RPC is
+          // unavailable then, and so anything querying Item directly sees
+          // the corrected figure too.
+          Item.updateOne({ _id: e._id }, { mintedSupply: chainCounts.get(String(e._id)) })
+        )
+    );
+  }
+
   const [row] = await Item.aggregate([
     { $match: { collection: new Types.ObjectId(String(collectionId)) } },
     {
