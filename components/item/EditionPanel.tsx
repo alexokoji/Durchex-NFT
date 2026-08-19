@@ -2,7 +2,6 @@
 
 import { Layers } from "lucide-react";
 import { BuyEditionButton } from "@/components/item/BuyEditionButton";
-import { EditionListings } from "@/components/item/EditionListings";
 import { ListEditionForm } from "@/components/item/ListEditionForm";
 import { ItemDetailView } from "@/lib/types";
 
@@ -32,11 +31,13 @@ export function EditionPanel({ item }: { item: ItemDetailView }) {
       ) : (
         <div className="rounded-xl bg-white/5 border border-white/10 p-4 text-center">
           <p className="text-sm font-medium text-white/60">Primary sale sold out</p>
-          <p className="text-xs text-white/35 mt-1">Check the resale listings below.</p>
+          <p className="text-xs text-white/35 mt-1">Check the Listings tab for resale.</p>
         </div>
       )}
 
-      <EditionListings item={item} />
+      {/* Resale listings live in the Listings tab now — stacking every
+          seller's row above the form pushed the form itself off screen and
+          made the panel read as a list rather than an action. */}
       <ListEditionForm item={item} />
     </div>
   );

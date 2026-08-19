@@ -6,11 +6,12 @@ import { Sparkles, Link2, Hash, Network, Check, Gavel, Tag } from "lucide-react"
 import { TraitPill } from "@/components/nft/TraitPill";
 import { GeneratedArt } from "@/components/nft/GeneratedArt";
 import { OnChainActivity } from "@/components/item/OnChainActivity";
+import { EditionListings } from "@/components/item/EditionListings";
 import { useSession } from "@/hooks/useSession";
 import { AcceptOfferButton } from "@/components/item/AcceptOfferButton";
 import { ActivityView, BidView, ItemDetailView } from "@/lib/types";
 
-const TABS = ["Details", "Properties", "Orders", "Activity"] as const;
+const TABS = ["Details", "Properties", "Listings", "Offers", "Activity"] as const;
 type Tab = (typeof TABS)[number];
 
 export function ItemTabs({
@@ -56,7 +57,7 @@ export function ItemTabs({
             )}
           >
             {t}
-            {t === "Orders" && offers.length > 0 && (
+            {t === "Offers" && offers.length > 0 && (
               <span className="ml-1.5 text-xs text-white/30">{offers.length}</span>
             )}
           </button>
@@ -74,7 +75,23 @@ export function ItemTabs({
           <EmptyState icon={Sparkles} text="No properties set for this item." />
         ))}
 
-      {tab === "Orders" &&
+      {tab === "Listings" &&
+        (item.standard === "ERC1155" ? (
+          <EditionListings item={item} />
+        ) : item.status === "fixed_price" && item.priceEth > 0 ? (
+          // A 721 has at most one listing and it lives on the item itself,
+          // so there is no list to render — just the ask.
+          <div className="rounded-lg border border-white/10 p-3.5 flex items-center justify-between gap-3">
+            <div className="text-sm text-white/85">
+              Listed by {item.owner?.username ?? "the owner"}
+            </div>
+            <div className="text-sm font-semibold text-white tabular-nums">{item.priceEth} ETH</div>
+          </div>
+        ) : (
+          <EmptyState icon={Tag} text="Not listed for sale right now." />
+        ))}
+
+      {tab === "Offers" &&
         (offers.length > 0 ? (
           <div className="space-y-2.5">
             {offers.map((o) => (

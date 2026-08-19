@@ -188,6 +188,10 @@ export async function handleEditionRedeemed(
   if (item.mintedSupply >= item.totalSupply) {
     item.status = "not_listed";
   }
+  // A mint is a sale, and the only one most editions ever have while the
+  // drop is running — leaving it out is what made "last sale" show an em
+  // dash on a token that had traded hundreds of times.
+  item.lastSalePriceEth = qty > 0 ? totalPriceEth / qty : totalPriceEth;
   await item.save();
 
   await Promise.all([
@@ -248,6 +252,13 @@ export async function handleListing1155Filled(
   const buyerUser = await resolveOrCreateUser(buyer);
   const qty = Number(quantity);
   const totalPriceEth = Number(formatEther(totalPrice));
+
+  // Last sale is a per-unit figure, so it compares with a listing price
+  // and with the 721 paths that already set it. Editions were the only
+  // sale path that never wrote it, which is why the stat sat empty on
+  // every 1155 no matter how much it traded.
+  item.lastSalePriceEth = qty > 0 ? totalPriceEth / qty : totalPriceEth;
+  await item.save();
 
   await Promise.all([
     ItemBalance.findOneAndUpdate({ item: item._id, owner: sellerUser._id }, { $inc: { quantity: -qty } }),

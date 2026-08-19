@@ -7,6 +7,7 @@ import { PricePanel } from "@/components/item/PricePanel";
 import { ItemTabs } from "@/components/item/ItemTabs";
 import { ItemStatStrip } from "@/components/item/ItemStatStrip";
 import { SellToTopOffer } from "@/components/item/SellToTopOffer";
+import { MakeItemOfferButton } from "@/components/item/MakeItemOfferButton";
 import { CollectionSummary } from "@/components/item/CollectionSummary";
 import { VerifiedBadge } from "@/components/ui/VerifiedBadge";
 import { UserChip } from "@/components/item/UserChip";
@@ -98,6 +99,10 @@ export default async function ItemDetailPage({ params }: PageProps) {
           </div>
 
           <PricePanel item={item} />
+
+          <div className="mt-3">
+            <MakeItemOfferButton item={item} />
+          </div>
 
           <div className="flex items-center gap-8 mt-6">
             <UserChip label="Creator" user={item.creator} />
