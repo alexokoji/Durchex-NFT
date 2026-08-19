@@ -72,6 +72,8 @@ interface CollectionDetailLike extends CollectionLike {
   /** Units minted across the collection, from the query layer. */
   totalUnits?: number;
   listingEnabled?: boolean;
+  exclusivePhaseLive?: boolean;
+  publicPhaseLive?: boolean;
   stats: CollectionLike["stats"] & {
     volume7dEth: number;
     totalVolumeEth: number;
@@ -252,8 +254,14 @@ export function toCollectionDetailView(c: CollectionDetailLike): CollectionDetai
     maxSupply: c.maxSupply ?? 0,
     mintedSupply: c.mintedSupply ?? 0,
     totalUnits: c.totalUnits ?? 0,
-    resaleOpen: listingGate({ ...supplyOf(c), listingEnabled: c.listingEnabled }).open,
+    resaleOpen: listingGate({
+      ...supplyOf(c),
+      listingEnabled: c.listingEnabled,
+      exclusivePhaseLive: c.exclusivePhaseLive,
+      publicPhaseLive: c.publicPhaseLive,
+    }).open,
     mintedOut: isMintedOut(supplyOf(c)),
+    exclusiveWindow: !!c.exclusivePhaseLive && !c.publicPhaseLive,
     listingEnabled: !!c.listingEnabled,
     mintRemaining: mintRemaining(supplyOf(c)),
     // Only a real baseline gives a meaningful percentage: a collection whose

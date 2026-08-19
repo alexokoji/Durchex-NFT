@@ -67,6 +67,8 @@ export interface CollectionDetailView extends CollectionView {
   /** Every unit is on-chain, after which nobody can close resale again. */
   mintedOut: boolean;
   listingEnabled: boolean;
+  /** An allowlist-only mint phase is running, which holds resale shut. */
+  exclusiveWindow: boolean;
   /** Units still to mint before that happens. Zero once open. */
   mintRemaining: number;
   /** Percentage move in the floor over the last day; null with no baseline. */

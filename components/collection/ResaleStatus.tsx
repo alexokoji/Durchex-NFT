@@ -9,15 +9,16 @@ import { Lock } from "lucide-react";
  * by anyone. The guarantee worth communicating is the mint-out one, so
  * that is the only one stated.
  */
-export function ResaleStatus({ remaining }: { remaining: number }) {
+export function ResaleStatus({ remaining, exclusiveWindow }: { remaining: number; exclusiveWindow: boolean }) {
   return (
     <div className="flex flex-wrap items-center gap-x-2 gap-y-1 rounded-xl border border-white/10 bg-white/[0.02] px-4 py-3">
       <Lock className="w-4 h-4 text-white/30 shrink-0" />
       <span className="text-xs text-white/70 font-medium">Resale isn&rsquo;t available yet</span>
       <span className="text-xs text-white/45">
-        Buying the floor and making collection offers open once every NFT in this collection has
-        been minted
-        {remaining > 0 ? ` — ${remaining.toLocaleString()} still to mint.` : "."}
+        {exclusiveWindow
+          ? "Buying the floor and making collection offers open when the public mint starts."
+          : "Buying the floor and making collection offers open once every NFT in this collection has been minted"}
+        {!exclusiveWindow && remaining > 0 ? ` — ${remaining.toLocaleString()} still to mint.` : ""}
       </span>
     </div>
   );

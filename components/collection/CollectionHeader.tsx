@@ -42,7 +42,7 @@ export function CollectionHeader({ collection }: { collection: CollectionDetailV
         </div>
       ) : (
         <div className="mt-6 px-4 sm:px-8">
-          <ResaleStatus remaining={collection.mintRemaining} />
+          <ResaleStatus remaining={collection.mintRemaining} exclusiveWindow={collection.exclusiveWindow} />
         </div>
       )}
       {collection.contractType === "drop" && (

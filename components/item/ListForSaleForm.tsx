@@ -57,23 +57,6 @@ export function ListForSaleForm({ item }: { item: ItemDetailView }) {
     );
   }
 
-  if (!item.resaleOpen) {
-    return (
-      <div className="surface-card p-5">
-        <div className="flex items-center gap-2 text-sm font-semibold text-white mb-1">
-          <Tag className="w-4 h-4 text-purple-300" /> Resale isn&rsquo;t available yet
-        </div>
-        <p className="text-xs text-white/45">
-          Listing opens automatically once every unit of this item is minted
-          {item.totalSupply > 0
-            ? ` — ${item.mintedSupply.toLocaleString()}/${item.totalSupply.toLocaleString()} minted so far.`
-            : "."}
-        </p>
-      </div>
-    );
-  }
-
-
   async function submit() {
     const price = Number(priceEth);
     if (!Number.isFinite(price) || price <= 0) {

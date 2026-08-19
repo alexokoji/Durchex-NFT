@@ -27,10 +27,18 @@ export type SupplyInput = {
   totalUnits: number;
 };
 
-export type ListingGateInput = SupplyInput & {
-  /** The creator's early-open switch. Irrelevant once minted out. */
-  listingEnabled?: boolean;
+export type PhaseStateInput = {
+  /** GTD or FCFS is running right now — an allowlisted-only window. */
+  exclusivePhaseLive?: boolean;
+  /** The open-to-everyone phase is running right now. */
+  publicPhaseLive?: boolean;
 };
+
+export type ListingGateInput = SupplyInput &
+  PhaseStateInput & {
+    /** The creator's early-open switch. Irrelevant once minted out. */
+    listingEnabled?: boolean;
+  };
 
 /**
  * Whether every unit of the collection is on-chain.
@@ -57,6 +65,8 @@ export type ListingGate = {
   open: boolean;
   /** Every unit is on-chain — the point the creator's switch stops counting. */
   mintedOut: boolean;
+  /** An allowlist-only phase is running, which holds resale shut. */
+  exclusiveWindow: boolean;
   /** Whether the creator's switch still has any effect. */
   creatorControls: boolean;
   /** Units still to mint. Zero once minted out. */
@@ -65,22 +75,37 @@ export type ListingGate = {
 
 export function listingGate(input: ListingGateInput): ListingGate {
   const mintedOut = isMintedOut(input);
+
+  // An allowlist-only window is the one time resale must not run: GTD and
+  // FCFS exist to give specific wallets a guaranteed price, and a
+  // secondary market undercutting that during the window defeats the
+  // point of having offered it. This overrides the creator's switch,
+  // because it protects the people they made the promise to.
+  const exclusiveWindow = !!input.exclusivePhaseLive && !input.publicPhaseLive;
+
+  // Public mint is open to everyone at one price, so there is nothing
+  // exclusive left to protect — resale opens with it, switch or not.
+  const open = mintedOut || (!exclusiveWindow && (!!input.publicPhaseLive || !!input.listingEnabled));
+
   return {
-    open: mintedOut || !!input.listingEnabled,
+    open,
     mintedOut,
+    exclusiveWindow,
     creatorControls: !mintedOut,
     remaining: mintedOut ? 0 : mintRemaining(input),
   };
 }
 
 /**
- * Whether one item is fully minted — the condition for its owner listing
- * it for resale.
+ * Whether every unit of one item exists on-chain.
  *
- * Distinct from the collection gate above. An ERC-1155 of 50 needs all 50
- * on-chain, not just the first one: `isMinted` flips on the first purchase,
- * so it says nothing about whether the edition has finished selling. An
- * ERC-721 is one unit, so being minted is being fully minted.
+ * No longer the resale condition on its own. It used to be, as a proxy for
+ * "the mint is over" — but if the whole collection is minted out then every
+ * item in it is finished anyway, so the check only ever bit in the case
+ * where a creator had deliberately opened resale early. It was therefore
+ * cancelling exactly the decision it was meant to sit alongside: enabling
+ * resale did nothing for a part-minted edition. The collection gate owns
+ * that question now, and this is kept for describing progress.
  */
 export type ItemSupply = {
   standard: string;

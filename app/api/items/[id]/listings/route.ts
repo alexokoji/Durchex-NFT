@@ -2,8 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { connectDB } from "@/lib/db";
 import { Item } from "@/lib/models/Item";
 import { Collection } from "@/lib/models/Collection";
-import { isItemMintedOut, itemMintRemaining, listingGate } from "@/lib/listing";
-import { collectionMintProgress } from "@/lib/collectionSupply";
+import { resaleClosedReason, resaleGateFor } from "@/lib/resaleGate";
 import { ItemBalance } from "@/lib/models/ItemBalance";
 import { Listing } from "@/lib/models/Listing";
 import { getCurrentUser } from "@/lib/auth/currentUser";
@@ -72,31 +71,13 @@ export async function POST(req: NextRequest, context: { params: Promise<{ id: st
   }
 
   const collection = await Collection.findById(item.collection)
-    .select("contractAddress maxSupply listingEnabled")
+    .select("contractAddress maxSupply listingEnabled mintPhases")
     .lean();
   if (!collection) return NextResponse.json({ error: "Collection not found" }, { status: 404 });
-  const collectionGate = listingGate({
-    maxSupply: collection.maxSupply,
-    ...(await collectionMintProgress(collection._id)),
-    listingEnabled: collection.listingEnabled,
-  });
-  if (!collectionGate.open) {
-    return NextResponse.json(
-      { error: `Resale isn't available for this collection yet — ${collectionGate.remaining} still to mint.` },
-      { status: 403 }
-    );
-  }
 
-  // Same rule as ERC-721 resale (see PATCH /api/items/[id]), and the reason
-  // it matters most here: an edition's isMinted flips on the first unit
-  // sold, so only a unit count can tell whether it has finished minting.
-  if (!isItemMintedOut(item)) {
-    return NextResponse.json(
-      {
-        error: `Resale isn't available yet — this edition is listable once all ${item.totalSupply ?? 0} are minted, ${itemMintRemaining(item)} still to mint.`,
-      },
-      { status: 403 }
-    );
+  const gate = await resaleGateFor(collection);
+  if (!gate.open) {
+    return NextResponse.json({ error: resaleClosedReason(gate) }, { status: 403 });
   }
 
   // Auction lots: nothing to sign yet — the seller only signs a Listing1155
