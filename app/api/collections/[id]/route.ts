@@ -13,23 +13,20 @@ export async function GET(req: NextRequest, context: { params: Promise<{ id: str
   const { id } = await context.params;
   await connectDB();
   const collection = await Collection.findById(id)
-    .select("creator mintPhases listingEnabled listingOpensAt maxSupply")
+    .select("creator mintPhases maxSupply")
     .lean();
   if (!collection) return NextResponse.json({ error: "Collection not found" }, { status: 404 });
   if (String(collection.creator) !== String(user._id)) {
     return NextResponse.json({ error: "Only the creator can manage this collection" }, { status: 403 });
   }
-  // Mint progress travels with this so the creator's listing control can
-  // explain why it's locked and how far off opening is, rather than just
-  // refusing when they try.
+  // Mint progress travels with this so the phase manager can say how far
+  // off mint-out — and therefore resale — is.
   const [mintedSupply, unmintedCount] = await Promise.all([
     Item.countDocuments({ collection: collection._id, isMinted: true }),
     Item.countDocuments({ collection: collection._id, isMinted: false }),
   ]);
   return NextResponse.json({
     mintPhases: collection.mintPhases,
-    listingEnabled: collection.listingEnabled,
-    listingOpensAt: collection.listingOpensAt,
     mintedOut: isMintedOut({ maxSupply: collection.maxSupply, mintedSupply, unmintedCount }),
     mintedSupply,
     unmintedCount,
@@ -57,41 +54,6 @@ export async function PATCH(req: NextRequest, context: { params: Promise<{ id: s
   }
 
   const body = await req.json();
-
-  if (body.listing) {
-    // Resale can't be opened, or scheduled, until the collection is fully
-    // minted out — otherwise resale runs alongside the creator's own
-    // primary sale and undercuts it. Checked here rather than trusted from
-    // the client, since this is the whole rule.
-    const [mintedSupply, unmintedCount] = await Promise.all([
-      Item.countDocuments({ collection: collection._id, isMinted: true }),
-      Item.countDocuments({ collection: collection._id, isMinted: false }),
-    ]);
-    const mintedOut = isMintedOut({ maxSupply: collection.maxSupply, mintedSupply, unmintedCount });
-    const wantsToOpen = body.listing.enabled === true || !!body.listing.opensAt;
-    if (!mintedOut && wantsToOpen) {
-      const remaining = collection.maxSupply > 0 ? collection.maxSupply - mintedSupply : unmintedCount;
-      return NextResponse.json(
-        {
-          error: `Resale opens once this collection is fully minted — ${remaining} still to mint.`,
-          mintedOut: false,
-        },
-        { status: 409 }
-      );
-    }
-
-    if (typeof body.listing.enabled === "boolean") collection.listingEnabled = body.listing.enabled;
-    if ("opensAt" in body.listing) {
-      collection.listingOpensAt = body.listing.opensAt ? new Date(body.listing.opensAt) : null;
-    }
-    await collection.save();
-    return NextResponse.json({
-      mintPhases: collection.mintPhases,
-      listingEnabled: collection.listingEnabled,
-      listingOpensAt: collection.listingOpensAt,
-      mintedOut,
-    });
-  }
 
   // Mint configuration is frozen once the collection is minted out. Prices,
   // allocations and windows are the terms buyers minted under; rewriting

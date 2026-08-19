@@ -8,6 +8,7 @@ import {
   NotificationView,
   UserRef,
 } from "@/lib/types";
+import { isMintedOut, mintRemaining } from "@/lib/listing";
 
 // Loose input types: only the fields we read, works for both lean() Mongoose
 // docs and plain seed objects.
@@ -67,8 +68,6 @@ interface CollectionDetailLike extends CollectionLike {
   /** Items actually minted on-chain so far, resolved by the query layer. */
   mintedSupply?: number;
   unmintedCount?: number;
-  listingEnabled?: boolean;
-  listingOpensAt?: Date | string | null;
   stats: CollectionLike["stats"] & {
     volume7dEth: number;
     totalVolumeEth: number;
@@ -105,8 +104,10 @@ interface ItemDetailLike extends ItemLike {
     chainId: number;
     royaltyBps?: number;
     maxSupply?: number;
-    listingEnabled?: boolean;
-    listingOpensAt?: Date | string | null;
+    /** Collection-wide mint progress, resolved by the query layer so the
+     *  item page can tell whether resale has opened. */
+    collectionMintedSupply?: number;
+    collectionUnmintedCount?: number;
     contractType?: "lazy" | "drop";
     mintPhases?: {
       whitelist?: PhaseLike;
@@ -150,6 +151,23 @@ interface ItemDetailLike extends ItemLike {
 }
 
 const ETH_USD = 3400;
+
+// Both views answer "has resale opened?" from the same three numbers, so
+// the shape is built once here rather than restated at each call site.
+function supplyOf(c: CollectionDetailLike) {
+  return {
+    maxSupply: c.maxSupply ?? 0,
+    mintedSupply: c.mintedSupply ?? 0,
+    unmintedCount: c.unmintedCount ?? 0,
+  };
+}
+function itemCollectionSupply(item: ItemDetailLike) {
+  return {
+    maxSupply: item.collection.maxSupply ?? 0,
+    mintedSupply: item.collection.collectionMintedSupply ?? 0,
+    unmintedCount: item.collection.collectionUnmintedCount ?? 0,
+  };
+}
 
 export function toUserRef(u: UserLike | null | undefined): UserRef | null {
   if (!u) return null;
@@ -225,10 +243,8 @@ export function toCollectionDetailView(c: CollectionDetailLike): CollectionDetai
     maxSupply: c.maxSupply ?? 0,
     mintedSupply: c.mintedSupply ?? 0,
     unmintedCount: c.unmintedCount ?? 0,
-    // Collections predating this field default to open, matching how they
-    // have always behaved; the mint-out precondition still applies.
-    listingEnabled: c.listingEnabled ?? true,
-    listingOpensAt: c.listingOpensAt ? new Date(c.listingOpensAt).toISOString() : null,
+    resaleOpen: isMintedOut(supplyOf(c)),
+    mintRemaining: mintRemaining(supplyOf(c)),
     // Only a real baseline gives a meaningful percentage: a collection whose
     // floor was 0 yesterday (nothing listed) has no move to express.
     floorChange1dPct:
@@ -275,10 +291,8 @@ export function toItemDetailView(item: ItemDetailLike): ItemDetailView {
     contractAddress: item.collection.contractAddress,
     // Default open: collections predating this field have it undefined,
     // and those have always permitted resale listing.
-    listingEnabled: item.collection.listingEnabled ?? true,
-    listingOpensAt: item.collection.listingOpensAt
-      ? new Date(item.collection.listingOpensAt).toISOString()
-      : null,
+    resaleOpen: isMintedOut(itemCollectionSupply(item)),
+    mintRemaining: mintRemaining(itemCollectionSupply(item)),
     viewCount: item.viewCount,
     traits: (item.traits ?? []).map((t) => ({
       traitType: t.trait_type,

@@ -274,7 +274,18 @@ export async function getItemById(id: string): Promise<ItemDetailView | null> {
   // Fire-and-forget — never block the page render on a view-count write.
   Item.updateOne({ _id: id }, { $inc: { viewCount: 1 } }).catch(() => {});
 
-  return toItemDetailView(doc as never);
+  // Resale opens on collection-wide mint-out, so the item page needs its
+  // parent's progress, not just its own.
+  const collectionId = (doc.collection as { _id: Types.ObjectId })._id;
+  const [collectionMintedSupply, collectionUnmintedCount] = await Promise.all([
+    Item.countDocuments({ collection: collectionId, isMinted: true }),
+    Item.countDocuments({ collection: collectionId, isMinted: false }),
+  ]);
+
+  return toItemDetailView({
+    ...doc,
+    collection: { ...doc.collection, collectionMintedSupply, collectionUnmintedCount },
+  } as never);
 }
 
 export async function getRelatedItems(

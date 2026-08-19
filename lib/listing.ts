@@ -1,17 +1,20 @@
 /**
- * When resale listing is allowed to open for a collection.
+ * When resale listing opens for a collection.
  *
- * The rule is that a collection must be fully minted out — every unit that
- * will ever exist actually on-chain — before any of its owners can list.
- * Until then the primary mint is still running, and letting resale run
- * alongside it means the collection competes with itself: buyers see two
- * prices for the same thing and the creator's own sale is undercut before
- * it finishes.
+ * The rule is a single fact about the collection, not a setting: resale
+ * opens the moment every unit that will ever exist is actually on-chain,
+ * and it opens by itself. Nobody — creator or admin — decides it.
  *
- * Mint-out is a precondition, not a stored flag. That matters because it
- * makes the rule retroactive without a migration — a collection whose
- * listingEnabled was set true under the old behaviour still can't list
- * until it has actually sold out.
+ * Two reasons it works this way. Running resale alongside the primary mint
+ * means the collection competes with itself: buyers see two prices for the
+ * same thing and the creator's own sale is undercut before it finishes. And
+ * leaving the switch in the creator's hands lets them hold their own
+ * holders hostage after taking their money, which is not a thing a
+ * marketplace should make possible.
+ *
+ * Because it's derived rather than stored, the rule is retroactive without
+ * a migration: a collection that had resale flagged open under the old
+ * behaviour still can't list until it has genuinely minted out.
  */
 export type ListingGateInput = {
   maxSupply: number;
@@ -19,53 +22,35 @@ export type ListingGateInput = {
   mintedSupply: number;
   /** Items that exist in the collection but have never been minted. */
   unmintedCount: number;
-  listingEnabled: boolean;
-  listingOpensAt: string | Date | null;
 };
 
 /**
  * Whether every unit of the collection is on-chain.
  *
  * A capped collection is minted out once its supply is reached. An uncapped
- * one has no such moment, so requiring a cap would lock listing off
+ * one has no such moment, so requiring a cap would lock resale off
  * permanently — there, "minted out" means nothing is still waiting to be
  * minted, and at least one item exists (an empty collection isn't sold out,
  * it's just empty).
  */
-export function isMintedOut({ maxSupply, mintedSupply, unmintedCount }: Pick<ListingGateInput, "maxSupply" | "mintedSupply" | "unmintedCount">): boolean {
+export function isMintedOut({ maxSupply, mintedSupply, unmintedCount }: ListingGateInput): boolean {
   if (maxSupply > 0) return mintedSupply >= maxSupply;
   return mintedSupply > 0 && unmintedCount === 0;
 }
 
+/** How many units are still to mint before resale opens. */
+export function mintRemaining({ maxSupply, mintedSupply, unmintedCount }: ListingGateInput): number {
+  return maxSupply > 0 ? Math.max(0, maxSupply - mintedSupply) : unmintedCount;
+}
+
 export type ListingGate = {
-  /** Every unit is on-chain — the precondition for listing at all. */
-  mintedOut: boolean;
-  /** Listing is open right now. */
+  /** Resale is open — true exactly when the collection is minted out. */
   open: boolean;
-  /** When listing opens on a schedule, if one is set and still in future. */
-  opensAt: string | null;
-  /** Why listing isn't open, for showing the owner instead of nothing. */
-  reason: "minting" | "not_opened" | "scheduled" | null;
+  /** Units still to mint before it opens. Zero once open. */
+  remaining: number;
 };
 
-export function listingGate(input: ListingGateInput, now: Date = new Date()): ListingGate {
-  const mintedOut = isMintedOut(input);
-  const scheduled = input.listingOpensAt ? new Date(input.listingOpensAt) : null;
-  const scheduleReached = !!scheduled && scheduled <= now;
-
-  if (!mintedOut) {
-    // A schedule set before mint-out is deliberately ignored rather than
-    // honoured early — mint-out is the gate, the timer only refines it.
-    return { mintedOut: false, open: false, opensAt: null, reason: "minting" };
-  }
-
-  const open = input.listingEnabled || scheduleReached;
-  if (open) return { mintedOut: true, open: true, opensAt: null, reason: null };
-
-  return {
-    mintedOut: true,
-    open: false,
-    opensAt: scheduled && !scheduleReached ? scheduled.toISOString() : null,
-    reason: scheduled && !scheduleReached ? "scheduled" : "not_opened",
-  };
+export function listingGate(input: ListingGateInput): ListingGate {
+  const open = isMintedOut(input);
+  return { open, remaining: open ? 0 : mintRemaining(input) };
 }

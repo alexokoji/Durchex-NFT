@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { connectDB } from "@/lib/db";
 import { Item } from "@/lib/models/Item";
 import { Collection } from "@/lib/models/Collection";
+import { listingGate } from "@/lib/listing";
 import { ItemBalance } from "@/lib/models/ItemBalance";
 import { Listing } from "@/lib/models/Listing";
 import { getCurrentUser } from "@/lib/auth/currentUser";
@@ -70,17 +71,24 @@ export async function POST(req: NextRequest, context: { params: Promise<{ id: st
   }
 
   const collection = await Collection.findById(item.collection)
-    .select("contractAddress listingEnabled listingOpensAt")
+    .select("contractAddress maxSupply")
     .lean();
+  if (!collection) return NextResponse.json({ error: "Collection not found" }, { status: 404 });
 
-  // The creator controls when holders may resell. ERC-721 resale has always
-  // honoured this (see PATCH /api/items/[id]); the edition path was missing
-  // the same gate, so 1155 holders could list while the collection was
-  // still closed.
-  const listingOpen =
-    collection && (collection.listingEnabled || (collection.listingOpensAt && collection.listingOpensAt <= new Date()));
-  if (!listingOpen) {
-    return NextResponse.json({ error: "Listing is not open yet for this collection" }, { status: 403 });
+  // Same rule as ERC-721 resale (see PATCH /api/items/[id]): resale opens
+  // only once the whole collection is on-chain.
+  const [mintedSupply, unmintedCount] = await Promise.all([
+    Item.countDocuments({ collection: collection._id, isMinted: true }),
+    Item.countDocuments({ collection: collection._id, isMinted: false }),
+  ]);
+  const gate = listingGate({ maxSupply: collection.maxSupply, mintedSupply, unmintedCount });
+  if (!gate.open) {
+    return NextResponse.json(
+      {
+        error: `Resale isn't available yet — it opens once this collection is fully minted, ${gate.remaining} still to mint.`,
+      },
+      { status: 403 }
+    );
   }
 
   // Auction lots: nothing to sign yet — the seller only signs a Listing1155

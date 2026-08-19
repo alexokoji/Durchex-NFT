@@ -13,7 +13,7 @@ export async function GET(req: NextRequest) {
   const collections = await Collection.find(filter)
     .sort({ createdAt: -1 })
     .limit(200)
-    .select("slug name category verified featured hidden listingEnabled royaltyBps stats.items stats.owners stats.totalVolumeEth stats.floorEth")
+    .select("slug name category verified featured hidden royaltyBps stats.items stats.owners stats.totalVolumeEth stats.floorEth")
     .lean();
   return NextResponse.json({ collections });
 }

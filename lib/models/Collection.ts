@@ -67,10 +67,6 @@ const CollectionSchema = new Schema(
     hidden: { type: Boolean, default: false },
     // Creator-controlled: when false, no item in this collection can be
     // listed for sale (minting/lazy-listing on /create is unaffected).
-    // listingOpensAt lets a creator schedule listing to auto-enable later
-    // without an admin/cron needing to flip listingEnabled by hand.
-    listingEnabled: { type: Boolean, default: true },
-    listingOpensAt: { type: Date, default: null },
     // Set on a handful of collections to feature them on /drops. Null on
     // everything else — most collections were never a scheduled "drop".
     dropStartsAt: { type: Date, default: null },

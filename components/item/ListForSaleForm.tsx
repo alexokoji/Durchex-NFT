@@ -41,22 +41,18 @@ export function ListForSaleForm({ item }: { item: ItemDetailView }) {
 
   if (!marketplaceAddress) return null;
 
-  // Mirrors the server-side gate in PATCH /api/items/[id]: a creator can
-  // close resale outright, or schedule it to open later. Showing the form
-  // while it's closed just invites the owner to fill it in and be refused.
-  const listingOpen =
-    item.listingEnabled ||
-    (!!item.listingOpensAt && new Date(item.listingOpensAt) <= new Date());
-  if (!listingOpen) {
+  // Mirrors the server-side gate in PATCH /api/items/[id]: resale opens
+  // only once the collection is fully minted. Showing the form before then
+  // just invites the owner to fill it in and be refused.
+  if (!item.resaleOpen) {
     return (
       <div className="surface-card p-5">
         <div className="flex items-center gap-2 text-sm font-semibold text-white mb-1">
-          <Tag className="w-4 h-4 text-purple-300" /> Resale not open yet
+          <Tag className="w-4 h-4 text-purple-300" /> Resale isn&rsquo;t available yet
         </div>
         <p className="text-xs text-white/45">
-          {item.listingOpensAt
-            ? `The creator opens resale for this collection on ${new Date(item.listingOpensAt).toLocaleString()}.`
-            : "The creator hasn't opened resale for this collection yet."}
+          Listing opens automatically once this collection is fully minted
+          {item.mintRemaining > 0 ? ` — ${item.mintRemaining.toLocaleString()} still to mint.` : "."}
         </p>
       </div>
     );

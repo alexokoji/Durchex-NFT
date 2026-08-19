@@ -38,30 +38,20 @@ export async function PATCH(req: NextRequest, context: { params: Promise<{ id: s
       return NextResponse.json({ error: "Unminted items list automatically when created" }, { status: 400 });
     }
     const collection = await Collection.findById(item.collection)
-      .select("listingEnabled listingOpensAt contractAddress maxSupply")
+      .select("contractAddress maxSupply")
       .lean();
     if (!collection) return NextResponse.json({ error: "Collection not found" }, { status: 404 });
-    // Same gate the creator's control enforces: nothing lists until the
-    // collection is fully minted out, regardless of the stored flag.
+    // Nothing lists until the collection is fully minted out. This is the
+    // whole rule — there is no flag anyone can set to bypass it.
     const [mintedSupply, unmintedCount] = await Promise.all([
       Item.countDocuments({ collection: collection._id, isMinted: true }),
       Item.countDocuments({ collection: collection._id, isMinted: false }),
     ]);
-    const gate = listingGate({
-      maxSupply: collection.maxSupply,
-      mintedSupply,
-      unmintedCount,
-      listingEnabled: collection.listingEnabled,
-      listingOpensAt: collection.listingOpensAt,
-    });
+    const gate = listingGate({ maxSupply: collection.maxSupply, mintedSupply, unmintedCount });
     if (!gate.open) {
       return NextResponse.json(
         {
-          error: gate.reason === "minting"
-            ? "This collection is still minting — resale opens once it's fully minted out."
-            : gate.opensAt
-              ? `Resale opens ${new Date(gate.opensAt).toLocaleString()}.`
-              : "The creator hasn't opened resale for this collection yet.",
+          error: `Resale isn't available yet — it opens once this collection is fully minted, ${gate.remaining} still to mint.`,
         },
         { status: 403 }
       );

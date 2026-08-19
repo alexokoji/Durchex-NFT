@@ -3,26 +3,16 @@ import { CollectionMeta } from "@/components/collection/CollectionMeta";
 import { CollectionDetailView } from "@/lib/types";
 import { DropMintPanel } from "@/components/drop/DropMintPanel";
 import { PhaseManager } from "@/components/collection/PhaseManager";
-import { ListingControl } from "@/components/collection/ListingControl";
 import { ContractAttach } from "@/components/collection/ContractAttach";
 import { BuyFloorButton } from "@/components/collection/BuyFloorButton";
 import { MakeCollectionOfferButton } from "@/components/collection/MakeCollectionOfferButton";
 import { CollectionOffersList } from "@/components/collection/CollectionOffersList";
 import { ResaleStatus } from "@/components/collection/ResaleStatus";
 import { DeleteCollection } from "@/components/collection/DeleteCollection";
-import { listingGate } from "@/lib/listing";
 
 export function CollectionHeader({ collection }: { collection: CollectionDetailView }) {
-  // The secondary market only exists once the creator has actually opened
-  // resale, which itself can't happen before the collection is minted out.
-  // Until then the primary path is the mint panel below.
-  const gate = listingGate({
-    maxSupply: collection.maxSupply,
-    mintedSupply: collection.mintedSupply,
-    unmintedCount: collection.unmintedCount,
-    listingEnabled: collection.listingEnabled,
-    listingOpensAt: collection.listingOpensAt,
-  });
+  // Resale opens by itself the moment the collection is fully minted —
+  // nobody toggles it. Until then the primary path is the mint panel below.
   // floorEth is derived from live, valid listings — zero means nothing is
   // actually for sale, so there is no floor to buy and the button would
   // only ever open onto an empty sheet.
@@ -46,14 +36,14 @@ export function CollectionHeader({ collection }: { collection: CollectionDetailV
         />
       </div>
 
-      {gate.open ? (
+      {collection.resaleOpen ? (
         <div className="mt-6 px-4 sm:px-8 flex flex-wrap gap-2">
           {hasListing && <BuyFloorButton collection={collection} />}
           <MakeCollectionOfferButton collection={collection} />
         </div>
       ) : (
         <div className="mt-6 px-4 sm:px-8">
-          <ResaleStatus gate={gate} />
+          <ResaleStatus remaining={collection.mintRemaining} />
         </div>
       )}
       {collection.contractType === "drop" && (
@@ -69,7 +59,6 @@ export function CollectionHeader({ collection }: { collection: CollectionDetailV
           chainId={collection.chainId}
         />
         <PhaseManager collectionId={collection.id} creatorAddress={collection.creatorAddress} />
-        <ListingControl collectionId={collection.id} creatorAddress={collection.creatorAddress} />
         <CollectionOffersList collection={collection} />
         <DeleteCollection
           collectionId={collection.id}

@@ -56,8 +56,10 @@ export interface CollectionDetailView extends CollectionView {
   /** Items that exist but have never been minted — with mintedSupply and
    *  maxSupply, this is what decides whether resale can open at all. */
   unmintedCount: number;
-  listingEnabled: boolean;
-  listingOpensAt: string | null;
+  /** Resale is open — derived from mint-out, never set by anyone. */
+  resaleOpen: boolean;
+  /** Units still to mint before resale opens. Zero once open. */
+  mintRemaining: number;
   /** Percentage move in the floor over the last day; null with no baseline. */
   floorChange1dPct: number | null;
   /** Highest live collection-wide offer, in WETH. Null when none stands. */
@@ -144,11 +146,11 @@ export interface ItemDetailView extends ItemView {
   creator: UserRef | null;
   voucher: VoucherView | null;
   listing: ListingView | null;
-  /** Whether the collection's creator currently allows owners to list for
-   *  resale, and when it opens if they scheduled it instead. Mirrors the
-   *  server-side gate in PATCH /api/items/[id]. */
-  listingEnabled: boolean;
-  listingOpensAt: string | null;
+  /** Whether this item's collection has finished minting, which is what
+   *  opens resale. Mirrors the server-side gate in PATCH /api/items/[id]. */
+  resaleOpen: boolean;
+  /** Units still to mint in the collection before resale opens. */
+  mintRemaining: number;
   // ERC-1155 only.
   standard: "ERC721" | "ERC1155";
   totalSupply: number;
