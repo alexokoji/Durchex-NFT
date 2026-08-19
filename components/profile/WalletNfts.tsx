@@ -136,7 +136,7 @@ function WalletNftCard({ nft, isOwnProfile }: { nft: WalletNft; isOwnProfile: bo
             ×{nft.balance}
           </span>
         )}
-        {!nft.onDurchex && (
+        {!nft.onDurchex && !nft.collectionSlug && (
           <span className="absolute top-2 left-2 rounded-full bg-black/70 border border-white/10 px-2 py-0.5 text-[10px] text-white/60">
             External
           </span>
@@ -149,12 +149,25 @@ function WalletNftCard({ nft, isOwnProfile }: { nft: WalletNft; isOwnProfile: bo
     </>
   );
 
-  // Anything already on Durchex gets its real item page. Anything else
-  // links out to Etherscan rather than to a page we can't render — a dead
-  // link is worse than an honest one somewhere else.
+  // Three cases, most specific first: we have the exact item, we host the
+  // collection but never recorded this token id, or we don't know it at
+  // all. Only the last needs to send someone off-site — a dead internal
+  // link is worse than an honest external one, but so is Etherscan when
+  // we have a real page to show.
   if (nft.onDurchex && nft.itemId) {
     return (
       <Link href={`/item/${nft.itemId}`} className="surface-card overflow-hidden hover:border-purple-500/40 transition block">
+        {body}
+      </Link>
+    );
+  }
+
+  if (nft.collectionSlug) {
+    return (
+      <Link
+        href={`/collection/${nft.collectionSlug}`}
+        className="surface-card overflow-hidden hover:border-purple-500/40 transition block"
+      >
         {body}
       </Link>
     );
