@@ -102,6 +102,8 @@ interface ItemDetailLike extends ItemLike {
     chainId: number;
     royaltyBps?: number;
     maxSupply?: number;
+    listingEnabled?: boolean;
+    listingOpensAt?: Date | string | null;
     contractType?: "lazy" | "drop";
     mintPhases?: {
       whitelist?: PhaseLike;
@@ -263,6 +265,12 @@ export function toItemDetailView(item: ItemDetailLike): ItemDetailView {
     mediaName: item.mediaName || undefined,
     chainId: item.collection.chainId,
     contractAddress: item.collection.contractAddress,
+    // Default open: collections predating this field have it undefined,
+    // and those have always permitted resale listing.
+    listingEnabled: item.collection.listingEnabled ?? true,
+    listingOpensAt: item.collection.listingOpensAt
+      ? new Date(item.collection.listingOpensAt).toISOString()
+      : null,
     viewCount: item.viewCount,
     traits: (item.traits ?? []).map((t) => ({
       traitType: t.trait_type,

@@ -139,6 +139,11 @@ export interface ItemDetailView extends ItemView {
   creator: UserRef | null;
   voucher: VoucherView | null;
   listing: ListingView | null;
+  /** Whether the collection's creator currently allows owners to list for
+   *  resale, and when it opens if they scheduled it instead. Mirrors the
+   *  server-side gate in PATCH /api/items/[id]. */
+  listingEnabled: boolean;
+  listingOpensAt: string | null;
   // ERC-1155 only.
   standard: "ERC721" | "ERC1155";
   totalSupply: number;

@@ -46,6 +46,28 @@ export function ListEditionForm({ item }: { item: ItemDetailView }) {
 
   if (!marketplaceAddress || balance <= 0) return null;
 
+  // Mirrors the server-side gate in PATCH /api/items/[id]: a creator can
+  // close resale outright, or schedule it to open later. Showing the form
+  // while it's closed just invites the owner to fill it in and be refused.
+  const listingOpen =
+    item.listingEnabled ||
+    (!!item.listingOpensAt && new Date(item.listingOpensAt) <= new Date());
+  if (!listingOpen) {
+    return (
+      <div className="surface-card p-5">
+        <div className="flex items-center gap-2 text-sm font-semibold text-white mb-1">
+          <Tag className="w-4 h-4 text-purple-300" /> Resale not open yet
+        </div>
+        <p className="text-xs text-white/45">
+          {item.listingOpensAt
+            ? `The creator opens resale for this collection on ${new Date(item.listingOpensAt).toLocaleString()}.`
+            : "The creator hasn't opened resale for this collection yet."}
+        </p>
+      </div>
+    );
+  }
+
+
   async function submit() {
     const qty = Math.floor(Number(quantity));
     const price = Number(priceEth);
