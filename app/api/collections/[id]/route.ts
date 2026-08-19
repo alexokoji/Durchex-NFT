@@ -5,6 +5,15 @@ import { getCurrentUser } from "@/lib/auth/currentUser";
 import { normalizePhase, computePublicAllocation, effectivePublicAllocation } from "@/lib/mintPhases";
 import { Item } from "@/lib/models/Item";
 import { isMintedOut } from "@/lib/listing";
+import { ItemBalance } from "@/lib/models/ItemBalance";
+import { Bid } from "@/lib/models/Bid";
+import { Favorite } from "@/lib/models/Favorite";
+import { Activity } from "@/lib/models/Activity";
+import { Notification } from "@/lib/models/Notification";
+import { Listing } from "@/lib/models/Listing";
+import { CollectionOffer } from "@/lib/models/CollectionOffer";
+import { PhaseClaim } from "@/lib/models/PhaseClaim";
+import { DropNotify } from "@/lib/models/DropNotify";
 
 export async function GET(req: NextRequest, context: { params: Promise<{ id: string }> }) {
   const user = await getCurrentUser(req);
@@ -92,6 +101,25 @@ export async function PATCH(req: NextRequest, context: { params: Promise<{ id: s
     });
   }
 
+  // Mint configuration is frozen once the collection is minted out. Prices,
+  // allocations and windows are the terms buyers minted under; rewriting
+  // them afterwards would rewrite the record of a sale that already
+  // happened. Resale settings above are deliberately still editable —
+  // opening resale is precisely what a creator does after minting out.
+  const [mintedSupply, unmintedCount] = await Promise.all([
+    Item.countDocuments({ collection: collection._id, isMinted: true }),
+    Item.countDocuments({ collection: collection._id, isMinted: false }),
+  ]);
+  if (isMintedOut({ maxSupply: collection.maxSupply, mintedSupply, unmintedCount })) {
+    return NextResponse.json(
+      {
+        error: "This collection is fully minted — its mint phases can no longer be changed.",
+        mintedOut: true,
+      },
+      { status: 409 }
+    );
+  }
+
   const patch = body.mintPhases ?? {};
 
   for (const phase of ["whitelist", "og"] as const) {
@@ -158,4 +186,54 @@ export async function PATCH(req: NextRequest, context: { params: Promise<{ id: s
 
   await collection.save();
   return NextResponse.json({ mintPhases: collection.mintPhases });
+}
+
+// Deleting a collection removes it and everything hanging off it. It is
+// only available while nothing has been minted: once a token exists
+// on-chain, the chain is the record and removing our side of it would
+// leave real holders pointing at a collection that no longer exists.
+export async function DELETE(req: NextRequest, context: { params: Promise<{ id: string }> }) {
+  const user = await getCurrentUser(req);
+  if (!user) return NextResponse.json({ error: "Sign in required" }, { status: 401 });
+  const { id } = await context.params;
+  await connectDB();
+  const collection = await Collection.findById(id);
+  if (!collection) return NextResponse.json({ error: "Collection not found" }, { status: 404 });
+  if (String(collection.creator) !== String(user._id)) {
+    return NextResponse.json({ error: "Only the creator can delete this collection" }, { status: 403 });
+  }
+
+  const mintedSupply = await Item.countDocuments({ collection: collection._id, isMinted: true });
+  if (mintedSupply > 0) {
+    return NextResponse.json(
+      {
+        error:
+          mintedSupply === 1
+            ? "1 item has already been minted on-chain, so this collection can't be deleted."
+            : `${mintedSupply} items have already been minted on-chain, so this collection can't be deleted.`,
+        mintedSupply,
+      },
+      { status: 409 }
+    );
+  }
+
+  const itemIds = (await Item.find({ collection: collection._id }).select("_id").lean()).map(
+    (i) => i._id
+  );
+
+  await Promise.all([
+    Item.deleteMany({ collection: collection._id }),
+    ItemBalance.deleteMany({ item: { $in: itemIds } }),
+    Bid.deleteMany({ item: { $in: itemIds } }),
+    Favorite.deleteMany({ item: { $in: itemIds } }),
+    Activity.deleteMany({ item: { $in: itemIds } }),
+    Notification.deleteMany({ item: { $in: itemIds } }),
+    Listing.deleteMany({ collection: collection._id }),
+    CollectionOffer.deleteMany({ collection: collection._id }),
+    PhaseClaim.deleteMany({ collection: collection._id }),
+    DropNotify.deleteMany({ collection: collection._id }),
+  ]);
+  await Collection.deleteOne({ _id: collection._id });
+
+  return NextResponse.json({ deleted: true, slug: collection.slug, items: itemIds.length });
 }

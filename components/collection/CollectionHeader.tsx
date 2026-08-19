@@ -9,6 +9,7 @@ import { BuyFloorButton } from "@/components/collection/BuyFloorButton";
 import { MakeCollectionOfferButton } from "@/components/collection/MakeCollectionOfferButton";
 import { CollectionOffersList } from "@/components/collection/CollectionOffersList";
 import { ResaleStatus } from "@/components/collection/ResaleStatus";
+import { DeleteCollection } from "@/components/collection/DeleteCollection";
 import { listingGate } from "@/lib/listing";
 
 export function CollectionHeader({ collection }: { collection: CollectionDetailView }) {
@@ -70,6 +71,12 @@ export function CollectionHeader({ collection }: { collection: CollectionDetailV
         <PhaseManager collectionId={collection.id} creatorAddress={collection.creatorAddress} />
         <ListingControl collectionId={collection.id} creatorAddress={collection.creatorAddress} />
         <CollectionOffersList collection={collection} />
+        <DeleteCollection
+          collectionId={collection.id}
+          collectionName={collection.name}
+          creatorAddress={collection.creatorAddress}
+          mintedSupply={collection.mintedSupply}
+        />
       </div>
     </div>
   );

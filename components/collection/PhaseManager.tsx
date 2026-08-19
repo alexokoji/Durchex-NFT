@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Loader2, Upload, Settings2 } from "lucide-react";
+import { Loader2, Upload, Settings2, Lock } from "lucide-react";
 import clsx from "clsx";
 import { useSession } from "@/hooks/useSession";
 import { PHASE_LABELS, PhaseKey } from "@/lib/mintPhases";
@@ -33,6 +33,7 @@ function fromLocalInputValue(value: string): string | null {
 export function PhaseManager({ collectionId, creatorAddress }: { collectionId: string; creatorAddress: string | null }) {
   const { user } = useSession();
   const [phases, setPhases] = useState<Phases | null>(null);
+  const [mintedOut, setMintedOut] = useState(false);
   const [saving, setSaving] = useState<PhaseKey | null>(null);
   const [error, setError] = useState<string | null>(null);
   const isOwner = !!user && !!creatorAddress && user.address.toLowerCase() === creatorAddress.toLowerCase();
@@ -41,7 +42,11 @@ export function PhaseManager({ collectionId, creatorAddress }: { collectionId: s
     if (!isOwner) return;
     fetch(`/api/collections/${collectionId}`)
       .then((r) => (r.ok ? r.json() : null))
-      .then((data) => data && setPhases(data.mintPhases));
+      .then((data) => {
+        if (!data) return;
+        setPhases(data.mintPhases);
+        setMintedOut(!!data.mintedOut);
+      });
   }, [isOwner, collectionId]);
 
   if (!isOwner || !phases) return null;
@@ -73,16 +78,48 @@ export function PhaseManager({ collectionId, creatorAddress }: { collectionId: s
       <div className="flex items-center gap-2 text-sm font-semibold text-white mb-1">
         <Settings2 className="w-4 h-4 text-purple-300" /> Manage mint phases
       </div>
-      <p className="text-xs text-white/45 mb-4">
-        GTD, FCFS and Public can all be live at once — toggle any of them on or off independently, or set an
-        end time to have one close on its own. A wallet eligible for more than one live phase picks which to
-        mint through; otherwise they can only mint via Public if it&rsquo;s live.
-      </p>
-      <div className="space-y-3">
-        {(Object.keys(PHASE_LABELS) as PhaseKey[]).map((key) => (
-          <PhaseRow key={key} phaseKey={key} label={PHASE_LABELS[key]} phase={phases[key]} saving={saving === key} onSave={(patch) => save(key, patch)} />
-        ))}
-      </div>
+      {mintedOut ? (
+        <>
+          <p className="text-xs text-white/45 mb-3">
+            These were the terms this collection minted under. They&rsquo;re kept as a record now — the
+            mint is finished, so changing a price or an allocation would only misdescribe sales that
+            already happened.
+          </p>
+          <div className="flex items-start gap-2 rounded-lg border border-white/10 bg-white/[0.02] p-3 mb-3">
+            <Lock className="w-4 h-4 shrink-0 mt-0.5 text-white/30" />
+            <div className="text-xs text-white/60">
+              <span className="text-white/80 font-medium">Fully minted — phases locked</span>
+              <p className="text-white/35 mt-1">
+                Resale is the control that&rsquo;s still yours, below.
+              </p>
+            </div>
+          </div>
+          <div className="space-y-2">
+            {(Object.keys(PHASE_LABELS) as PhaseKey[]).map((key) => (
+              <div key={key} className="rounded-lg border border-white/10 p-3 bg-white/[0.02] flex items-center justify-between">
+                <div className="text-sm text-white/85">{PHASE_LABELS[key]}</div>
+                <div className="text-[11px] text-white/40 tabular-nums">
+                  {phases[key].minted}/{phases[key].allocation || "∞"} minted
+                  {phases[key].priceEth > 0 ? ` · ${phases[key].priceEth} ETH` : " · free"}
+                </div>
+              </div>
+            ))}
+          </div>
+        </>
+      ) : (
+        <>
+          <p className="text-xs text-white/45 mb-4">
+            GTD, FCFS and Public can all be live at once — toggle any of them on or off independently, or set an
+            end time to have one close on its own. A wallet eligible for more than one live phase picks which to
+            mint through; otherwise they can only mint via Public if it&rsquo;s live.
+          </p>
+          <div className="space-y-3">
+            {(Object.keys(PHASE_LABELS) as PhaseKey[]).map((key) => (
+              <PhaseRow key={key} phaseKey={key} label={PHASE_LABELS[key]} phase={phases[key]} saving={saving === key} onSave={(patch) => save(key, patch)} />
+            ))}
+          </div>
+        </>
+      )}
       {error && <p className="text-xs text-danger mt-3">{error}</p>}
     </div>
   );

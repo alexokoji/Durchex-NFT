@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getAddress, isAddress } from "viem";
 import { connectDB } from "@/lib/db";
 import { Collection } from "@/lib/models/Collection";
+import { Item } from "@/lib/models/Item";
 import { getCurrentUser } from "@/lib/auth/currentUser";
 import { SUPPORTED_EVM_CHAIN_IDS } from "@/lib/web3/supportedChains";
 
@@ -17,6 +18,15 @@ export async function PATCH(request: NextRequest, context: { params: Promise<{ i
   const collection = await Collection.findById(id);
   if (!collection) return NextResponse.json({ error: "Collection not found" }, { status: 404 });
   if (String(collection.creator) !== String(user._id)) return NextResponse.json({ error: "Only the collection creator can attach its contract." }, { status: 403 });
+  // Repointing the contract after tokens exist would orphan them: the
+  // minted tokens live at the old address and nothing would resolve them.
+  const mintedSupply = await Item.countDocuments({ collection: collection._id, isMinted: true });
+  if (mintedSupply > 0) {
+    return NextResponse.json(
+      { error: "Items have already been minted at the current contract — it can't be changed." },
+      { status: 409 }
+    );
+  }
   collection.contractAddress = getAddress(address);
   collection.chainId = chainId;
   collection.contractType = body.contractType === "drop" ? "drop" : "lazy";
