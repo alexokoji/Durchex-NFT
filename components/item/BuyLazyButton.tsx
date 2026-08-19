@@ -64,7 +64,13 @@ export function BuyLazyButton({ item, phase: forcedPhase }: { item: ItemDetailVi
       .then((data) => {
         if (!data) return;
         setGate(data.gate);
-        setSelectedMintPhase((current) => current ?? data.gate.eligiblePhases[0] ?? null);
+        // Same reasoning as BuyEditionButton: a phase this wallet has
+        // exhausted is no longer a valid selection.
+        setSelectedMintPhase((current) =>
+          current && data.gate.eligiblePhases.includes(current)
+            ? current
+            : (data.gate.eligiblePhases[0] ?? null)
+        );
       })
       .catch(() => setGate(null));
   }, [address, item.collectionId]);

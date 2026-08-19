@@ -195,7 +195,11 @@ export function EditionListings({ item }: { item: ItemDetailView }) {
         <Tag className="w-4 h-4 text-purple-300" /> Resale listings
       </div>
       <div className="space-y-2">
-        {listings.map((l) => {
+        {/* A listing with nothing left is not an offer to sell — showing it
+            gives a buyer a quantity box whose only valid input is a number
+            it won't accept. The seller's own row still renders below so
+            they can see and cancel it. */}
+        {listings.filter((l) => l.remaining > 0 || l.seller?.address?.toLowerCase() === address?.toLowerCase()).map((l) => {
           const isSeller = !!user && user.address.toLowerCase() === l.seller?.address?.toLowerCase();
           const auctionEnded = l.auctionEndsAt && now !== null ? new Date(l.auctionEndsAt).getTime() <= now : false;
           const isWinner = !!user && user.address.toLowerCase() === l.highestBidder?.address?.toLowerCase();

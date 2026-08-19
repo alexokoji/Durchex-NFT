@@ -69,7 +69,14 @@ export function BuyEditionButton({
       .then((data) => {
         if (!data?.gate) return;
         setGate(data.gate);
-        setSelectedMintPhase((current) => current ?? data.gate.eligiblePhases[0] ?? null);
+        // Re-pick if the phase we were on has since run out for this
+        // wallet. Holding on to a spent choice is what produced a
+        // quantity box asking for "between 1 and 0".
+        setSelectedMintPhase((current) =>
+          current && data.gate.eligiblePhases.includes(current)
+            ? current
+            : (data.gate.eligiblePhases[0] ?? null)
+        );
         setRemainingByPhase(
           Object.fromEntries(
             (["whitelist", "og", "public"] as PhaseKey[]).map((k) => [k, data[k]?.remaining ?? null])
@@ -255,6 +262,20 @@ export function BuyEditionButton({
   // edition and what its phase allowance still permits.
   const phaseAllowance = selectedMintPhase ? remainingByPhase[selectedMintPhase] : null;
   const maxQty = phaseAllowance != null ? Math.min(remaining, phaseAllowance) : remaining;
+
+  // A cap of zero is a real state — the edition sold out, or this wallet
+  // has used its whole allowance — but it is never something a buyer can
+  // type their way out of. Say which it is instead of presenting a box
+  // and then rejecting every value it accepts.
+  if (maxQty <= 0) {
+    return (
+      <div className="rounded-lg border border-white/10 bg-white/[0.02] p-3 text-xs text-white/55">
+        {remaining <= 0
+          ? "This edition is fully minted."
+          : "You've minted your full allowance for this phase."}
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-2">
