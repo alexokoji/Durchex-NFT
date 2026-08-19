@@ -12,6 +12,7 @@ import {
   DEFAULT_NFT1155_CHAIN_ID,
 } from "@/lib/web3/deployedContract";
 import { collectionSalt, factoryFor, predictCloneAddress } from "@/lib/web3/collectionFactory";
+import { checkCreationAllowed } from "@/lib/creationGate";
 
 const CATEGORIES: CategoryKey[] = [
   "art",
@@ -68,6 +69,10 @@ export async function POST(req: NextRequest) {
   if (!user) {
     return NextResponse.json({ error: "Sign in to create a collection" }, { status: 401 });
   }
+
+  await connectDB();
+  const gate = await checkCreationAllowed(user.address);
+  if (!gate.allowed) return NextResponse.json({ error: gate.error }, { status: 403 });
 
   const body = await req.json();
   const name = String(body.name ?? "").trim();

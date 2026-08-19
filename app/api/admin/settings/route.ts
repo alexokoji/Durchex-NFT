@@ -57,6 +57,8 @@ export async function GET(req: NextRequest) {
   return NextResponse.json({
     royaltyCapBps: settings.royaltyCapBps,
     contractMaxRoyaltyBps: CONTRACT_MAX_ROYALTY_BPS,
+    creationEnabled: settings.creationEnabled !== false,
+    creationAllowlist: settings.creationAllowlist ?? [],
     onChain,
   });
 }
@@ -66,20 +68,40 @@ export async function PATCH(req: NextRequest) {
   if (!admin) return NextResponse.json({ error: "Administrator access is required" }, { status: 403 });
 
   const body = await req.json().catch(() => ({}));
-  const royaltyCapBps = Number(body.royaltyCapBps);
-  if (!Number.isFinite(royaltyCapBps) || royaltyCapBps < 0 || royaltyCapBps > CONTRACT_MAX_ROYALTY_BPS) {
-    return NextResponse.json(
-      { error: `royaltyCapBps must be between 0 and ${CONTRACT_MAX_ROYALTY_BPS} (the on-chain limit)` },
-      { status: 400 }
-    );
+  const update: Record<string, unknown> = {};
+
+  if ("royaltyCapBps" in body) {
+    const royaltyCapBps = Number(body.royaltyCapBps);
+    if (!Number.isFinite(royaltyCapBps) || royaltyCapBps < 0 || royaltyCapBps > CONTRACT_MAX_ROYALTY_BPS) {
+      return NextResponse.json(
+        { error: `royaltyCapBps must be between 0 and ${CONTRACT_MAX_ROYALTY_BPS} (the on-chain limit)` },
+        { status: 400 }
+      );
+    }
+    update.royaltyCapBps = royaltyCapBps;
+  }
+
+  if ("creationEnabled" in body) update.creationEnabled = !!body.creationEnabled;
+
+  if ("creationAllowlist" in body) {
+    const raw: unknown = body.creationAllowlist;
+    const entries = Array.isArray(raw) ? raw : String(raw ?? "").split(/[\s,]+/);
+    const addresses = entries.map((a) => String(a).trim().toLowerCase()).filter(Boolean);
+    const invalid = addresses.find((a) => !/^0x[a-f0-9]{40}$/.test(a));
+    if (invalid) {
+      return NextResponse.json({ error: `"${invalid}" isn't a valid wallet address.` }, { status: 400 });
+    }
+    update.creationAllowlist = [...new Set(addresses)];
   }
 
   await connectDB();
-  const settings = await PlatformSettings.findOneAndUpdate({}, { royaltyCapBps }, { new: true, upsert: true });
+  const settings = await PlatformSettings.findOneAndUpdate({}, update, { new: true, upsert: true });
   const onChain = await readOnChainFee();
   return NextResponse.json({
     royaltyCapBps: settings.royaltyCapBps,
     contractMaxRoyaltyBps: CONTRACT_MAX_ROYALTY_BPS,
+    creationEnabled: settings.creationEnabled !== false,
+    creationAllowlist: settings.creationAllowlist ?? [],
     onChain,
   });
 }

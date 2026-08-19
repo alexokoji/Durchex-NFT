@@ -4,6 +4,7 @@ import { getCurrentAdmin } from "@/lib/auth/currentAdmin";
 import { connectDB } from "@/lib/db";
 import { Collection } from "@/lib/models/Collection";
 import { PlatformSettings } from "@/lib/models/PlatformSettings";
+import { deleteCollectionCascade } from "@/lib/deleteCollection";
 
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const admin = await getCurrentAdmin(req);
@@ -33,4 +34,21 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   );
   if (!collection) return NextResponse.json({ error: "Collection not found" }, { status: 404 });
   return NextResponse.json({ collection });
+}
+
+// Same rule as the creator's own delete: gone for good while unminted,
+// refused once tokens exist on-chain — hide it instead, which the panel
+// already offers and which is reversible.
+export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const admin = await getCurrentAdmin(req);
+  if (!admin) return NextResponse.json({ error: "Administrator access is required" }, { status: 403 });
+  const { id } = await params;
+  if (!Types.ObjectId.isValid(id)) return NextResponse.json({ error: "Invalid collection" }, { status: 400 });
+
+  await connectDB();
+  const result = await deleteCollectionCascade(id);
+  if (!result.ok) {
+    return NextResponse.json({ error: result.error, mintedSupply: result.mintedSupply }, { status: result.status });
+  }
+  return NextResponse.json({ deleted: true, slug: result.slug, items: result.items });
 }

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Search, Loader2 } from "lucide-react";
+import { Search, Loader2, Trash2 } from "lucide-react";
 
 type Row = {
   _id: string;
@@ -20,6 +20,8 @@ export function CollectionsPanel() {
   const [q, setQ] = useState("");
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState<string | null>(null);
+  const [confirmingDelete, setConfirmingDelete] = useState<string | null>(null);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   async function load(query: string) {
     const res = await fetch(`/api/admin/collections${query ? `?q=${encodeURIComponent(query)}` : ""}`);
@@ -47,6 +49,20 @@ export function CollectionsPanel() {
     });
     setBusy(null);
     if (res.ok) setRows((all) => all.map((r) => (r._id === row._id ? { ...r, [field]: !r[field] } : r)));
+  }
+
+  async function remove(row: Row) {
+    setBusy(row._id);
+    setDeleteError(null);
+    const res = await fetch(`/api/admin/collections/${row._id}`, { method: "DELETE" });
+    const data = await res.json().catch(() => ({}));
+    setBusy(null);
+    setConfirmingDelete(null);
+    if (res.ok) {
+      setRows((all) => all.filter((r) => r._id !== row._id));
+    } else {
+      setDeleteError(data.error ?? "Couldn't delete that collection.");
+    }
   }
 
   async function updateRoyalty(row: Row, value: string) {
@@ -90,6 +106,7 @@ export function CollectionsPanel() {
               <th className="px-4 py-3 font-medium">Verified</th>
               <th className="px-4 py-3 font-medium">Featured</th>
               <th className="px-4 py-3 font-medium">Hidden</th>
+              <th className="px-4 py-3 font-medium sr-only">Delete</th>
             </tr>
           </thead>
           <tbody>
@@ -138,12 +155,48 @@ export function CollectionsPanel() {
                       </button>
                     </td>
                   ))}
+                  <td className="px-4 py-3">
+                    {confirmingDelete === row._id ? (
+                      <div className="flex items-center gap-1.5">
+                        <button
+                          disabled={busy === row._id}
+                          onClick={() => remove(row)}
+                          className="rounded-full px-2.5 py-1 text-xs font-medium border border-danger/50 bg-danger/15 text-danger"
+                        >
+                          {busy === row._id ? "Deleting…" : "Confirm"}
+                        </button>
+                        <button
+                          onClick={() => setConfirmingDelete(null)}
+                          className="rounded-full px-2.5 py-1 text-xs border border-white/10 text-white/40"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    ) : (
+                      <button
+                        title="Delete permanently — only possible while nothing has been minted on-chain"
+                        disabled={busy === row._id}
+                        onClick={() => {
+                          setDeleteError(null);
+                          setConfirmingDelete(row._id);
+                        }}
+                        className="text-white/25 hover:text-danger transition"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    )}
+                  </td>
                 </tr>
               ))
             )}
           </tbody>
         </table>
       </div>
+      {deleteError && (
+        <p className="text-xs text-danger mt-3">
+          {deleteError} Use the Hidden toggle to take it off the marketplace instead.
+        </p>
+      )}
     </div>
   );
 }

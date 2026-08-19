@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { connectDB } from "@/lib/db";
 import { Collection } from "@/lib/models/Collection";
+import { checkCreationAllowed } from "@/lib/creationGate";
 import { Item } from "@/lib/models/Item";
 import { User } from "@/lib/models/User";
 import { getCurrentUser } from "@/lib/auth/currentUser";
@@ -48,6 +49,10 @@ export async function POST(req: NextRequest) {
   if (!user) {
     return NextResponse.json({ error: "Sign in to create a listing" }, { status: 401 });
   }
+
+  await connectDB();
+  const gate = await checkCreationAllowed(user.address);
+  if (!gate.allowed) return NextResponse.json({ error: gate.error }, { status: 403 });
 
   const body = (await req.json()) as CreateItemBody;
   const name = String(body.name ?? "").trim();

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Loader2, Info } from "lucide-react";
+import { Loader2, Info, Lock, Unlock } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 
 export function SettingsPanel() {
@@ -15,8 +15,11 @@ export function SettingsPanel() {
   const [royaltyCapBps, setRoyaltyCapBps] = useState<number | null>(null);
   const [contractMaxRoyaltyBps, setContractMaxRoyaltyBps] = useState(3000);
   const [onChain, setOnChain] = useState<OnChain | null>(null);
+  const [creationEnabled, setCreationEnabled] = useState(true);
+  const [creationAllowlist, setCreationAllowlist] = useState("");
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     fetch("/api/admin/settings")
@@ -25,6 +28,8 @@ export function SettingsPanel() {
         setRoyaltyCapBps(data.royaltyCapBps);
         if (data.contractMaxRoyaltyBps) setContractMaxRoyaltyBps(data.contractMaxRoyaltyBps);
         setOnChain(data.onChain ?? null);
+        setCreationEnabled(data.creationEnabled !== false);
+        setCreationAllowlist((data.creationAllowlist ?? []).join("\n"));
       });
   }, []);
 
@@ -32,13 +37,20 @@ export function SettingsPanel() {
     if (royaltyCapBps === null) return;
     setSaving(true);
     setSaved(false);
+    setError(null);
     const res = await fetch("/api/admin/settings", {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ royaltyCapBps }),
+      body: JSON.stringify({ royaltyCapBps, creationEnabled, creationAllowlist }),
     });
+    const data = await res.json().catch(() => ({}));
     setSaving(false);
-    if (res.ok) setSaved(true);
+    if (res.ok) {
+      setSaved(true);
+      setCreationAllowlist((data.creationAllowlist ?? []).join("\n"));
+    } else {
+      setError(data.error ?? "Couldn't save settings.");
+    }
   }
 
   return (
@@ -50,6 +62,54 @@ export function SettingsPanel() {
         <Loader2 className="w-5 h-5 animate-spin text-white/40" />
       ) : (
         <div className="space-y-6">
+          <div className="surface-card p-5">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <label className="text-sm font-medium text-white mb-1.5 flex items-center gap-2">
+                  {creationEnabled ? (
+                    <Unlock className="w-4 h-4 text-purple-300" />
+                  ) : (
+                    <Lock className="w-4 h-4 text-danger" />
+                  )}
+                  Public creation
+                </label>
+                <p className="text-xs text-white/45">
+                  {creationEnabled
+                    ? "Any signed-in wallet can create collections and NFTs."
+                    : "Creation is closed. Only the wallets listed below can create collections or NFTs — everyone else is turned away at the API, not just in the UI."}
+                </p>
+              </div>
+              <label className="flex items-center gap-2 cursor-pointer shrink-0 pt-0.5">
+                <span className="text-xs text-white/50">{creationEnabled ? "Open" : "Closed"}</span>
+                <input
+                  type="checkbox"
+                  checked={creationEnabled}
+                  onChange={(e) => setCreationEnabled(e.target.checked)}
+                  className="accent-purple-500 w-4 h-4"
+                />
+              </label>
+            </div>
+
+            {!creationEnabled && (
+              <div className="mt-4">
+                <label className="text-[11px] uppercase tracking-wide text-white/40 block mb-1.5">
+                  Wallets still allowed to create
+                </label>
+                <textarea
+                  value={creationAllowlist}
+                  onChange={(e) => setCreationAllowlist(e.target.value)}
+                  rows={4}
+                  spellCheck={false}
+                  placeholder="0x… one address per line"
+                  className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-xs font-mono text-white focus:outline-none focus:border-purple-500/60"
+                />
+                <p className="text-[11px] text-white/30 mt-1.5">
+                  One address per line. Leave empty to close creation to everyone including yourself.
+                </p>
+              </div>
+            )}
+          </div>
+
           <div className="surface-card p-5">
             <label className="text-sm font-medium text-white mb-1.5 block">Creator royalty cap</label>
             <p className="text-xs text-white/45 mb-3">
@@ -113,6 +173,7 @@ export function SettingsPanel() {
               )}
             </Button>
             {saved && <span className="text-xs text-purple-300">Saved.</span>}
+            {error && <span className="text-xs text-danger">{error}</span>}
           </div>
         </div>
       )}

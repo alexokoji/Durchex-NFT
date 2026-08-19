@@ -1,10 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAccount, useSignTypedData } from "wagmi";
 import { isAddress } from "viem";
-import { ArrowLeft, ArrowRight, Loader2, Sparkles } from "lucide-react";
+import { ArrowLeft, ArrowRight, Loader2, Sparkles, Lock } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { GeneratedArt } from "@/components/nft/GeneratedArt";
 import { CategoryIcon } from "@/components/ui/CategoryIcon";
@@ -26,6 +26,7 @@ export default function CreatePage() {
   const { user } = useSession();
   const { signTypedDataAsync } = useSignTypedData();
 
+  const [creationClosed, setCreationClosed] = useState<string | null>(null);
   const [step, setStep] = useState(0);
   const [collection, setCollection] = useState<CollectionOption | null>(null);
   const [name, setName] = useState("");
@@ -195,6 +196,21 @@ export default function CreatePage() {
     } finally {
       setSubmitting(false);
     }
+  }
+
+  if (creationClosed) {
+    return (
+      <div className="max-w-3xl mx-auto px-6 py-12">
+        <h1 className="font-display text-3xl font-semibold text-white mb-6">Create an item</h1>
+        <div className="surface-card p-8 flex items-start gap-4">
+          <Lock className="w-5 h-5 text-purple-300 shrink-0 mt-0.5" />
+          <div>
+            <div className="text-white font-medium mb-1">Creating isn&rsquo;t open yet</div>
+            <p className="text-sm text-white/50 max-w-md">{creationClosed}</p>
+          </div>
+        </div>
+      </div>
+    );
   }
 
   return (

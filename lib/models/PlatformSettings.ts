@@ -4,6 +4,12 @@ import { Schema, model, models, InferSchemaType } from "mongoose";
 const PlatformSettingsSchema = new Schema(
   {
     royaltyCapBps: { type: Number, default: 3000 },
+    // Master switch for public creation. Off means only wallets on
+    // creationAllowlist can create collections or items — used to keep the
+    // marketplace closed while the team seeds it, then opened once.
+    creationEnabled: { type: Boolean, default: true },
+    // Lowercased wallet addresses exempt from the switch above.
+    creationAllowlist: { type: [String], default: [] },
   },
   { timestamps: true }
 );
