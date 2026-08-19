@@ -124,7 +124,6 @@ function PhaseCard({
 
       <div className="text-xs text-white/45 mt-1">
         {phase.walletLimit > 0 ? `Max ${phase.walletLimit.toLocaleString()} per wallet` : "No wallet limit"}
-        //{//phase.allocation > 0 && ` · ${phase.allocation.toLocaleString()} allocated`}
       </div>
 
       {window.at && (

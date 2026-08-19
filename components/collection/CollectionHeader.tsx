@@ -8,8 +8,16 @@ import { ContractAttach } from "@/components/collection/ContractAttach";
 import { BuyFloorButton } from "@/components/collection/BuyFloorButton";
 import { MakeCollectionOfferButton } from "@/components/collection/MakeCollectionOfferButton";
 import { CollectionOffersList } from "@/components/collection/CollectionOffersList";
+import { isCollectionSoldOut } from "@/lib/mintPhases";
 
 export function CollectionHeader({ collection }: { collection: CollectionDetailView }) {
+  // While a capped collection still has supply left to mint, the primary
+  // path is the mint panel below, not the secondary market — Buy Floor and
+  // Make Offer only make sense once there's nothing left to mint and the
+  // only way in is buying from an existing holder. Uncapped collections
+  // (maxSupply 0) never reach "sold out", so this never hides them there.
+  const secondaryMarketReady = collection.maxSupply === 0 || isCollectionSoldOut(collection);
+
   return (
     <div>
       <div className="relative h-48 sm:h-64 overflow-hidden rounded-2xl">
@@ -28,10 +36,12 @@ export function CollectionHeader({ collection }: { collection: CollectionDetailV
         />
       </div>
 
-      <div className="mt-6 px-4 sm:px-8 flex flex-wrap gap-2">
-        <BuyFloorButton collection={collection} />
-        <MakeCollectionOfferButton collection={collection} />
-      </div>
+      {secondaryMarketReady && (
+        <div className="mt-6 px-4 sm:px-8 flex flex-wrap gap-2">
+          <BuyFloorButton collection={collection} />
+          <MakeCollectionOfferButton collection={collection} />
+        </div>
+      )}
       {collection.contractType === "drop" && (
         <div className="px-4 sm:px-8">
           <DropMintPanel drop={{ collectionId: collection.id, contractAddress: collection.contractAddress, chainId: collection.chainId, phases: collection.mintPhases }} />

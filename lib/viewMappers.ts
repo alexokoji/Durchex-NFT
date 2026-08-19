@@ -64,6 +64,8 @@ interface CollectionDetailLike extends CollectionLike {
   createdAt?: Date | string;
   /** Highest live collection offer, resolved by the query layer. */
   topOfferEth?: number | null;
+  /** Items actually minted on-chain so far, resolved by the query layer. */
+  mintedSupply?: number;
   stats: CollectionLike["stats"] & {
     volume7dEth: number;
     totalVolumeEth: number;
@@ -216,6 +218,7 @@ export function toCollectionDetailView(c: CollectionDetailLike): CollectionDetai
     sales: c.stats.sales,
     contractType: c.contractType ?? "lazy",
     maxSupply: c.maxSupply ?? 0,
+    mintedSupply: c.mintedSupply ?? 0,
     // Only a real baseline gives a meaningful percentage: a collection whose
     // floor was 0 yesterday (nothing listed) has no move to express.
     floorChange1dPct:

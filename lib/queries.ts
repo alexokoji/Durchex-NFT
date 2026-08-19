@@ -230,6 +230,10 @@ export async function getCollectionBySlug(slug: string): Promise<CollectionDetai
   ]);
   doc.stats.owners = ownersAgg[0]?.count ?? 0;
   doc.stats.items = await Item.countDocuments({ collection: doc._id });
+  // Items actually minted on-chain, as opposed to stats.items (every Item
+  // doc, including unminted lazy vouchers pre-created for a drop) — this is
+  // what "sold out" means for gating the secondary-market buttons.
+  const mintedSupply = await Item.countDocuments({ collection: doc._id, isMinted: true });
 
   // "Top offer" is the best standing collection-wide bid — the number a
   // holder could accept right now without listing. Expired offers are
@@ -244,7 +248,7 @@ export async function getCollectionBySlug(slug: string): Promise<CollectionDetai
     .select("pricePerItemEth")
     .lean();
 
-  return toCollectionDetailView({ ...doc, topOfferEth: topOffer?.pricePerItemEth ?? null } as never);
+  return toCollectionDetailView({ ...doc, topOfferEth: topOffer?.pricePerItemEth ?? null, mintedSupply } as never);
 }
 
 export async function getCollectionTraitFacets(collectionId: string) {

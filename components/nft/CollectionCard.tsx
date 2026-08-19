@@ -10,6 +10,10 @@ export function CollectionCard({ collection, rank }: { collection: CollectionVie
   return (
     <Link
       href={`/collection/${collection.slug}`}
+      // Same reasoning as NFTCard: these render in rows/grids where many
+      // can be in the viewport at once, so unconditional prefetch wastes
+      // bandwidth on collections the visitor never opens.
+      prefetch={false}
       className="group surface-card surface-card-hover block overflow-hidden shrink-0 w-64"
     >
       <div className="relative h-24 overflow-hidden rounded-t-2xl">

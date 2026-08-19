@@ -51,6 +51,8 @@ export interface CollectionDetailView extends CollectionView {
   sales: number;
   contractType: "lazy" | "drop";
   maxSupply: number;
+  /** Items in this collection actually minted on-chain so far. */
+  mintedSupply: number;
   /** Percentage move in the floor over the last day; null with no baseline. */
   floorChange1dPct: number | null;
   /** Highest live collection-wide offer, in WETH. Null when none stands. */

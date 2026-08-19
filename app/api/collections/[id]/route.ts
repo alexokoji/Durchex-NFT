@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { connectDB } from "@/lib/db";
 import { Collection } from "@/lib/models/Collection";
 import { getCurrentUser } from "@/lib/auth/currentUser";
-import { normalizePhase, computePublicAllocation } from "@/lib/mintPhases";
+import { normalizePhase, computePublicAllocation, effectivePublicAllocation } from "@/lib/mintPhases";
 
 export async function GET(req: NextRequest, context: { params: Promise<{ id: string }> }) {
   const user = await getCurrentUser(req);
@@ -99,8 +99,16 @@ export async function PATCH(req: NextRequest, context: { params: Promise<{ id: s
     );
   }
   const requestedPublicEnabled = patch.public?.enabled ?? currentPublic.enabled;
-  // maxSupply > 0 but nothing left over after GTD/FCFS — can't be open.
-  const soldOutBeforeOpening = collection.maxSupply > 0 && publicAllocation === 0;
+  // Whether Public has anything to sell is judged on what GTD/FCFS are
+  // *still* holding, not on their original reservations: a phase that has
+  // ended or sold out releases its unminted remainder. Using the static
+  // figure here would permanently lock Public off for any launch that
+  // reserved 100% up front, even once those phases finished undersold.
+  const openablePublicAllocation = effectivePublicAllocation({
+    maxSupply: collection.maxSupply,
+    mintPhases: collection.mintPhases,
+  });
+  const soldOutBeforeOpening = collection.maxSupply > 0 && openablePublicAllocation === 0;
   collection.mintPhases.public = {
     enabled: soldOutBeforeOpening ? false : requestedPublicEnabled,
     priceEth: Math.max(0, Number(patch.public?.priceEth ?? currentPublic.priceEth)),

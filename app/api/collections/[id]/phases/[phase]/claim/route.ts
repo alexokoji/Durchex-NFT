@@ -3,7 +3,7 @@ import { connectDB } from "@/lib/db";
 import { Collection } from "@/lib/models/Collection";
 import { PhaseClaim } from "@/lib/models/PhaseClaim";
 import { getCurrentUser } from "@/lib/auth/currentUser";
-import { PHASE_KEYS, PhaseKey, RACES_ALLOCATION, isPhaseLive } from "@/lib/mintPhases";
+import { PHASE_KEYS, PhaseKey, RACES_ALLOCATION, effectivePublicAllocation, isPhaseLive } from "@/lib/mintPhases";
 
 // Records a mint against a phase's per-wallet cap and (for FCFS phases)
 // its shared allocation. This is the off-chain enforcement layer for
@@ -88,7 +88,14 @@ export async function POST(req: NextRequest, context: { params: Promise<{ id: st
 
   // GTD (whitelist) doesn't race the shared allocation — every allowlisted
   // wallet is guaranteed its walletLimit any time the phase is live.
-  if (racesAllocation && config.allocation > 0 && config.minted + quantity > config.allocation) {
+  // Public's cap is derived live, not read from the stored field: supply
+  // left unminted by a finished GTD/FCFS phase rolls over to Public, and
+  // that rollover is partly time-based so the stored value goes stale on
+  // its own. GTD/FCFS keep using their own configured allocation.
+  const effectiveAllocation =
+    key === "public" ? effectivePublicAllocation(collection) : config.allocation;
+
+  if (racesAllocation && effectiveAllocation > 0 && config.minted + quantity > effectiveAllocation) {
     await PhaseClaim.updateOne({ _id: reserved._id }, { $inc: { count: -quantity } });
     return NextResponse.json({ error: "This phase is sold out" }, { status: 409 });
   }
@@ -99,8 +106,8 @@ export async function POST(req: NextRequest, context: { params: Promise<{ id: st
     {
       _id: id,
       [`mintPhases.${key}.enabled`]: true,
-      ...(racesAllocation && config.allocation > 0
-        ? { [`mintPhases.${key}.minted`]: { $lte: config.allocation - quantity } }
+      ...(racesAllocation && effectiveAllocation > 0
+        ? { [`mintPhases.${key}.minted`]: { $lte: effectiveAllocation - quantity } }
         : {}),
     },
     { $inc: { [`mintPhases.${key}.minted`]: quantity } },
@@ -122,7 +129,7 @@ export async function POST(req: NextRequest, context: { params: Promise<{ id: st
   // app-level concurrency, so `updated.minted` here is the true, current
   // cumulative total — safe to decide from.
   const finalMinted = updated.mintPhases[key].minted;
-  const allocation = updated.mintPhases[key].allocation;
+  const allocation = key === "public" ? effectiveAllocation : updated.mintPhases[key].allocation;
   const sellsOut = racesAllocation && allocation > 0 && finalMinted >= allocation;
   if (sellsOut) {
     await Collection.updateOne(

@@ -17,6 +17,11 @@ export function NFTCard({ item }: { item: ItemView }) {
   return (
     <Link
       href={`/assets/${item.id}`}
+      // Grids of these can run into the hundreds; prefetching every card
+      // that scrolls into view wastes bandwidth on pages the visitor never
+      // opens and is exactly what Next.js's own prefetching guide flags for
+      // "large list of links" — hover still opts a specific card back in.
+      prefetch={false}
       className="group surface-card surface-card-hover block overflow-hidden relative"
       style={{ perspective: "1000px" }}
     >

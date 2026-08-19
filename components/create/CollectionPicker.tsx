@@ -332,19 +332,30 @@ function CreatePhaseRow({
             {isGtd
               ? "Guaranteed — every allowlisted wallet can mint any time the phase is live."
               : isPublic
-                ? "Open to everyone — takes whatever's left of the collection's max supply after GTD + FCFS reserve theirs (or the whole supply if you're not using those)."
+                ? "Open to everyone, no allowlist. Its supply is whatever GTD + FCFS aren't holding — and once those phases end or sell out, anything they left unminted rolls over here automatically."
                 : "First come, first served — closes automatically once the allocation sells out."}
           </p>
           <div className={clsx("grid gap-2", isPublic ? "grid-cols-1" : "sm:grid-cols-3")}>
-            <input
-              type="number"
-              min="0"
-              step="0.001"
-              value={config.priceEth}
-              onChange={(e) => onChange({ priceEth: Number(e.target.value) })}
-              placeholder="Price ETH"
-              className="bg-white/5 border border-white/10 rounded px-2 py-1.5 text-xs text-white"
-            />
+            {/* These inputs are bound to numbers that start at 0, so the
+                placeholder is never visible — without a label the field is
+                unidentifiable once it has any value. */}
+            <div>
+              <label className="text-[10px] text-white/35 block mb-1">
+                {isPublic ? "Public mint price per NFT (ETH)" : "Mint price per NFT (ETH)"}
+              </label>
+              <input
+                type="number"
+                min="0"
+                step="0.001"
+                value={config.priceEth}
+                onChange={(e) => onChange({ priceEth: Number(e.target.value) })}
+                placeholder="0.05"
+                className="w-full bg-white/5 border border-white/10 rounded px-2 py-1.5 text-xs text-white"
+              />
+              <p className="text-[10px] text-white/30 mt-1">
+                What each wallet pays to mint one NFT in this phase. 0 makes it a free mint.
+              </p>
+            </div>
             {!isPublic && (
               <>
                 <input
