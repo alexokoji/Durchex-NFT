@@ -36,9 +36,11 @@ const SALE_EVENTS = parseAbi([
 
 // Free RPC tiers cap eth_getLogs ranges, so the window is walked in chunks.
 const CHUNK = BigInt(9000);
-// ~3 hours of blocks. Comfortably wider than the cron interval, so a single
-// skipped run can't open a permanent gap.
-const LOOKBACK_BLOCKS = BigInt(900);
+// ~2 days of blocks, against a daily schedule. The margin is deliberate:
+// Vercel's Hobby plan caps crons at once per day, so a single failed run
+// would otherwise leave a permanent hole. Re-scanning is cheap because
+// already-recorded sales are filtered out before any verification work.
+const LOOKBACK_BLOCKS = BigInt(14400);
 
 export async function GET(req: NextRequest) {
   const secret = process.env.CRON_SECRET;

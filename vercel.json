@@ -2,7 +2,7 @@
   "crons": [
     {
       "path": "/api/cron/reconcile-sales?chainId=1",
-      "schedule": "0 * * * *"
+      "schedule": "0 3 * * *"
     }
   ]
 }
