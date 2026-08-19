@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { BadgeCheck, Check, Loader2, ShieldCheck } from "lucide-react";
+import { Check, Loader2, ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { VerifiedBadge } from "@/components/ui/VerifiedBadge";
 import { ImageUploadField } from "@/components/settings/ImageUploadField";
@@ -156,9 +156,7 @@ function TierCard({
       <div className="flex items-start justify-between gap-4">
         <div>
           <div className="flex items-center gap-1.5">
-            <BadgeCheck
-              className={`w-4 h-4 ${tier === "purple" ? "text-purple-400" : "text-white"}`}
-            />
+            <VerifiedBadge tier={tier} className="w-4 h-4" />
             <span className="text-sm font-medium text-white">{TIER_LABELS[tier]}</span>
           </div>
           <p className="text-xs text-white/45 mt-1 max-w-sm">
