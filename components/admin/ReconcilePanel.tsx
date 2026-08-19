@@ -57,7 +57,21 @@ export function ReconcilePanel() {
           // told us it stopped at.
           body: JSON.stringify({ chainId, fromBlock: first && !next ? undefined : next }),
         });
-        const data: Slice & { error?: string } = await res.json();
+        // A timed-out or crashed function answers with an error page, not
+        // JSON, so the body is read as text first — parsing it blind turns
+        // every infrastructure failure into "unexpected end of JSON input",
+        // which says nothing about what actually went wrong.
+        const raw = await res.text();
+        let data: Slice & { error?: string };
+        try {
+          data = JSON.parse(raw);
+        } catch {
+          throw new Error(
+            res.status === 504 || raw.trim() === ""
+              ? `The scan timed out at block ${next ?? "start"}. Press Run again to resume from there.`
+              : `Server returned ${res.status}: ${raw.slice(0, 120)}`
+          );
+        }
         if (!res.ok) throw new Error(data.error ?? "Backfill failed");
         first = false;
 

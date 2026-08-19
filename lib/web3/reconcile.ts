@@ -64,12 +64,18 @@ export function rpcClient(chainId: number) {
  * `nextBlock` instead of trying to finish lets the caller resume, so the
  * same function serves both the nightly catch-up and a long backfill
  * driven one call at a time.
+ *
+ * They are deliberately well under the platform's function limit: a run
+ * that overruns is killed mid-flight and answers with an error page, not
+ * JSON, which the caller can only report as a parse failure. Stopping
+ * early and reporting where we got to is always recoverable; being killed
+ * is not.
  */
 export async function reconcileRange({
   chainId,
   fromBlock,
-  maxBlocks = BigInt(50_000),
-  timeBudgetMs = 45_000,
+  maxBlocks = BigInt(20_000),
+  timeBudgetMs = 8_000,
 }: {
   chainId: number;
   fromBlock: bigint;
