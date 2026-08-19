@@ -11,12 +11,7 @@ import {
   DEFAULT_NFT1155_ADDRESS,
   DEFAULT_NFT1155_CHAIN_ID,
 } from "@/lib/web3/deployedContract";
-import {
-  collectionFactoryAddressFor,
-  collectionImplementationAddressFor,
-  collectionSalt,
-  predictCloneAddress,
-} from "@/lib/web3/collectionFactory";
+import { collectionSalt, factoryFor, predictCloneAddress } from "@/lib/web3/collectionFactory";
 
 const CATEGORIES: CategoryKey[] = [
   "art",
@@ -128,26 +123,25 @@ export async function POST(req: NextRequest) {
     slug = `${baseSlug}-${++suffix}`;
   }
 
-  // ERC-721 collections get their own dedicated contract when a
-  // DurchexCollectionFactory is live on the target chain — deployed lazily
-  // at first mint (see BuyLazyButton), not here, so a collection that never
-  // sells never costs anyone gas. The address itself is pure CREATE2
+  // Collections get their own dedicated contract when a factory is live on
+  // the target chain — deployed lazily at first mint (see BuyLazyButton and
+  // BuyEditionButton), not here, so a collection that never sells never
+  // costs anyone gas. The address itself is pure CREATE2
   // arithmetic and needs no chain call, but it does need the collection's
   // real _id, so that's generated up front instead of left to Mongo.
-  // ERC-1155 has no such factory (DurchexCollectionFactory only clones
-  // DurchexCollection, the 721 contract) and keeps sharing DurchexNFT1155,
-  // same as before.
+  // Both standards now have their own factory, so this applies to ERC-1155
+  // collections too. A chain with no factory recorded falls back to the
+  // shared contract, exactly as every collection behaved before this.
   const _id = new Types.ObjectId();
-  const factoryAddress = standard === "ERC721" ? collectionFactoryAddressFor(DEFAULT_NFT_CHAIN_ID) : undefined;
-  const implementationAddress = factoryAddress ? collectionImplementationAddressFor(DEFAULT_NFT_CHAIN_ID) : undefined;
-  const clonedContractAddress =
-    factoryAddress && implementationAddress
-      ? predictCloneAddress({
-          implementation: implementationAddress,
-          salt: collectionSalt(_id.toString()),
-          factory: factoryAddress,
-        })
-      : null;
+  const targetChainId = standard === "ERC1155" ? DEFAULT_NFT1155_CHAIN_ID : DEFAULT_NFT_CHAIN_ID;
+  const deployTarget = factoryFor(standard, targetChainId);
+  const clonedContractAddress = deployTarget
+    ? predictCloneAddress({
+        implementation: deployTarget.implementation,
+        salt: collectionSalt(_id.toString()),
+        factory: deployTarget.factory,
+      })
+    : null;
 
   const collection = await Collection.create({
     _id,

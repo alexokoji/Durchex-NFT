@@ -9,6 +9,12 @@ import clsx from "clsx";
 import { Button } from "@/components/ui/Button";
 import { useTxSuccess } from "@/components/tx/TxSuccess";
 import { MARKETPLACE_ABI, marketplaceAddressFor } from "@/lib/web3/marketplaceAbi";
+import {
+  COLLECTION_FACTORY_ABI,
+  collectionSalt,
+  deriveCollectionSymbol,
+  factoryFor,
+} from "@/lib/web3/collectionFactory";
 import { settlePurchase } from "@/lib/web3/settlePurchase";
 import { PHASE_LABELS, PhaseKey } from "@/lib/mintPhases";
 import { ItemDetailView } from "@/lib/types";
@@ -43,7 +49,7 @@ export function BuyEditionButton({
   const [ownQuantity, setOwnQuantity] = useState("1");
   const quantity = forcedQuantity !== undefined ? String(forcedQuantity) : ownQuantity;
   const setQuantity = setOwnQuantity;
-  const [phase, setPhase] = useState<"idle" | "switching" | "confirm" | "mining" | "done">("idle");
+  const [phase, setPhase] = useState<"idle" | "switching" | "deploying" | "confirm" | "mining" | "done">("idle");
   const [error, setError] = useState<string | null>(null);
   const [gate, setGate] = useState<Gate | null>(null);
   // Same arrangement as BuyLazyButton: MintPanel supplies the phase when it
@@ -111,6 +117,32 @@ export function BuyEditionButton({
         const data = await res.json().catch(() => ({}));
         if (!res.ok) throw new Error(data.error ?? "This phase can't be minted right now");
         reserved = true;
+      }
+
+      // Collections created after the 1155 factory went live get their own
+      // contract rather than sharing DurchexNFT1155, so each shows up as
+      // its own collection on external marketplaces. The clone is only
+      // deployed once someone actually buys — if that's this purchase,
+      // deploy it first, then mint exactly as before.
+      const deployTarget = factoryFor("ERC1155", item.chainId);
+      if (deployTarget) {
+        const code = await publicClient?.getBytecode({ address: item.contractAddress as `0x${string}` });
+        if (!code || code === "0x") {
+          setPhase("deploying");
+          const deployHash = await writeContractAsync({
+            address: deployTarget.factory,
+            abi: COLLECTION_FACTORY_ABI,
+            functionName: "deployCollection",
+            args: [
+              collectionSalt(item.collectionId),
+              item.collectionName,
+              deriveCollectionSymbol(item.collectionName),
+              (item.creator?.address ?? voucher!.creator) as `0x${string}`,
+            ],
+            chainId: item.chainId,
+          });
+          await publicClient?.waitForTransactionReceipt({ hash: deployHash });
+        }
       }
 
       setPhase("confirm");
@@ -264,6 +296,11 @@ export function BuyEditionButton({
           disabled={phase !== "idle"}
         >
           {phase === "switching" && "Switch network in your wallet…"}
+          {/* Only the very first buyer of a collection sees this — it's the
+              one transaction that brings the collection's own contract into
+              existence, and it needs its own label so the extra wallet
+              prompt isn't unexplained. */}
+          {phase === "deploying" && "Creating collection contract…"}
           {phase === "confirm" && "Confirm in your wallet…"}
           {phase === "mining" && "Minting on-chain…"}
           {phase === "idle" && `Buy & Mint (${remaining} left)`}

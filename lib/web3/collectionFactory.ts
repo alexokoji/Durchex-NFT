@@ -40,6 +40,47 @@ export function collectionImplementationAddressFor(chainId: number | undefined):
   return (override as Address | undefined) ?? COLLECTION_IMPLEMENTATION_ADDRESSES[chainId];
 }
 
+// The ERC-1155 equivalents. A separate factory rather than an extension of
+// the 721 one: that factory is already live and holds its implementation in
+// an immutable, so teaching it a second implementation would mean
+// redeploying it and invalidating every address it has already predicted.
+// Everything else — salt scheme, CREATE2 prediction, deploy ABI — is
+// deliberately identical, so both standards share the code below.
+export const COLLECTION_1155_FACTORY_ADDRESSES: Record<number, Address> = {
+  1: "0x8Ca02Cda6E7AED9152c822a0A0Df1a91220768b2", // Ethereum mainnet
+};
+export const COLLECTION_1155_IMPLEMENTATION_ADDRESSES: Record<number, Address> = {
+  1: "0x9E1845f1da9D7F918539Bc72cC56d4Bb5EA3f38a", // Ethereum mainnet
+};
+
+export function collection1155FactoryAddressFor(chainId: number | undefined): Address | undefined {
+  if (chainId === undefined) return undefined;
+  const override = process.env[`NEXT_PUBLIC_COLLECTION_1155_FACTORY_${chainId}`];
+  return (override as Address | undefined) ?? COLLECTION_1155_FACTORY_ADDRESSES[chainId];
+}
+
+export function collection1155ImplementationAddressFor(chainId: number | undefined): Address | undefined {
+  if (chainId === undefined) return undefined;
+  const override = process.env[`NEXT_PUBLIC_COLLECTION_1155_IMPLEMENTATION_${chainId}`];
+  return (override as Address | undefined) ?? COLLECTION_1155_IMPLEMENTATION_ADDRESSES[chainId];
+}
+
+/** Factory + implementation for a collection's token standard, or undefined
+ *  when no factory is live on that chain — in which case the collection
+ *  keeps using the shared contract, exactly as before this existed. */
+export function factoryFor(
+  standard: "ERC721" | "ERC1155",
+  chainId: number | undefined
+): { factory: Address; implementation: Address } | undefined {
+  const factory =
+    standard === "ERC1155" ? collection1155FactoryAddressFor(chainId) : collectionFactoryAddressFor(chainId);
+  const implementation =
+    standard === "ERC1155"
+      ? collection1155ImplementationAddressFor(chainId)
+      : collectionImplementationAddressFor(chainId);
+  return factory && implementation ? { factory, implementation } : undefined;
+}
+
 export const COLLECTION_FACTORY_ABI = [
   {
     type: "function",
