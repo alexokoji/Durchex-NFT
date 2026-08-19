@@ -61,9 +61,12 @@ export interface CollectionDetailView extends CollectionView {
   mintedSupply: number;
   /** Units that exist to be minted at all, across every item. */
   totalUnits: number;
-  /** The whole collection is minted out — what opens its secondary market.
-   *  Derived, never set by anyone. */
+  /** The secondary market is live. Derived: true once the collection mints
+   *  out, or earlier if the creator opened it. */
   resaleOpen: boolean;
+  /** Every unit is on-chain, after which nobody can close resale again. */
+  mintedOut: boolean;
+  listingEnabled: boolean;
   /** Units still to mint before that happens. Zero once open. */
   mintRemaining: number;
   /** Percentage move in the floor over the last day; null with no baseline. */
@@ -160,6 +163,9 @@ export interface ItemDetailView extends ItemView {
   resaleOpen: boolean;
   /** Units of this item still to mint before that. */
   mintRemaining: number;
+  /** Whether the parent collection's secondary market is open at all —
+   *  an item can be finished while its collection is still minting. */
+  collectionResaleOpen: boolean;
   /** Distinct wallets holding at least one unit. */
   ownersCount: number;
   /** Lowest live per-unit ask across every listing of this item. */

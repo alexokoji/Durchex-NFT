@@ -49,6 +49,19 @@ export function ListEditionForm({ item }: { item: ItemDetailView }) {
   // Mirrors the server-side gate in PATCH /api/items/[id]: resale opens
   // per item, once every unit of it is on-chain. Showing the form before
   // then just invites the owner to fill it in and be refused.
+  if (!item.collectionResaleOpen) {
+    return (
+      <div className="surface-card p-5">
+        <div className="flex items-center gap-2 text-sm font-semibold text-white mb-1">
+          <Tag className="w-4 h-4 text-purple-300" /> Resale isn&rsquo;t available yet
+        </div>
+        <p className="text-xs text-white/45">
+          Listing opens once this collection has finished minting.
+        </p>
+      </div>
+    );
+  }
+
   if (!item.resaleOpen) {
     return (
       <div className="surface-card p-5">

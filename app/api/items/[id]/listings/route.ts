@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { connectDB } from "@/lib/db";
 import { Item } from "@/lib/models/Item";
 import { Collection } from "@/lib/models/Collection";
-import { isItemMintedOut, itemMintRemaining } from "@/lib/listing";
+import { isItemMintedOut, itemMintRemaining, listingGate } from "@/lib/listing";
+import { collectionMintProgress } from "@/lib/collectionSupply";
 import { ItemBalance } from "@/lib/models/ItemBalance";
 import { Listing } from "@/lib/models/Listing";
 import { getCurrentUser } from "@/lib/auth/currentUser";
@@ -71,9 +72,20 @@ export async function POST(req: NextRequest, context: { params: Promise<{ id: st
   }
 
   const collection = await Collection.findById(item.collection)
-    .select("contractAddress")
+    .select("contractAddress maxSupply listingEnabled")
     .lean();
   if (!collection) return NextResponse.json({ error: "Collection not found" }, { status: 404 });
+  const collectionGate = listingGate({
+    maxSupply: collection.maxSupply,
+    ...(await collectionMintProgress(collection._id)),
+    listingEnabled: collection.listingEnabled,
+  });
+  if (!collectionGate.open) {
+    return NextResponse.json(
+      { error: `Resale isn't available for this collection yet — ${collectionGate.remaining} still to mint.` },
+      { status: 403 }
+    );
+  }
 
   // Same rule as ERC-721 resale (see PATCH /api/items/[id]), and the reason
   // it matters most here: an edition's isMinted flips on the first unit

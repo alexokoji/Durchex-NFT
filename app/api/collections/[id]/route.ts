@@ -14,7 +14,7 @@ export async function GET(req: NextRequest, context: { params: Promise<{ id: str
   const { id } = await context.params;
   await connectDB();
   const collection = await Collection.findById(id)
-    .select("creator mintPhases maxSupply")
+    .select("creator mintPhases maxSupply listingEnabled")
     .lean();
   if (!collection) return NextResponse.json({ error: "Collection not found" }, { status: 404 });
   if (String(collection.creator) !== String(user._id)) {
@@ -29,6 +29,7 @@ export async function GET(req: NextRequest, context: { params: Promise<{ id: str
     mintedSupply: mintedUnits,
     totalUnits,
     maxSupply: collection.maxSupply,
+    listingEnabled: !!collection.listingEnabled,
   });
 }
 
@@ -52,6 +53,33 @@ export async function PATCH(req: NextRequest, context: { params: Promise<{ id: s
   }
 
   const body = await req.json();
+
+  if (body.listing) {
+    // Opening resale early is the creator's call while their own mint is
+    // running. Once it mints out the switch stops being theirs — resale is
+    // permanently open and they keep the royalty, nothing more. Enforced
+    // here rather than trusted from the client, since it is the whole
+    // guarantee holders are relying on.
+    const { mintedUnits, totalUnits } = await collectionMintProgress(collection._id);
+    if (isMintedOut({ maxSupply: collection.maxSupply, mintedUnits, totalUnits })) {
+      return NextResponse.json(
+        {
+          error: "This collection is fully minted, so resale is permanently open and can no longer be changed.",
+          mintedOut: true,
+          listingEnabled: true,
+        },
+        { status: 409 }
+      );
+    }
+    if (typeof body.listing.enabled === "boolean") {
+      collection.listingEnabled = body.listing.enabled;
+      await collection.save();
+    }
+    return NextResponse.json({
+      listingEnabled: !!collection.listingEnabled,
+      mintedOut: false,
+    });
+  }
 
   // Mint configuration is frozen once the collection is minted out. Prices,
   // allocations and windows are the terms buyers minted under; rewriting

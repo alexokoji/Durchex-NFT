@@ -65,6 +65,11 @@ const CollectionSchema = new Schema(
     verified: { type: Boolean, default: false },
     featured: { type: Boolean, default: false },
     hidden: { type: Boolean, default: false },
+    // The creator's early-open switch for resale. Default closed: opening
+    // resale while your own mint is running is a deliberate choice, not a
+    // state to fall into. Once the collection mints out this field stops
+    // being read at all — see lib/listing.ts.
+    listingEnabled: { type: Boolean, default: false },
     // Creator-controlled: when false, no item in this collection can be
     // listed for sale (minting/lazy-listing on /create is unaffected).
     // Set on a handful of collections to feature them on /drops. Null on

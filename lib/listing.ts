@@ -1,26 +1,35 @@
 /**
  * When resale listing opens for a collection.
  *
- * The rule is a single fact about the collection, not a setting: resale
- * opens the moment every unit that will ever exist is actually on-chain,
- * and it opens by itself. Nobody — creator or admin — decides it.
+ * Resale opens in one of two ways, and the second one is a ratchet:
  *
- * Two reasons it works this way. Running resale alongside the primary mint
- * means the collection competes with itself: buyers see two prices for the
- * same thing and the creator's own sale is undercut before it finishes. And
- * leaving the switch in the creator's hands lets them hold their own
- * holders' exits shut after taking their money.
+ *  1. The creator opens it early, while the primary mint is still running.
+ *     Some launches want a live secondary market from day one; that is
+ *     their call to make, since it is their sale being competed with.
+ *  2. The collection mints out. At that moment resale opens permanently
+ *     and the creator's switch stops mattering — they keep their royalty
+ *     on every future sale and nothing else. A creator who could close
+ *     resale after taking everyone's money would be holding their own
+ *     holders' exits shut, so that power ends the moment the mint does.
+ *
+ * The ratchet is why `open` is computed rather than stored: no sequence of
+ * writes can take a minted-out collection back to closed.
  *
  * Everything here is measured in UNITS, never in item rows — see
  * lib/collectionSupply.ts for why that distinction is load-bearing.
  */
-export type ListingGateInput = {
+export type SupplyInput = {
   /** Declared cap in units. Zero means uncapped. */
   maxSupply: number;
   /** Units actually minted on-chain. */
   mintedUnits: number;
   /** Units that exist to be minted at all. */
   totalUnits: number;
+};
+
+export type ListingGateInput = SupplyInput & {
+  /** The creator's early-open switch. Irrelevant once minted out. */
+  listingEnabled?: boolean;
 };
 
 /**
@@ -32,27 +41,36 @@ export type ListingGateInput = {
  * least one has been minted (an empty collection isn't sold out, it's
  * just empty).
  */
-export function isMintedOut({ maxSupply, mintedUnits, totalUnits }: ListingGateInput): boolean {
+export function isMintedOut({ maxSupply, mintedUnits, totalUnits }: SupplyInput): boolean {
   if (maxSupply > 0) return mintedUnits >= maxSupply;
   return mintedUnits > 0 && mintedUnits >= totalUnits;
 }
 
 /** How many units are still to mint before resale opens. */
-export function mintRemaining({ maxSupply, mintedUnits, totalUnits }: ListingGateInput): number {
+export function mintRemaining({ maxSupply, mintedUnits, totalUnits }: SupplyInput): number {
   const target = maxSupply > 0 ? maxSupply : totalUnits;
   return Math.max(0, target - mintedUnits);
 }
 
 export type ListingGate = {
-  /** Resale is open — true exactly when the collection is minted out. */
+  /** Resale is open, by either route. */
   open: boolean;
-  /** Units still to mint before it opens. Zero once open. */
+  /** Every unit is on-chain — the point the creator's switch stops counting. */
+  mintedOut: boolean;
+  /** Whether the creator's switch still has any effect. */
+  creatorControls: boolean;
+  /** Units still to mint. Zero once minted out. */
   remaining: number;
 };
 
 export function listingGate(input: ListingGateInput): ListingGate {
-  const open = isMintedOut(input);
-  return { open, remaining: open ? 0 : mintRemaining(input) };
+  const mintedOut = isMintedOut(input);
+  return {
+    open: mintedOut || !!input.listingEnabled,
+    mintedOut,
+    creatorControls: !mintedOut,
+    remaining: mintedOut ? 0 : mintRemaining(input),
+  };
 }
 
 /**

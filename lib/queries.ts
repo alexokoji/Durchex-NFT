@@ -6,6 +6,7 @@ import { ItemBalance } from "@/lib/models/ItemBalance";
 import { Listing } from "@/lib/models/Listing";
 import { collectionMintProgress } from "@/lib/collectionSupply";
 import { fillableItemAsk, fillableListingAsk } from "@/lib/floorValidity";
+import { listingGate } from "@/lib/listing";
 import { getOnChainOwnerCount } from "@/lib/web3/collectionChainStats";
 import { readMintedSupply } from "@/lib/web3/onChainSupply";
 import { User } from "@/lib/models/User";
@@ -316,6 +317,14 @@ export async function getItemById(id: string): Promise<ItemDetailView | null> {
     if (onChain !== null) doc.mintedSupply = onChain;
   }
 
+  // An item can be finished while its collection is still minting, so the
+  // resale gate needs the collection's state as well as the item's.
+  const collectionGate = listingGate({
+    maxSupply: (doc.collection as { maxSupply?: number })?.maxSupply ?? 0,
+    ...(await collectionMintProgress((doc.collection as { _id: Types.ObjectId })._id)),
+    listingEnabled: (doc.collection as { listingEnabled?: boolean })?.listingEnabled,
+  });
+
   // Header stats. Owners is this token's own distinct holders, not the
   // collection's — an edition's holders are its own. The floor uses the
   // same fillability rule as the collection floor, so "item floor" and
@@ -338,6 +347,7 @@ export async function getItemById(id: string): Promise<ItemDetailView | null> {
 
   return toItemDetailView({
     ...doc,
+    collection: { ...doc.collection, resaleOpen: collectionGate.open },
     ownersCount: doc.standard === "ERC1155" ? ownerIds.length : doc.owner ? 1 : 0,
     itemFloorEth: liveAsks.length > 0 ? Math.min(...liveAsks) : null,
     bestOfferEth: topBid?.amountEth ?? null,
@@ -410,7 +420,7 @@ export async function getCollectionBySlug(slug: string): Promise<CollectionDetai
     .select("pricePerItemEth")
     .lean();
 
-  return toCollectionDetailView({ ...doc, topOfferEth: topOffer?.pricePerItemEth ?? null, mintedSupply: mintedUnits, totalUnits } as never);
+  return toCollectionDetailView({ ...doc, topOfferEth: topOffer?.pricePerItemEth ?? null, mintedSupply: mintedUnits, totalUnits, listingEnabled: doc.listingEnabled } as never);
 }
 
 export async function getCollectionTraitFacets(collectionId: string) {

@@ -9,7 +9,7 @@ import {
   UserRef,
 } from "@/lib/types";
 import { VerificationTier } from "@/lib/verification";
-import { isItemMintedOut, isMintedOut, itemMintRemaining, mintRemaining } from "@/lib/listing";
+import { isItemMintedOut, isMintedOut, itemMintRemaining, listingGate, mintRemaining } from "@/lib/listing";
 
 // Loose input types: only the fields we read, works for both lean() Mongoose
 // docs and plain seed objects.
@@ -71,6 +71,7 @@ interface CollectionDetailLike extends CollectionLike {
   mintedSupply?: number;
   /** Units minted across the collection, from the query layer. */
   totalUnits?: number;
+  listingEnabled?: boolean;
   stats: CollectionLike["stats"] & {
     volume7dEth: number;
     totalVolumeEth: number;
@@ -109,6 +110,9 @@ interface ItemDetailLike extends ItemLike {
     chainId: number;
     royaltyBps?: number;
     maxSupply?: number;
+    /** Whether the parent collection's secondary market is open at all,
+     *  resolved by the query layer. */
+    resaleOpen?: boolean;
     contractType?: "lazy" | "drop";
     mintPhases?: {
       whitelist?: PhaseLike;
@@ -248,7 +252,9 @@ export function toCollectionDetailView(c: CollectionDetailLike): CollectionDetai
     maxSupply: c.maxSupply ?? 0,
     mintedSupply: c.mintedSupply ?? 0,
     totalUnits: c.totalUnits ?? 0,
-    resaleOpen: isMintedOut(supplyOf(c)),
+    resaleOpen: listingGate({ ...supplyOf(c), listingEnabled: c.listingEnabled }).open,
+    mintedOut: isMintedOut(supplyOf(c)),
+    listingEnabled: !!c.listingEnabled,
     mintRemaining: mintRemaining(supplyOf(c)),
     // Only a real baseline gives a meaningful percentage: a collection whose
     // floor was 0 yesterday (nothing listed) has no move to express.
@@ -296,6 +302,7 @@ export function toItemDetailView(item: ItemDetailLike): ItemDetailView {
     contractAddress: item.collection.contractAddress,
     // Default open: collections predating this field have it undefined,
     // and those have always permitted resale listing.
+    collectionResaleOpen: !!item.collection.resaleOpen,
     ownersCount: item.ownersCount ?? 0,
     itemFloorEth: item.itemFloorEth ?? null,
     bestOfferEth: item.bestOfferEth ?? null,

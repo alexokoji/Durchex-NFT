@@ -5,7 +5,8 @@ import { Collection } from "@/lib/models/Collection";
 import { getCurrentUser } from "@/lib/auth/currentUser";
 import { recordActivity } from "@/lib/activity";
 import { recalculateCollectionFloor } from "@/lib/floorPrice";
-import { isItemMintedOut, itemMintRemaining } from "@/lib/listing";
+import { isItemMintedOut, itemMintRemaining, listingGate } from "@/lib/listing";
+import { collectionMintProgress } from "@/lib/collectionSupply";
 
 // Lists, relists, or cancels a listing. Lazy (unminted) items get their
 // initial listing price set at creation via the voucher, but their creator
@@ -38,9 +39,22 @@ export async function PATCH(req: NextRequest, context: { params: Promise<{ id: s
       return NextResponse.json({ error: "Unminted items list automatically when created" }, { status: 400 });
     }
     const collection = await Collection.findById(item.collection)
-      .select("contractAddress")
+      .select("contractAddress maxSupply listingEnabled")
       .lean();
     if (!collection) return NextResponse.json({ error: "Collection not found" }, { status: 404 });
+    // Two conditions, and both are real: this token has to be finished,
+    // and the collection's secondary market has to be open at all.
+    const gate = listingGate({
+      maxSupply: collection.maxSupply,
+      ...(await collectionMintProgress(collection._id)),
+      listingEnabled: collection.listingEnabled,
+    });
+    if (!gate.open) {
+      return NextResponse.json(
+        { error: `Resale isn't available for this collection yet — ${gate.remaining} still to mint.` },
+        { status: 403 }
+      );
+    }
     // Resale opens per item, once every unit of it is on-chain. An ERC-721
     // is one unit, so being minted is enough; an edition of 50 needs all
     // 50, since isMinted flips on the very first purchase.

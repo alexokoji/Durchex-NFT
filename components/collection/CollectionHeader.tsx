@@ -3,6 +3,7 @@ import { CollectionMeta } from "@/components/collection/CollectionMeta";
 import { CollectionDetailView } from "@/lib/types";
 import { DropMintPanel } from "@/components/drop/DropMintPanel";
 import { PhaseManager } from "@/components/collection/PhaseManager";
+import { ListingControl } from "@/components/collection/ListingControl";
 import { ContractAttach } from "@/components/collection/ContractAttach";
 import { BuyFloorButton } from "@/components/collection/BuyFloorButton";
 import { MakeCollectionOfferButton } from "@/components/collection/MakeCollectionOfferButton";
@@ -11,9 +12,9 @@ import { ResaleStatus } from "@/components/collection/ResaleStatus";
 import { DeleteCollection } from "@/components/collection/DeleteCollection";
 
 export function CollectionHeader({ collection }: { collection: CollectionDetailView }) {
-  // The secondary market opens by itself once every NFT in the collection
-  // is minted — nobody toggles it. Until then the primary path is the mint
-  // panel below, and these buttons would only act on a market that has not
+  // The secondary market is live once the collection mints out, or earlier
+  // if its creator opened it. Until then the primary path is the mint panel
+  // below, and these buttons would only act on a market that hasn't
   // started.
 
   return (
@@ -57,6 +58,7 @@ export function CollectionHeader({ collection }: { collection: CollectionDetailV
           chainId={collection.chainId}
         />
         <PhaseManager collectionId={collection.id} creatorAddress={collection.creatorAddress} />
+        <ListingControl collectionId={collection.id} creatorAddress={collection.creatorAddress} />
         <CollectionOffersList collection={collection} />
         <DeleteCollection
           collectionId={collection.id}
