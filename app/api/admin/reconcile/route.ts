@@ -47,7 +47,18 @@ export async function POST(req: NextRequest) {
     fromBlock = (await getWatermark(chainId)) ?? BigInt(0);
   }
 
-  const result = await reconcileRange({ chainId, fromBlock });
+  // A throw here (RPC refusing a range, a provider rate limit, a network
+  // blip) would otherwise surface as an empty 500 with the reason only in
+  // the platform logs — useless to whoever is running the backfill.
+  let result;
+  try {
+    result = await reconcileRange({ chainId, fromBlock });
+  } catch (err) {
+    return NextResponse.json(
+      { error: err instanceof Error ? err.message : "Scan failed", fromBlock: String(fromBlock) },
+      { status: 502 }
+    );
+  }
   if ("error" in result) return NextResponse.json(result, { status: 400 });
 
   // A backfill can legitimately run behind the nightly watermark, and

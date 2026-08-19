@@ -45,7 +45,15 @@ export async function GET(req: NextRequest) {
     fromBlock = head > FIRST_RUN_LOOKBACK ? head - FIRST_RUN_LOOKBACK : BigInt(0);
   }
 
-  const result = await reconcileRange({ chainId, fromBlock });
+  let result;
+  try {
+    result = await reconcileRange({ chainId, fromBlock });
+  } catch (err) {
+    return NextResponse.json(
+      { error: err instanceof Error ? err.message : "Scan failed", fromBlock: String(fromBlock) },
+      { status: 502 }
+    );
+  }
   if ("error" in result) return NextResponse.json(result, { status: 400 });
 
   // Advanced even on a partial scan, so the next run picks up exactly
