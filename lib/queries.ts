@@ -5,6 +5,7 @@ import { Item } from "@/lib/models/Item";
 import { ItemBalance } from "@/lib/models/ItemBalance";
 import { Listing } from "@/lib/models/Listing";
 import { collectionMintProgress } from "@/lib/collectionSupply";
+import { fillableItemAsk, fillableListingAsk } from "@/lib/floorValidity";
 import { getOnChainOwnerCount } from "@/lib/web3/collectionChainStats";
 import { readMintedSupply } from "@/lib/web3/onChainSupply";
 import { User } from "@/lib/models/User";
@@ -315,7 +316,32 @@ export async function getItemById(id: string): Promise<ItemDetailView | null> {
     if (onChain !== null) doc.mintedSupply = onChain;
   }
 
-  return toItemDetailView(doc as never);
+  // Header stats. Owners is this token's own distinct holders, not the
+  // collection's — an edition's holders are its own. The floor uses the
+  // same fillability rule as the collection floor, so "item floor" and
+  // "floor" can never disagree about what counts as buyable.
+  const [ownerIds, itemListings, topBid] = await Promise.all([
+    ItemBalance.distinct("owner", { item: doc._id, quantity: { $gt: 0 } }),
+    Listing.find({ item: doc._id, status: "active" })
+      .select("pricePerUnitEth quantity filledQuantity signature deadline status")
+      .lean(),
+    Bid.findOne({ item: doc._id, type: "offer", status: "active" })
+      .sort({ amountEth: -1 })
+      .select("amountEth")
+      .lean(),
+  ]);
+  const liveAsks = itemListings
+    .map((l) => fillableListingAsk(l as never))
+    .filter((p): p is number => typeof p === "number");
+  const ownAsk = fillableItemAsk(doc as never);
+  if (ownAsk !== null) liveAsks.push(ownAsk);
+
+  return toItemDetailView({
+    ...doc,
+    ownersCount: doc.standard === "ERC1155" ? ownerIds.length : doc.owner ? 1 : 0,
+    itemFloorEth: liveAsks.length > 0 ? Math.min(...liveAsks) : null,
+    bestOfferEth: topBid?.amountEth ?? null,
+  } as never);
 }
 
 export async function getRelatedItems(

@@ -2,6 +2,7 @@ import { Types } from "mongoose";
 import { Collection } from "@/lib/models/Collection";
 import { Item } from "@/lib/models/Item";
 import { Listing } from "@/lib/models/Listing";
+import { fillableItemAsk, fillableListingAsk } from "@/lib/floorValidity";
 
 /**
  * Floor price is derived data, never a creator-set value: the lowest
@@ -22,31 +23,24 @@ import { Listing } from "@/lib/models/Listing";
 export async function recalculateCollectionFloor(collectionId: Types.ObjectId | string) {
   const id = typeof collectionId === "string" ? new Types.ObjectId(collectionId) : collectionId;
 
-  const [[lowestItem], [lowestListing]] = await Promise.all([
-    Item.aggregate([
-      { $match: { collection: id, status: { $in: ["fixed_price", "auction"] }, priceEth: { $gt: 0 } } },
-      { $sort: { priceEth: 1 } },
-      { $limit: 1 },
-      { $project: { _id: 0, priceEth: 1 } },
-    ]),
-    Listing.aggregate([
-      {
-        $match: {
-          collection: id,
-          status: "active",
-          pricePerUnitEth: { $gt: 0 },
-          $expr: { $lt: ["$filledQuantity", "$quantity"] },
-        },
-      },
-      { $sort: { pricePerUnitEth: 1 } },
-      { $limit: 1 },
-      { $project: { _id: 0, pricePerUnitEth: 1 } },
-    ]),
+  // Validity can't be expressed as a query — an expired deadline, a
+  // missing signature and a sold-out edition are all "price > 0" in the
+  // database — so candidates are filtered in code against the single
+  // shared rule in lib/floorValidity.ts.
+  const [items, listings] = await Promise.all([
+    Item.find({ collection: id, status: "fixed_price", priceEth: { $gt: 0 } })
+      .select("standard status isMinted priceEth totalSupply mintedSupply voucher editionVoucher listing")
+      .lean(),
+    Listing.find({ collection: id, status: "active", pricePerUnitEth: { $gt: 0 } })
+      .select("pricePerUnitEth quantity filledQuantity signature deadline status")
+      .lean(),
   ]);
 
-  const candidates = [lowestItem?.priceEth, lowestListing?.pricePerUnitEth].filter(
-    (v): v is number => typeof v === "number"
-  );
+  const candidates = [
+    ...items.map((i) => fillableItemAsk(i as never)),
+    ...listings.map((l) => fillableListingAsk(l as never)),
+  ].filter((v): v is number => typeof v === "number");
+
   const floor = candidates.length > 0 ? Math.min(...candidates) : 0;
 
   // Roll the daily snapshot forward whenever the stored one has aged past

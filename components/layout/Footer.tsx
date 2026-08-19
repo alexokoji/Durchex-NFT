@@ -1,6 +1,11 @@
 import Link from "next/link";
 import { LogoMark } from "@/components/layout/Logo";
 
+const SOCIALS = [
+  { label: "Durchex on X", href: "https://x.com/DurchExc", Icon: XIcon },
+  { label: "Durchex on Discord", href: "https://discord.gg/VbRVnUS5wn", Icon: DiscordIcon },
+];
+
 function XIcon({ className }: { className?: string }) {
   return (
     <svg viewBox="0 0 24 24" fill="currentColor" className={className} xmlns="http://www.w3.org/2000/svg">
@@ -57,13 +62,17 @@ export function Footer() {
             instantly with zero upfront gas.
           </p>
           <div className="flex items-center gap-3 mt-5">
-            {[XIcon, DiscordIcon].map((Icon, i) => (
-              <span
-                key={i}
-                className="w-9 h-9 rounded-lg bg-white/5 border border-white/10 grid place-items-center text-white/50 hover:text-purple-300 hover:border-purple-500/40 transition cursor-pointer"
+            {SOCIALS.map(({ label, href, Icon }) => (
+              <a
+                key={label}
+                href={href}
+                target="_blank"
+                rel="noreferrer noopener"
+                aria-label={label}
+                className="w-9 h-9 rounded-lg bg-white/5 border border-white/10 grid place-items-center text-white/50 hover:text-purple-300 hover:border-purple-500/40 transition"
               >
                 <Icon className="w-4 h-4" />
-              </span>
+              </a>
             ))}
           </div>
         </div>
