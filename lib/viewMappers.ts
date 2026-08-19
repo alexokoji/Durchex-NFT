@@ -138,6 +138,9 @@ interface ItemDetailLike extends ItemLike {
   } | null;
   totalSupply?: number;
   mintedSupply?: number;
+  ownersCount?: number;
+  itemFloorEth?: number | null;
+  bestOfferEth?: number | null;
   editionVoucher?: {
     tokenId?: string | null;
     uri?: string | null;
@@ -293,6 +296,9 @@ export function toItemDetailView(item: ItemDetailLike): ItemDetailView {
     contractAddress: item.collection.contractAddress,
     // Default open: collections predating this field have it undefined,
     // and those have always permitted resale listing.
+    ownersCount: item.ownersCount ?? 0,
+    itemFloorEth: item.itemFloorEth ?? null,
+    bestOfferEth: item.bestOfferEth ?? null,
     resaleOpen: isItemMintedOut({
       standard: item.standard ?? "ERC721",
       isMinted: item.isMinted,

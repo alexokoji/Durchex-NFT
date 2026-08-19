@@ -160,6 +160,12 @@ export interface ItemDetailView extends ItemView {
   resaleOpen: boolean;
   /** Units of this item still to mint before that. */
   mintRemaining: number;
+  /** Distinct wallets holding at least one unit. */
+  ownersCount: number;
+  /** Lowest live per-unit ask across every listing of this item. */
+  itemFloorEth: number | null;
+  /** Highest live offer on this item. */
+  bestOfferEth: number | null;
   // ERC-1155 only.
   standard: "ERC721" | "ERC1155";
   totalSupply: number;

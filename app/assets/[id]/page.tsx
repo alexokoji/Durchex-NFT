@@ -5,6 +5,8 @@ import { getItemById, getRelatedItems, getItemOffers, getActivity } from "@/lib/
 import { MediaPanel } from "@/components/item/MediaPanel";
 import { PricePanel } from "@/components/item/PricePanel";
 import { ItemTabs } from "@/components/item/ItemTabs";
+import { ItemStatStrip } from "@/components/item/ItemStatStrip";
+import { VerifiedBadge } from "@/components/ui/VerifiedBadge";
 import { UserChip } from "@/components/item/UserChip";
 import { NFTCard } from "@/components/nft/NFTCard";
 import { ReportButton } from "@/components/moderation/ReportButton";
@@ -48,32 +50,54 @@ export default async function ItemDetailPage({ params }: PageProps) {
         </div>
 
         <div>
-          <div className="flex items-center gap-1.5 mb-2">
+          <h1 className="font-display text-3xl font-semibold text-white mb-2">{item.name}</h1>
+
+          <div className="flex items-center gap-2 mb-3">
             <Link
               href={`/collection/${item.collectionSlug}`}
-              className="text-sm font-medium text-purple-300 hover:text-purple-200 transition"
+              className="text-sm text-purple-300 hover:text-purple-200 transition truncate"
             >
               {item.collectionName}
             </Link>
-            {item.collectionVerified && <BadgeCheck className="w-4 h-4 text-purple-400" />}
-          </div>
-          <h1 className="font-display text-3xl font-semibold text-white mb-4">{item.name}</h1>
-
-          <div className="flex items-center gap-2 text-xs text-white/40 mb-6">
-            <Eye className="w-3.5 h-3.5" />
-            {item.viewCount.toLocaleString()} views
+            {item.creatorTier !== "none" ? (
+              <VerifiedBadge tier={item.creatorTier} className="w-4 h-4" />
+            ) : (
+              item.collectionVerified && <BadgeCheck className="w-4 h-4 text-purple-400" />
+            )}
           </div>
 
-          {item.description && (
-            <p className="text-sm text-white/55 leading-relaxed mb-6">{item.description}</p>
-          )}
+          {/* The identity line: what it is, where it lives, how many hold
+              it. Everything here is verifiable on a block explorer, which
+              is why the contract is shown rather than hidden. */}
+          <div className="flex flex-wrap items-center gap-1.5 mb-5">
+            <Chip>{item.standard}</Chip>
+            <Chip>{item.chainId === 1 ? "Ethereum" : `Chain ${item.chainId}`}</Chip>
+            {item.ownersCount > 0 && (
+              <Chip>
+                {item.ownersCount.toLocaleString()} {item.ownersCount === 1 ? "owner" : "owners"}
+              </Chip>
+            )}
+            <span className="flex items-center gap-1 text-xs text-white/30">
+              <Eye className="w-3.5 h-3.5" />
+              {item.viewCount.toLocaleString()}
+            </span>
+          </div>
 
-          <div className="flex items-center gap-8 mb-6">
+          <div className="mb-5">
+            <ItemStatStrip item={item} />
+          </div>
+
+          <PricePanel item={item} />
+
+          <div className="flex items-center gap-8 mt-6">
             <UserChip label="Creator" user={item.creator} />
             <UserChip label="Owner" user={item.owner} />
           </div>
 
-          <PricePanel item={item} />
+          {item.description && (
+            <p className="text-sm text-white/55 leading-relaxed mt-6">{item.description}</p>
+          )}
+
           <ReportButton targetId={item.id} />
         </div>
       </div>
@@ -97,5 +121,13 @@ export default async function ItemDetailPage({ params }: PageProps) {
         </div>
       )}
     </div>
+  );
+}
+
+function Chip({ children }: { children: React.ReactNode }) {
+  return (
+    <span className="rounded-md border border-white/10 bg-white/5 px-2 py-1 text-[10px] uppercase tracking-wide text-white/55">
+      {children}
+    </span>
   );
 }

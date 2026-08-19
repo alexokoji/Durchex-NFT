@@ -2,15 +2,15 @@
 
 import { useState } from "react";
 import clsx from "clsx";
-import { Sparkles, Link2, Hash, Network, Check, Gavel, Tag, Radio } from "lucide-react";
+import { Sparkles, Link2, Hash, Network, Check, Gavel, Tag } from "lucide-react";
 import { TraitPill } from "@/components/nft/TraitPill";
 import { GeneratedArt } from "@/components/nft/GeneratedArt";
-import { ActivityRow } from "@/components/activity/ActivityRow";
+import { OnChainActivity } from "@/components/item/OnChainActivity";
 import { useSession } from "@/hooks/useSession";
 import { AcceptOfferButton } from "@/components/item/AcceptOfferButton";
 import { ActivityView, BidView, ItemDetailView } from "@/lib/types";
 
-const TABS = ["Properties", "Offers", "Activity", "Details"] as const;
+const TABS = ["Details", "Properties", "Orders", "Activity"] as const;
 type Tab = (typeof TABS)[number];
 
 export function ItemTabs({
@@ -22,7 +22,7 @@ export function ItemTabs({
   offers: BidView[];
   activity: ActivityView[];
 }) {
-  const [tab, setTab] = useState<Tab>("Properties");
+  const [tab, setTab] = useState<Tab>("Details");
   const { user } = useSession();
   const isOwner = !!user && user.address === item.owner?.address;
 
@@ -41,7 +41,7 @@ export function ItemTabs({
             )}
           >
             {t}
-            {t === "Offers" && offers.length > 0 && (
+            {t === "Orders" && offers.length > 0 && (
               <span className="ml-1.5 text-xs text-white/30">{offers.length}</span>
             )}
           </button>
@@ -59,7 +59,7 @@ export function ItemTabs({
           <EmptyState icon={Sparkles} text="No properties set for this item." />
         ))}
 
-      {tab === "Offers" &&
+      {tab === "Orders" &&
         (offers.length > 0 ? (
           <div className="space-y-2.5">
             {offers.map((o) => (
@@ -70,16 +70,11 @@ export function ItemTabs({
           <EmptyState icon={Tag} text="No active offers yet — be the first to make one." />
         ))}
 
-      {tab === "Activity" &&
-        (activity.length > 0 ? (
-          <div className="space-y-1">
-            {activity.map((a) => (
-              <ActivityRow key={a.id} activity={a} />
-            ))}
-          </div>
-        ) : (
-          <EmptyState icon={Radio} text="No activity recorded for this item yet." />
-        ))}
+      {/* Chain-backed: our own records only cover Durchex trades, so a
+          token minted or moved elsewhere would otherwise look inert. */}
+      {tab === "Activity" && (
+        <OnChainActivity itemId={item.id} activity={activity} chainId={item.chainId} />
+      )}
 
       {tab === "Details" && (
         <div className="space-y-3">

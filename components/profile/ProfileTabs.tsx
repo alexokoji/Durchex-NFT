@@ -6,10 +6,11 @@ import { Package } from "lucide-react";
 import { NFTCard } from "@/components/nft/NFTCard";
 import { ActivityFeed } from "@/components/activity/ActivityFeed";
 import { ItemView, ActivityView } from "@/lib/types";
+import { WalletNfts } from "@/components/profile/WalletNfts";
 
-const TABS = ["Owned", "Created", "Favorited", "Activity"] as const;
+const TABS = ["Owned", "In wallet", "Created", "Favorited", "Activity"] as const;
 type Tab = (typeof TABS)[number];
-type GridTab = Exclude<Tab, "Activity">;
+type GridTab = Exclude<Tab, "Activity" | "In wallet">;
 
 export function ProfileTabs({
   owned,
@@ -19,6 +20,8 @@ export function ProfileTabs({
   activityPageCount,
   activityCount,
   userId,
+  address,
+  isOwnProfile,
 }: {
   owned: ItemView[];
   created: ItemView[];
@@ -27,10 +30,12 @@ export function ProfileTabs({
   activityPageCount: number;
   activityCount: number;
   userId: string;
+  address: string;
+  isOwnProfile: boolean;
 }) {
   const [tab, setTab] = useState<Tab>("Owned");
   const data: Record<GridTab, ItemView[]> = { Owned: owned, Created: created, Favorited: favorited };
-  const items = tab === "Activity" ? [] : data[tab];
+  const items = tab === "Activity" || tab === "In wallet" ? [] : data[tab as GridTab];
 
   return (
     <div className="px-4 sm:px-8 mt-10">
@@ -45,14 +50,21 @@ export function ProfileTabs({
             )}
           >
             {t}
-            <span className="ml-1.5 text-xs text-white/30">
-              {t === "Activity" ? activityCount : data[t as GridTab].length}
-            </span>
+            {/* "In wallet" is fetched from the chain after render, so it
+                has no count to show until it arrives — better blank than
+                a zero that looks like an answer. */}
+            {t !== "In wallet" && (
+              <span className="ml-1.5 text-xs text-white/30">
+                {t === "Activity" ? activityCount : data[t as GridTab].length}
+              </span>
+            )}
           </button>
         ))}
       </div>
 
-      {tab === "Activity" ? (
+      {tab === "In wallet" ? (
+        <WalletNfts address={address} isOwnProfile={isOwnProfile} />
+      ) : tab === "Activity" ? (
         <ActivityFeed
           initialActivity={activity}
           initialPageCount={activityPageCount}

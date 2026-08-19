@@ -3,6 +3,7 @@ import { connectDB } from "@/lib/db";
 import { Collection } from "@/lib/models/Collection";
 import { Item } from "@/lib/models/Item";
 import { ItemBalance } from "@/lib/models/ItemBalance";
+import { Listing } from "@/lib/models/Listing";
 import { collectionMintProgress } from "@/lib/collectionSupply";
 import { readMintedSupply } from "@/lib/web3/onChainSupply";
 import { User } from "@/lib/models/User";
