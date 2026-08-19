@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { Search, Loader2 } from "lucide-react";
+import { VerifiedBadge } from "@/components/ui/VerifiedBadge";
 
 type Row = {
   _id: string;
@@ -11,9 +12,11 @@ type Row = {
   banned: boolean;
   banReason?: string;
   isVerified: boolean;
+  verificationTier?: "none" | "white" | "purple";
 };
 
 const ROLES: Row["role"][] = ["user", "moderator", "admin"];
+const TIERS = ["none", "white", "purple"] as const;
 
 export function UsersPanel() {
   const [rows, setRows] = useState<Row[]>([]);
@@ -83,6 +86,7 @@ export function UsersPanel() {
             <tr className="text-left text-white/40 text-xs border-b border-white/5">
               <th className="px-4 py-3 font-medium">User</th>
               <th className="px-4 py-3 font-medium">Role</th>
+              <th className="px-4 py-3 font-medium">Badge</th>
               <th className="px-4 py-3 font-medium">Status</th>
               <th className="px-4 py-3 font-medium">Action</th>
             </tr>
@@ -118,6 +122,26 @@ export function UsersPanel() {
                         </option>
                       ))}
                     </select>
+                  </td>
+                  <td className="px-4 py-3">
+                    {/* An admin can grant any badge regardless of the earned
+                        criteria — the thresholds make it self-serve, they
+                        don't bind a human who has decided otherwise. */}
+                    <div className="flex items-center gap-1.5">
+                      <VerifiedBadge tier={row.verificationTier ?? "none"} className="w-3.5 h-3.5" />
+                      <select
+                        value={row.verificationTier ?? "none"}
+                        disabled={busy === row._id}
+                        onChange={(e) => patch(row, { verificationTier: e.target.value })}
+                        className="bg-white/5 border border-white/10 rounded px-2 py-1 text-white text-xs focus:outline-none focus:border-purple-500/60"
+                      >
+                        {TIERS.map((t) => (
+                          <option key={t} value={t} className="bg-surface-1">
+                            {t}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
                   </td>
                   <td className="px-4 py-3">
                     {row.banned ? (

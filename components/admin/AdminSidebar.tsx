@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { LayoutDashboard, Images, Users, ShieldAlert, Settings, LogOut, ListChecks } from "lucide-react";
+import { LayoutDashboard, Images, Users, ShieldAlert, Settings, LogOut, ListChecks, BadgeCheck } from "lucide-react";
 import clsx from "clsx";
 import { LogoMark } from "@/components/layout/Logo";
 
@@ -10,6 +10,7 @@ const LINKS = [
   { href: "/admin", label: "Overview", icon: LayoutDashboard, exact: true },
   { href: "/admin/collections", label: "Collections", icon: Images },
   { href: "/admin/users", label: "Users", icon: Users },
+  { href: "/admin/verification", label: "Verification", icon: BadgeCheck },
   { href: "/admin/allowlists", label: "Wallet Checker", icon: ListChecks },
   { href: "/admin/moderation", label: "Moderation", icon: ShieldAlert },
   { href: "/admin/settings", label: "Settings", icon: Settings },

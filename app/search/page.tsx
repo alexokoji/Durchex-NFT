@@ -1,4 +1,5 @@
-import { SearchX, BadgeCheck } from "lucide-react";
+import { SearchX } from "lucide-react";
+import { VerifiedBadge } from "@/components/ui/VerifiedBadge";
 import Link from "next/link";
 import { search } from "@/lib/queries";
 import { NFTCard } from "@/components/nft/NFTCard";
@@ -65,7 +66,7 @@ export default async function SearchPage({ searchParams }: PageProps) {
                 </span>
                 <span className="text-sm font-medium text-white flex items-center gap-1 truncate">
                   {u.username}
-                  {u.isVerified && <BadgeCheck className="w-3.5 h-3.5 text-purple-400 shrink-0" />}
+                  <VerifiedBadge tier={u.verificationTier} className="w-3.5 h-3.5" />
                 </span>
               </Link>
             ))}

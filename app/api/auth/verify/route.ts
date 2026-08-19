@@ -42,6 +42,8 @@ export async function POST(req: NextRequest) {
     address,
     username: user.username,
     isVerified: user.isVerified,
+    verificationTier: user.verificationTier ?? "none",
+    avatarUrl: user.avatarUrl ?? "",
     isNewUser,
   });
   res.cookies.set(SESSION_COOKIE, token, {

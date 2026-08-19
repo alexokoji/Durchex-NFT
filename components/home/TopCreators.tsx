@@ -1,4 +1,5 @@
-import { BadgeCheck, Crown } from "lucide-react";
+import { Crown } from "lucide-react";
+import { VerifiedBadge } from "@/components/ui/VerifiedBadge";
 import { SectionHeading } from "@/components/home/SectionHeading";
 import { GeneratedArt } from "@/components/nft/GeneratedArt";
 
@@ -6,6 +7,8 @@ interface Creator {
   id: string;
   username: string;
   isVerified: boolean;
+  verificationTier: "none" | "white" | "purple";
+  avatarUrl: string;
   followerCount: number;
   itemCount: number;
 }
@@ -27,11 +30,15 @@ export function TopCreators({ creators }: { creators: Creator[] }) {
               {i === 0 ? <Crown className="w-4 h-4 text-purple-400 mx-auto" /> : i + 1}
             </div>
             <div className="w-10 h-10 rounded-full overflow-hidden shrink-0 border border-white/10">
-              <GeneratedArt seedKey={`creator-${creator.id}`} className="w-full h-full" />
+              {creator.avatarUrl ? (
+                <img src={creator.avatarUrl} alt="" className="w-full h-full object-cover" />
+              ) : (
+                <GeneratedArt seedKey={`creator-${creator.id}`} className="w-full h-full" />
+              )}
             </div>
             <div className="flex-1 min-w-0 flex items-center gap-1">
               <span className="font-medium text-white truncate">@{creator.username}</span>
-              {creator.isVerified && <BadgeCheck className="w-4 h-4 text-purple-400 shrink-0" />}
+              <VerifiedBadge tier={creator.verificationTier} className="w-4 h-4" />
             </div>
             <div className="text-right shrink-0">
               <div className="text-sm text-white tabular-nums">

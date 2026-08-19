@@ -1,12 +1,20 @@
 import { ArrowRight, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { GeneratedArt } from "@/components/nft/GeneratedArt";
+import { CollectionView } from "@/lib/types";
 
 export function Hero({
   stats,
+  collections,
 }: {
   stats: { totalVolumeEth: number; totalItems: number; collections: number; totalOwners: number };
+  /** Most popular collections, in order — the cards show these. */
+  collections: CollectionView[];
 }) {
+  // Three cards, filled from the top collections and topped up with
+  // generated art when the marketplace doesn't have three yet. Decorative
+  // only: no links, no alt text worth reading, aria-hidden.
+  const cards = [0, 1, 2].map((i) => collections[i] ?? null);
   return (
     <section className="relative overflow-hidden bg-mesh border-b border-white/5">
       <div className="max-w-7xl mx-auto px-6 pt-16 pb-20 sm:pt-24 sm:pb-28 grid lg:grid-cols-2 gap-12 items-center">
@@ -41,18 +49,21 @@ export function Hero({
           </div>
         </div>
 
-        <div className="relative h-[420px] hidden lg:block" style={{ perspective: "1400px" }}>
+        <div className="relative h-[420px] hidden lg:block" style={{ perspective: "1400px" }} aria-hidden="true">
           <FloatingCard
+            collection={cards[0]}
             seedKey="hero-a"
             className="absolute top-4 left-10 w-56 h-72 rotate-[-8deg]"
             delay="0s"
           />
           <FloatingCard
+            collection={cards[1]}
             seedKey="hero-b"
             className="absolute top-24 right-4 w-64 h-80 rotate-[6deg] z-10"
             delay="1.4s"
           />
           <FloatingCard
+            collection={cards[2]}
             seedKey="hero-c"
             className="absolute bottom-0 left-24 w-52 h-64 rotate-[3deg]"
             delay="2.6s"
@@ -76,20 +87,35 @@ function StatMini({ label, value, suffix }: { label: string; value: string; suff
 }
 
 function FloatingCard({
+  collection,
   seedKey,
   className,
   delay,
 }: {
+  collection: CollectionView | null;
   seedKey: string;
   className?: string;
   delay: string;
 }) {
+  const image = collection?.logoUrl || collection?.bannerUrl || "";
   return (
     <div
       className={`animate-float surface-card overflow-hidden ${className}`}
       style={{ animationDelay: delay, transformStyle: "preserve-3d" }}
     >
-      <GeneratedArt seedKey={seedKey} className="w-full h-full" />
+      {image ? (
+        <div className="relative w-full h-full">
+          <img src={image} alt="" className="w-full h-full object-cover" />
+          <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/85 to-transparent px-3 pt-8 pb-2.5">
+            <div className="text-xs font-medium text-white truncate">{collection!.name}</div>
+            <div className="text-[10px] text-white/50 tabular-nums">
+              {collection!.floorEth > 0 ? `${collection!.floorEth} ETH floor` : "No floor yet"}
+            </div>
+          </div>
+        </div>
+      ) : (
+        <GeneratedArt seedKey={seedKey} className="w-full h-full" />
+      )}
     </div>
   );
 }

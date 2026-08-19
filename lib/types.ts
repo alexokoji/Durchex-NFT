@@ -1,4 +1,5 @@
 import { CategoryKey } from "@/components/ui/CategoryIcon";
+import { VerificationTier } from "@/lib/verification";
 
 export interface ItemView {
   id: string;
@@ -86,6 +87,8 @@ export interface UserRef {
   address: string;
   username: string;
   isVerified: boolean;
+  verificationTier: VerificationTier;
+  avatarUrl: string;
 }
 
 export interface TraitView {
@@ -222,6 +225,10 @@ export interface ProfileView {
   username: string;
   bio: string;
   isVerified: boolean;
+  verificationTier: VerificationTier;
+  avatarUrl: string;
+  bannerUrl: string;
+  socials: { twitter: string; discord: string; website: string; instagram: string };
   followerCount: number;
   followingCount: number;
   joinedAt: string;

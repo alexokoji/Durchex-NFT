@@ -35,7 +35,7 @@ export default async function Home() {
 
   return (
     <div>
-      <Hero stats={stats} />
+      <Hero stats={stats} collections={collections} />
       <TrendingCollections collections={collections} />
       <LiveAuctions items={auctions} />
       <TopCreators creators={creators} />

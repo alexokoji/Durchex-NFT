@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { BadgeCheck } from "lucide-react";
+import { VerifiedBadge } from "@/components/ui/VerifiedBadge";
 import { GeneratedArt } from "@/components/nft/GeneratedArt";
 import { UserRef } from "@/lib/types";
 
@@ -20,7 +20,7 @@ export function UserChip({ label, user }: { label: string; user: UserRef | null 
           <span className="text-sm font-medium text-white truncate group-hover:text-purple-300 transition">
             {user.username ?? truncateAddress(user.address)}
           </span>
-          {user.isVerified && <BadgeCheck className="w-3.5 h-3.5 text-purple-400 shrink-0" />}
+          <VerifiedBadge tier={user.verificationTier} className="w-3.5 h-3.5" />
         </div>
       </div>
     </Link>

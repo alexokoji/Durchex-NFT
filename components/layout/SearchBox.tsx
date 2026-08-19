@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { VerifiedBadge } from "@/components/ui/VerifiedBadge";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Search, BadgeCheck, Loader2 } from "lucide-react";
@@ -127,7 +128,7 @@ export function SearchBox() {
                       </span>
                       <span className="text-sm text-white truncate flex items-center gap-1">
                         {u.username}
-                        {u.isVerified && <BadgeCheck className="w-3 h-3 text-purple-400 shrink-0" />}
+                        <VerifiedBadge tier={u.verificationTier} className="w-3 h-3" />
                       </span>
                     </Link>
                   ))}

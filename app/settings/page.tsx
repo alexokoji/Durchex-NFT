@@ -1,6 +1,7 @@
 import { Wallet } from "lucide-react";
 import { getCurrentUserFromCookies } from "@/lib/auth/currentUser";
 import { SettingsForm } from "@/components/settings/SettingsForm";
+import { VerificationPanel } from "@/components/settings/VerificationPanel";
 
 export default async function SettingsPage() {
   const user = await getCurrentUserFromCookies();
@@ -22,6 +23,8 @@ export default async function SettingsPage() {
               address: user.address,
               username: user.username,
               bio: user.bio || "",
+              avatarUrl: user.avatarUrl || "",
+              bannerUrl: user.bannerUrl || "",
               socials: {
                 twitter: user.socials?.twitter || "",
                 discord: user.socials?.discord || "",
@@ -32,6 +35,8 @@ export default async function SettingsPage() {
           />
         </div>
       )}
+
+      {user && <VerificationPanel />}
     </div>
   );
 }

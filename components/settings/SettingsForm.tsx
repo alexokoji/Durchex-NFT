@@ -5,11 +5,14 @@ import { useRouter } from "next/navigation";
 import { Check } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { GeneratedArt } from "@/components/nft/GeneratedArt";
+import { ImageUploadField } from "@/components/settings/ImageUploadField";
 
 interface InitialValues {
   address: string;
   username: string;
   bio: string;
+  avatarUrl: string;
+  bannerUrl: string;
   socials: { twitter: string; discord: string; website: string; instagram: string };
 }
 
@@ -18,6 +21,8 @@ export function SettingsForm({ initial }: { initial: InitialValues }) {
   const [username, setUsername] = useState(initial.username);
   const [bio, setBio] = useState(initial.bio);
   const [socials, setSocials] = useState(initial.socials);
+  const [avatarUrl, setAvatarUrl] = useState(initial.avatarUrl);
+  const [bannerUrl, setBannerUrl] = useState(initial.bannerUrl);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
@@ -30,7 +35,7 @@ export function SettingsForm({ initial }: { initial: InitialValues }) {
       const res = await fetch("/api/users/me", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ username, bio, socials }),
+        body: JSON.stringify({ username, bio, socials, avatarUrl, bannerUrl }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Failed to save");
@@ -48,9 +53,29 @@ export function SettingsForm({ initial }: { initial: InitialValues }) {
     <div className="space-y-6">
       <div className="flex items-center gap-4">
         <span className="w-16 h-16 rounded-full overflow-hidden shrink-0 border border-white/10">
-          <GeneratedArt seedKey={initial.address} className="w-full h-full" />
+          {avatarUrl ? (
+            <img src={avatarUrl} alt="" className="w-full h-full object-cover" />
+          ) : (
+            <GeneratedArt seedKey={initial.address} className="w-full h-full" />
+          )}
         </span>
         <div className="text-sm text-white/40 font-mono">{initial.address}</div>
+      </div>
+
+      <div className="grid sm:grid-cols-2 gap-4">
+        <ImageUploadField
+          label="Profile image"
+          hint="Square works best"
+          value={avatarUrl}
+          onChange={setAvatarUrl}
+        />
+        <ImageUploadField
+          label="Cover image"
+          hint="Wide banner"
+          value={bannerUrl}
+          onChange={setBannerUrl}
+          aspect="wide"
+        />
       </div>
 
       <Field label="Username" hint="3-20 characters: letters, numbers, underscores">

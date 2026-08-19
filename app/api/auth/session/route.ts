@@ -19,6 +19,8 @@ export async function GET(req: NextRequest) {
       address: user.address,
       username: user.username,
       isVerified: !!user.isVerified,
+      verificationTier: user.verificationTier ?? "none",
+      avatarUrl: user.avatarUrl ?? "",
       nextVoucherNonce: user.nextVoucherNonce ?? 0,
     },
   });

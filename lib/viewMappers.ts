@@ -81,6 +81,8 @@ interface UserLike {
   address: string;
   username: string;
   isVerified?: boolean;
+  verificationTier?: string;
+  avatarUrl?: string;
 }
 
 type PhaseLike = {
@@ -161,7 +163,13 @@ function supplyOf(c: CollectionDetailLike) {
 
 export function toUserRef(u: UserLike | null | undefined): UserRef | null {
   if (!u) return null;
-  return { address: u.address, username: u.username, isVerified: !!u.isVerified };
+  return {
+    address: u.address,
+    username: u.username,
+    isVerified: !!u.isVerified,
+    verificationTier: (u.verificationTier as UserRef["verificationTier"]) ?? "none",
+    avatarUrl: u.avatarUrl ?? "",
+  };
 }
 
 export function toCollectionView(c: CollectionLike): CollectionView {

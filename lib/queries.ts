@@ -70,7 +70,19 @@ function visibleItems<T extends { collection?: unknown }>(docs: T[]): T[] {
 
 export async function getTrendingCollections(limit = 8): Promise<CollectionView[]> {
   await connectDB();
-  const docs = await Collection.find(VISIBLE_COLLECTION).sort({ "stats.volume24hEth": -1 }).limit(limit).lean();
+  // Popularity falls back through progressively slower signals. Sorting on
+  // 24h volume alone orders a young marketplace arbitrarily, because almost
+  // every collection sits at zero — lifetime volume, then holders, then
+  // size break those ties with something real.
+  const docs = await Collection.find(VISIBLE_COLLECTION)
+    .sort({
+      "stats.volume24hEth": -1,
+      "stats.totalVolumeEth": -1,
+      "stats.owners": -1,
+      "stats.items": -1,
+    })
+    .limit(limit)
+    .lean();
   return docs.map((d) => toCollectionView(d as never));
 }
 
@@ -118,6 +130,8 @@ export async function getTopCreators(limit = 6) {
     id: String(r._id),
     username: r.user.username,
     isVerified: !!r.user.isVerified,
+    verificationTier: (r.user.verificationTier as "none" | "white" | "purple") ?? "none",
+    avatarUrl: r.user.avatarUrl ?? "",
     followerCount: r.user.followerCount || 0,
     itemCount: r.itemCount as number,
   }));
@@ -373,6 +387,15 @@ export async function getProfileByAddress(address: string): Promise<ProfileView 
     username: doc.username,
     bio: doc.bio || "",
     isVerified: !!doc.isVerified,
+    verificationTier: (doc.verificationTier as ProfileView["verificationTier"]) ?? "none",
+    avatarUrl: doc.avatarUrl || "",
+    bannerUrl: doc.bannerUrl || "",
+    socials: {
+      twitter: doc.socials?.twitter || "",
+      discord: doc.socials?.discord || "",
+      website: doc.socials?.website || "",
+      instagram: doc.socials?.instagram || "",
+    },
     followerCount: doc.followerCount || 0,
     followingCount: doc.followingCount || 0,
     joinedAt: new Date(doc.createdAt as Date).toISOString(),
