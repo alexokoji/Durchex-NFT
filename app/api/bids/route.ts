@@ -4,7 +4,14 @@ import { Item } from "@/lib/models/Item";
 import { Bid } from "@/lib/models/Bid";
 import { Listing } from "@/lib/models/Listing";
 import { Collection } from "@/lib/models/Collection";
-import { leafOf } from "@/lib/web3/offerCriteria";
+import {
+  COLLECTION_OFFER_TYPES,
+  OFFER_DOMAIN_NAME,
+  OFFER_DOMAIN_VERSION,
+  leafOf,
+  offersAddressFor,
+} from "@/lib/web3/offerCriteria";
+import { parseEther, verifyTypedData } from "viem";
 import { getCurrentUser } from "@/lib/auth/currentUser";
 import { recordActivity } from "@/lib/activity";
 import { createNotification } from "@/lib/notifications";
@@ -169,6 +176,44 @@ export async function POST(req: NextRequest) {
         { status: 409 }
       );
     }
+    // The signature is what actually moves money at settlement, so it is
+    // checked here rather than taken on trust. Storing an unverifiable one
+    // shows a live offer that can never be filled, and the seller only
+    // discovers that by spending gas on a reverting accept.
+    const deadlineSeconds = body.deadline ? BigInt(String(body.deadline)) : BigInt(0);
+    const offersAddress = offersAddressFor(collection?.chainId);
+    if (!offersAddress) {
+      return NextResponse.json({ error: "Offers aren't supported on this network" }, { status: 400 });
+    }
+    const signatureValid = await verifyTypedData({
+      address: user.address as `0x${string}`,
+      domain: {
+        name: OFFER_DOMAIN_NAME,
+        version: OFFER_DOMAIN_VERSION,
+        chainId: collection?.chainId ?? 1,
+        verifyingContract: offersAddress,
+      },
+      types: COLLECTION_OFFER_TYPES,
+      primaryType: "CollectionOffer",
+      message: {
+        nft: collection?.contractAddress as `0x${string}`,
+        isERC1155: item.standard === "ERC1155",
+        criteriaRoot: expectedRoot,
+        pricePerItem: parseEther(String(amountEth)),
+        quantity: BigInt(item.standard === "ERC1155" ? quantity : 1),
+        deadline: deadlineSeconds,
+        nonce: BigInt(String(body.nonce)),
+        buyer: user.address as `0x${string}`,
+      },
+      signature: body.signature as `0x${string}`,
+    }).catch(() => false);
+    if (!signatureValid) {
+      return NextResponse.json(
+        { error: "That signature doesn't match the offer — try signing again." },
+        { status: 400 }
+      );
+    }
+
     offerSettlement = {
       buyerAddress: user.address,
       nft: collection?.contractAddress,

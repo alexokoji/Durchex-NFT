@@ -20,6 +20,11 @@ function truncate(address: string) {
  * no mint to report at all.
  */
 export function mintStatus(collection: CollectionDetailView, now = new Date()) {
+  // Supply outranks the schedule. A phase left enabled after the last unit
+  // is gone still looks "live" by its dates, so the badge went on claiming
+  // MINTING NOW on a collection with nothing left to mint.
+  if (collection.mintedOut) return { label: "SOLD OUT", startsAt: null as Date | null };
+
   const phases = PHASE_KEYS.map((key) => collection.mintPhases[key]).filter((phase) => phase.enabled);
   if (phases.length === 0) return { label: null, startsAt: null as Date | null };
 
@@ -34,13 +39,14 @@ export function mintStatus(collection: CollectionDetailView, now = new Date()) {
   return { label: "MINT ENDED", startsAt: null };
 }
 
-function Badge({ children, accent }: { children: React.ReactNode; accent?: "live" | "soon" }) {
+function Badge({ children, accent }: { children: React.ReactNode; accent?: "live" | "soon" | "done" }) {
   return (
     <span
       className={clsx(
         "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-semibold tracking-wide uppercase border font-mono",
         accent === "live" && "border-success/50 text-success bg-success/10",
         accent === "soon" && "border-sky-400/50 text-sky-300 bg-sky-400/10",
+        accent === "done" && "border-purple-400/50 text-purple-200 bg-purple-500/10",
         !accent && "border-white/12 text-white/60 bg-white/[0.03]"
       )}
     >
@@ -234,7 +240,17 @@ export function CollectionMeta({
             .toUpperCase()}
         </Badge>
         {status.label && (
-          <Badge accent={status.label === "MINTING NOW" ? "live" : status.label === "MINTING SOON" ? "soon" : undefined}>
+          <Badge
+            accent={
+              status.label === "MINTING NOW"
+                ? "live"
+                : status.label === "MINTING SOON"
+                  ? "soon"
+                  : status.label === "SOLD OUT"
+                    ? "done"
+                    : undefined
+            }
+          >
             {status.label}
           </Badge>
         )}
