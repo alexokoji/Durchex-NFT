@@ -84,8 +84,8 @@ export async function PATCH(req: NextRequest, context: { params: Promise<{ id: s
     collection.mintPhases[phase] = { ...merged, minted: current.minted };
   }
 
-  // Public: only enabled/priceEth are ever user-set — allocation is
-  // always derived, walletLimit/schedule are always cleared.
+  // Public: enabled/priceEth/walletLimit are user-set — allocation is
+  // always derived from GTD/FCFS + max supply, schedule is always cleared.
   const currentPublic = collection.mintPhases.public;
   const publicAllocation = computePublicAllocation(
     collection.maxSupply,
@@ -113,7 +113,7 @@ export async function PATCH(req: NextRequest, context: { params: Promise<{ id: s
     enabled: soldOutBeforeOpening ? false : requestedPublicEnabled,
     priceEth: Math.max(0, Number(patch.public?.priceEth ?? currentPublic.priceEth)),
     allocation: publicAllocation,
-    walletLimit: 0,
+    walletLimit: Math.max(0, Math.floor(Number(patch.public?.walletLimit ?? currentPublic.walletLimit))),
     minted: currentPublic.minted,
     startsAt: null,
     endsAt: null,

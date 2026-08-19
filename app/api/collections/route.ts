@@ -78,9 +78,10 @@ export async function POST(req: NextRequest) {
   const standard = body.standard === "ERC1155" ? "ERC1155" : "ERC721";
   const whitelistPhase = normalizePhase(body.mintPhases?.whitelist, true);
   const ogPhase = normalizePhase(body.mintPhases?.og, true);
-  // Public has no allocation/walletLimit/schedule of its own — supply is
-  // whatever's left of maxSupply after GTD (whitelist) + FCFS (og), or
-  // unlimited if maxSupply isn't set.
+  // Public has no allocation/schedule of its own — supply is whatever's
+  // left of maxSupply after GTD (whitelist) + FCFS (og), or unlimited if
+  // maxSupply isn't set. Its wallet cap, unlike allocation, isn't derived
+  // from anything — the creator sets it directly, same as the other phases.
   const publicAllocation = computePublicAllocation(maxSupply, whitelistPhase.allocation, ogPhase.allocation);
   const soldOutBeforeOpening = maxSupply > 0 && publicAllocation === 0;
   const mintPhases = {
@@ -90,7 +91,7 @@ export async function POST(req: NextRequest) {
       enabled: soldOutBeforeOpening ? false : !!body.mintPhases?.public?.enabled,
       priceEth: Math.max(0, Number(body.mintPhases?.public?.priceEth ?? 0)),
       allocation: publicAllocation,
-      walletLimit: 0,
+      walletLimit: Math.max(0, Math.floor(Number(body.mintPhases?.public?.walletLimit ?? 0))),
       startsAt: null,
       endsAt: null,
     },

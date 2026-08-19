@@ -137,11 +137,11 @@ function PhaseRow({
           <div className="text-sm font-medium text-white/85">{label}</div>
           <div className="text-[11px] text-white/40 mt-0.5">
             {phase.minted}/{phase.allocation || "∞"} minted
-            {!isPublic && phase.walletLimit > 0 ? ` · ${phase.walletLimit}/wallet` : ""}
+            {phase.walletLimit > 0 ? ` · ${phase.walletLimit}/wallet` : ""}
             {isGtd
               ? " · guaranteed for allowlisted wallets"
               : isPublic
-                ? " · open to everyone, no wallet cap"
+                ? " · open to everyone"
                 : " · first come, first served — closes automatically once sold out"}
           </div>
         </div>
@@ -158,7 +158,7 @@ function PhaseRow({
         </label>
       </div>
 
-      <div className={clsx("grid gap-2 mt-3", isPublic ? "grid-cols-1" : "sm:grid-cols-3")}>
+      <div className={clsx("grid gap-2 mt-3", isPublic ? "sm:grid-cols-2" : "sm:grid-cols-3")}>
         <input
           type="number"
           min="0"
@@ -168,7 +168,16 @@ function PhaseRow({
           placeholder="Price ETH"
           className="bg-white/5 border border-white/10 rounded px-2 py-1.5 text-xs text-white"
         />
-        {!isPublic && (
+        {isPublic ? (
+          <input
+            type="number"
+            min="0"
+            value={draft.walletLimit || ""}
+            onChange={(e) => setDraft((d) => ({ ...d, walletLimit: Number(e.target.value) }))}
+            placeholder="0 = no wallet cap"
+            className="bg-white/5 border border-white/10 rounded px-2 py-1.5 text-xs text-white"
+          />
+        ) : (
           <>
             <input
               type="number"
@@ -193,8 +202,8 @@ function PhaseRow({
       {isPublic ? (
         <p className="text-[10px] text-white/30 mt-2">
           Supply is whatever&rsquo;s left of the collection&rsquo;s max supply after GTD + FCFS reserve
-          theirs — no allocation, wallet cap, or schedule to set here. Set the collection&rsquo;s max supply
-          to cap it, or leave it unlimited.
+          theirs — no allocation or schedule to set here. Set the collection&rsquo;s max supply to cap it,
+          or leave it unlimited. The wallet cap above still applies to Public, same as any other phase.
         </p>
       ) : (
         <>
@@ -267,7 +276,7 @@ function PhaseRow({
         onClick={() =>
           onSave(
             isPublic
-              ? { priceEth: draft.priceEth }
+              ? { priceEth: draft.priceEth, walletLimit: draft.walletLimit }
               : {
                   priceEth: draft.priceEth,
                   allocation: draft.allocation,

@@ -335,7 +335,7 @@ function CreatePhaseRow({
                 ? "Open to everyone, no allowlist. Its supply is whatever GTD + FCFS aren't holding — and once those phases end or sell out, anything they left unminted rolls over here automatically."
                 : "First come, first served — closes automatically once the allocation sells out."}
           </p>
-          <div className={clsx("grid gap-2", isPublic ? "grid-cols-1" : "sm:grid-cols-3")}>
+          <div className={clsx("grid gap-2", isPublic ? "sm:grid-cols-2" : "sm:grid-cols-3")}>
             {/* These inputs are bound to numbers that start at 0, so the
                 placeholder is never visible — without a label the field is
                 unidentifiable once it has any value. */}
@@ -356,6 +356,22 @@ function CreatePhaseRow({
                 What each wallet pays to mint one NFT in this phase. 0 makes it a free mint.
               </p>
             </div>
+            {isPublic && (
+              <div>
+                <label className="text-[10px] text-white/35 block mb-1">Max per wallet (Public)</label>
+                <input
+                  type="number"
+                  min="0"
+                  value={config.walletLimit || ""}
+                  onChange={(e) => onChange({ walletLimit: Number(e.target.value) })}
+                  placeholder="0 = unlimited"
+                  className="w-full bg-white/5 border border-white/10 rounded px-2 py-1.5 text-xs text-white"
+                />
+                <p className="text-[10px] text-white/30 mt-1">
+                  How many NFTs one wallet can mint through Public. 0 means no cap.
+                </p>
+              </div>
+            )}
             {!isPublic && (
               <>
                 <input
