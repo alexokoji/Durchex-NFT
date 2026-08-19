@@ -98,7 +98,12 @@ export default async function ItemDetailPage({ params }: PageProps) {
             />
           </div>
 
-          <PricePanel item={item} />
+          {/* Anchored: "Sell" elsewhere on the site links to #sell, and
+              this is the block that answers it — list for sale, or take
+              the standing offer. */}
+          <div id="sell" className="scroll-mt-24">
+            <PricePanel item={item} />
+          </div>
 
           <div className="mt-3">
             <MakeItemOfferButton item={item} />

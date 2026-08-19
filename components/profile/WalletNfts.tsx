@@ -156,7 +156,7 @@ function WalletNftCard({ nft, isOwnProfile }: { nft: WalletNft; isOwnProfile: bo
   // we have a real page to show.
   if (nft.onDurchex && nft.itemId) {
     return (
-      <Link href={`/item/${nft.itemId}`} className="surface-card overflow-hidden hover:border-purple-500/40 transition block">
+      <Link href={`/assets/${nft.itemId}`} className="surface-card overflow-hidden hover:border-purple-500/40 transition block">
         {body}
       </Link>
     );
