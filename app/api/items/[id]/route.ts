@@ -5,6 +5,7 @@ import { Collection } from "@/lib/models/Collection";
 import { getCurrentUser } from "@/lib/auth/currentUser";
 import { recordActivity } from "@/lib/activity";
 import { recalculateCollectionFloor } from "@/lib/floorPrice";
+import { listingGate } from "@/lib/listing";
 
 // Lists, relists, or cancels a listing. Lazy (unminted) items get their
 // initial listing price set at creation via the voucher, but their creator
@@ -36,10 +37,34 @@ export async function PATCH(req: NextRequest, context: { params: Promise<{ id: s
     if (!item.isMinted) {
       return NextResponse.json({ error: "Unminted items list automatically when created" }, { status: 400 });
     }
-    const collection = await Collection.findById(item.collection).select("listingEnabled listingOpensAt contractAddress").lean();
-    const listingOpen = collection && (collection.listingEnabled || (collection.listingOpensAt && collection.listingOpensAt <= new Date()));
-    if (!listingOpen) {
-      return NextResponse.json({ error: "Listing is not open yet for this collection" }, { status: 403 });
+    const collection = await Collection.findById(item.collection)
+      .select("listingEnabled listingOpensAt contractAddress maxSupply")
+      .lean();
+    if (!collection) return NextResponse.json({ error: "Collection not found" }, { status: 404 });
+    // Same gate the creator's control enforces: nothing lists until the
+    // collection is fully minted out, regardless of the stored flag.
+    const [mintedSupply, unmintedCount] = await Promise.all([
+      Item.countDocuments({ collection: collection._id, isMinted: true }),
+      Item.countDocuments({ collection: collection._id, isMinted: false }),
+    ]);
+    const gate = listingGate({
+      maxSupply: collection.maxSupply,
+      mintedSupply,
+      unmintedCount,
+      listingEnabled: collection.listingEnabled,
+      listingOpensAt: collection.listingOpensAt,
+    });
+    if (!gate.open) {
+      return NextResponse.json(
+        {
+          error: gate.reason === "minting"
+            ? "This collection is still minting — resale opens once it's fully minted out."
+            : gate.opensAt
+              ? `Resale opens ${new Date(gate.opensAt).toLocaleString()}.`
+              : "The creator hasn't opened resale for this collection yet.",
+        },
+        { status: 403 }
+      );
     }
     const priceEth = Number(body.priceEth);
     if (!Number.isFinite(priceEth) || priceEth <= 0) {

@@ -7,9 +7,13 @@ interface Creator {
   username: string;
   isVerified: boolean;
   followerCount: number;
+  itemCount: number;
 }
 
 export function TopCreators({ creators }: { creators: Creator[] }) {
+  // Nobody has minted yet — an empty leaderboard says less than no
+  // leaderboard at all.
+  if (creators.length === 0) return null;
   return (
     <section className="max-w-7xl mx-auto px-6 py-14">
       <SectionHeading eyebrow="Leaderboard" title="Top Creators" />
@@ -29,8 +33,13 @@ export function TopCreators({ creators }: { creators: Creator[] }) {
               <span className="font-medium text-white truncate">@{creator.username}</span>
               {creator.isVerified && <BadgeCheck className="w-4 h-4 text-purple-400 shrink-0" />}
             </div>
-            <div className="text-sm text-white/50 tabular-nums">
-              {creator.followerCount.toLocaleString()} followers
+            <div className="text-right shrink-0">
+              <div className="text-sm text-white tabular-nums">
+                {creator.itemCount.toLocaleString()} {creator.itemCount === 1 ? "NFT" : "NFTs"}
+              </div>
+              <div className="text-[11px] text-white/40 tabular-nums">
+                {creator.followerCount.toLocaleString()} followers
+              </div>
             </div>
           </div>
         ))}

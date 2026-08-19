@@ -53,6 +53,11 @@ export interface CollectionDetailView extends CollectionView {
   maxSupply: number;
   /** Items in this collection actually minted on-chain so far. */
   mintedSupply: number;
+  /** Items that exist but have never been minted — with mintedSupply and
+   *  maxSupply, this is what decides whether resale can open at all. */
+  unmintedCount: number;
+  listingEnabled: boolean;
+  listingOpensAt: string | null;
   /** Percentage move in the floor over the last day; null with no baseline. */
   floorChange1dPct: number | null;
   /** Highest live collection-wide offer, in WETH. Null when none stands. */

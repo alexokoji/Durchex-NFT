@@ -62,14 +62,26 @@ export async function getFeaturedItems(limit = 12): Promise<ItemView[]> {
   return docs.map((d) => toItemView(d as never));
 }
 
+// A "top creator" is someone who has actually created NFTs here — a
+// follower count on its own describes a collector or a lurker, not a
+// creator, so the leaderboard is built from authored items and only then
+// ranked by reach.
 export async function getTopCreators(limit = 6) {
   await connectDB();
-  const docs = await User.find().sort({ followerCount: -1 }).limit(limit).lean();
-  return docs.map((u) => ({
-    id: String(u._id),
-    username: u.username,
-    isVerified: !!u.isVerified,
-    followerCount: u.followerCount || 0,
+  const rows = await Item.aggregate([
+    { $match: { creator: { $ne: null } } },
+    { $group: { _id: "$creator", itemCount: { $sum: 1 } } },
+    { $lookup: { from: "users", localField: "_id", foreignField: "_id", as: "user" } },
+    { $unwind: "$user" },
+    { $sort: { itemCount: -1, "user.followerCount": -1 } },
+    { $limit: limit },
+  ]);
+  return rows.map((r) => ({
+    id: String(r._id),
+    username: r.user.username,
+    isVerified: !!r.user.isVerified,
+    followerCount: r.user.followerCount || 0,
+    itemCount: r.itemCount as number,
   }));
 }
 
@@ -86,10 +98,29 @@ export async function getPlatformStats() {
       },
     },
   ]);
+  // Owners can't be summed across collections — a wallet holding from three
+  // collections is one owner, not three. Count distinct holders instead,
+  // across both 721 ownership and 1155 balances.
+  const [erc721Owners, erc1155Owners] = await Promise.all([
+    Item.distinct("owner", { owner: { $ne: null } }),
+    ItemBalance.distinct("owner", { quantity: { $gt: 0 } }),
+  ]);
+  const totalOwners = new Set(
+    [...erc721Owners, ...erc1155Owners].map((o) => String(o))
+  ).size;
+
+  // Volume comes from settled sales rather than the per-collection running
+  // totals, so a collection whose stats haven't been recalculated yet still
+  // contributes what it actually traded.
+  const [saleAgg] = await Activity.aggregate([
+    { $match: { type: "sale", priceEth: { $gt: 0 } } },
+    { $group: { _id: null, volume: { $sum: { $multiply: ["$priceEth", { $ifNull: ["$quantity", 1] }] } } } },
+  ]);
+
   return {
-    totalVolumeEth: collectionAgg?.totalVolume ?? 0,
+    totalVolumeEth: saleAgg?.volume ?? collectionAgg?.totalVolume ?? 0,
     totalItems: collectionAgg?.totalItems ?? 0,
-    totalOwners: collectionAgg?.totalOwners ?? 0,
+    totalOwners,
     collections: collectionAgg?.collections ?? 0,
   };
 }
@@ -245,7 +276,10 @@ export async function getCollectionBySlug(slug: string): Promise<CollectionDetai
   // Items actually minted on-chain, as opposed to stats.items (every Item
   // doc, including unminted lazy vouchers pre-created for a drop) — this is
   // what "sold out" means for gating the secondary-market buttons.
-  const mintedSupply = await Item.countDocuments({ collection: doc._id, isMinted: true });
+  const [mintedSupply, unmintedCount] = await Promise.all([
+    Item.countDocuments({ collection: doc._id, isMinted: true }),
+    Item.countDocuments({ collection: doc._id, isMinted: false }),
+  ]);
 
   // "Top offer" is the best standing collection-wide bid — the number a
   // holder could accept right now without listing. Expired offers are
@@ -260,7 +294,7 @@ export async function getCollectionBySlug(slug: string): Promise<CollectionDetai
     .select("pricePerItemEth")
     .lean();
 
-  return toCollectionDetailView({ ...doc, topOfferEth: topOffer?.pricePerItemEth ?? null, mintedSupply } as never);
+  return toCollectionDetailView({ ...doc, topOfferEth: topOffer?.pricePerItemEth ?? null, mintedSupply, unmintedCount } as never);
 }
 
 export async function getCollectionTraitFacets(collectionId: string) {

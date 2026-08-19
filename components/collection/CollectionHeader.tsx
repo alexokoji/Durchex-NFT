@@ -8,15 +8,24 @@ import { ContractAttach } from "@/components/collection/ContractAttach";
 import { BuyFloorButton } from "@/components/collection/BuyFloorButton";
 import { MakeCollectionOfferButton } from "@/components/collection/MakeCollectionOfferButton";
 import { CollectionOffersList } from "@/components/collection/CollectionOffersList";
-import { isCollectionSoldOut } from "@/lib/mintPhases";
+import { ResaleStatus } from "@/components/collection/ResaleStatus";
+import { listingGate } from "@/lib/listing";
 
 export function CollectionHeader({ collection }: { collection: CollectionDetailView }) {
-  // While a capped collection still has supply left to mint, the primary
-  // path is the mint panel below, not the secondary market — Buy Floor and
-  // Make Offer only make sense once there's nothing left to mint and the
-  // only way in is buying from an existing holder. Uncapped collections
-  // (maxSupply 0) never reach "sold out", so this never hides them there.
-  const secondaryMarketReady = collection.maxSupply === 0 || isCollectionSoldOut(collection);
+  // The secondary market only exists once the creator has actually opened
+  // resale, which itself can't happen before the collection is minted out.
+  // Until then the primary path is the mint panel below.
+  const gate = listingGate({
+    maxSupply: collection.maxSupply,
+    mintedSupply: collection.mintedSupply,
+    unmintedCount: collection.unmintedCount,
+    listingEnabled: collection.listingEnabled,
+    listingOpensAt: collection.listingOpensAt,
+  });
+  // floorEth is derived from live, valid listings — zero means nothing is
+  // actually for sale, so there is no floor to buy and the button would
+  // only ever open onto an empty sheet.
+  const hasListing = collection.floorEth > 0;
 
   return (
     <div>
@@ -36,10 +45,14 @@ export function CollectionHeader({ collection }: { collection: CollectionDetailV
         />
       </div>
 
-      {secondaryMarketReady && (
+      {gate.open ? (
         <div className="mt-6 px-4 sm:px-8 flex flex-wrap gap-2">
-          <BuyFloorButton collection={collection} />
+          {hasListing && <BuyFloorButton collection={collection} />}
           <MakeCollectionOfferButton collection={collection} />
+        </div>
+      ) : (
+        <div className="mt-6 px-4 sm:px-8">
+          <ResaleStatus gate={gate} />
         </div>
       )}
       {collection.contractType === "drop" && (

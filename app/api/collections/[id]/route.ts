@@ -3,21 +3,36 @@ import { connectDB } from "@/lib/db";
 import { Collection } from "@/lib/models/Collection";
 import { getCurrentUser } from "@/lib/auth/currentUser";
 import { normalizePhase, computePublicAllocation, effectivePublicAllocation } from "@/lib/mintPhases";
+import { Item } from "@/lib/models/Item";
+import { isMintedOut } from "@/lib/listing";
 
 export async function GET(req: NextRequest, context: { params: Promise<{ id: string }> }) {
   const user = await getCurrentUser(req);
   if (!user) return NextResponse.json({ error: "Sign in required" }, { status: 401 });
   const { id } = await context.params;
   await connectDB();
-  const collection = await Collection.findById(id).select("creator mintPhases listingEnabled listingOpensAt").lean();
+  const collection = await Collection.findById(id)
+    .select("creator mintPhases listingEnabled listingOpensAt maxSupply")
+    .lean();
   if (!collection) return NextResponse.json({ error: "Collection not found" }, { status: 404 });
   if (String(collection.creator) !== String(user._id)) {
     return NextResponse.json({ error: "Only the creator can manage this collection" }, { status: 403 });
   }
+  // Mint progress travels with this so the creator's listing control can
+  // explain why it's locked and how far off opening is, rather than just
+  // refusing when they try.
+  const [mintedSupply, unmintedCount] = await Promise.all([
+    Item.countDocuments({ collection: collection._id, isMinted: true }),
+    Item.countDocuments({ collection: collection._id, isMinted: false }),
+  ]);
   return NextResponse.json({
     mintPhases: collection.mintPhases,
     listingEnabled: collection.listingEnabled,
     listingOpensAt: collection.listingOpensAt,
+    mintedOut: isMintedOut({ maxSupply: collection.maxSupply, mintedSupply, unmintedCount }),
+    mintedSupply,
+    unmintedCount,
+    maxSupply: collection.maxSupply,
   });
 }
 
@@ -43,6 +58,27 @@ export async function PATCH(req: NextRequest, context: { params: Promise<{ id: s
   const body = await req.json();
 
   if (body.listing) {
+    // Resale can't be opened, or scheduled, until the collection is fully
+    // minted out — otherwise resale runs alongside the creator's own
+    // primary sale and undercuts it. Checked here rather than trusted from
+    // the client, since this is the whole rule.
+    const [mintedSupply, unmintedCount] = await Promise.all([
+      Item.countDocuments({ collection: collection._id, isMinted: true }),
+      Item.countDocuments({ collection: collection._id, isMinted: false }),
+    ]);
+    const mintedOut = isMintedOut({ maxSupply: collection.maxSupply, mintedSupply, unmintedCount });
+    const wantsToOpen = body.listing.enabled === true || !!body.listing.opensAt;
+    if (!mintedOut && wantsToOpen) {
+      const remaining = collection.maxSupply > 0 ? collection.maxSupply - mintedSupply : unmintedCount;
+      return NextResponse.json(
+        {
+          error: `Resale opens once this collection is fully minted — ${remaining} still to mint.`,
+          mintedOut: false,
+        },
+        { status: 409 }
+      );
+    }
+
     if (typeof body.listing.enabled === "boolean") collection.listingEnabled = body.listing.enabled;
     if ("opensAt" in body.listing) {
       collection.listingOpensAt = body.listing.opensAt ? new Date(body.listing.opensAt) : null;
@@ -52,6 +88,7 @@ export async function PATCH(req: NextRequest, context: { params: Promise<{ id: s
       mintPhases: collection.mintPhases,
       listingEnabled: collection.listingEnabled,
       listingOpensAt: collection.listingOpensAt,
+      mintedOut,
     });
   }
 

@@ -66,6 +66,9 @@ interface CollectionDetailLike extends CollectionLike {
   topOfferEth?: number | null;
   /** Items actually minted on-chain so far, resolved by the query layer. */
   mintedSupply?: number;
+  unmintedCount?: number;
+  listingEnabled?: boolean;
+  listingOpensAt?: Date | string | null;
   stats: CollectionLike["stats"] & {
     volume7dEth: number;
     totalVolumeEth: number;
@@ -221,6 +224,11 @@ export function toCollectionDetailView(c: CollectionDetailLike): CollectionDetai
     contractType: c.contractType ?? "lazy",
     maxSupply: c.maxSupply ?? 0,
     mintedSupply: c.mintedSupply ?? 0,
+    unmintedCount: c.unmintedCount ?? 0,
+    // Collections predating this field default to open, matching how they
+    // have always behaved; the mint-out precondition still applies.
+    listingEnabled: c.listingEnabled ?? true,
+    listingOpensAt: c.listingOpensAt ? new Date(c.listingOpensAt).toISOString() : null,
     // Only a real baseline gives a meaningful percentage: a collection whose
     // floor was 0 yesterday (nothing listed) has no move to express.
     floorChange1dPct:
