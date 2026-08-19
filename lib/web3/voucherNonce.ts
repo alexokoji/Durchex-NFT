@@ -51,10 +51,23 @@ export async function nextVoucherNonce({
     return countPending({ creatorId, contractAddress, chainId });
   }
 
+  const rpc = process.env[`RPC_URL_${chainId}`] ?? (chainId === 1 ? process.env.MAINNET_RPC_URL : undefined);
   const client = createPublicClient({
     chain,
-    transport: chainId === hardhat.id ? http("http://127.0.0.1:8545") : http(),
+    transport:
+      chainId === hardhat.id ? http("http://127.0.0.1:8545") : rpc ? http(rpc, { timeout: 20_000 }) : http(),
   });
+
+  // A collection's contract is deployed lazily, at its first mint, so until
+  // then there is nothing at the address to ask. That isn't an error and
+  // must not be treated as one: a contract that doesn't exist yet has
+  // minted nothing, so its creator nonce is definitionally 0 and only the
+  // locally pending vouchers count. Without this, every collection created
+  // through the factory would fail to accept its first item.
+  const deployed = await client.getBytecode({ address: contractAddress as `0x${string}` }).catch(() => undefined);
+  if (!deployed || deployed === "0x") {
+    return countPending({ creatorId, contractAddress, chainId });
+  }
 
   let onChain = 0;
   try {
