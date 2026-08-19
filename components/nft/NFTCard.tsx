@@ -3,6 +3,7 @@
 import Link from "next/link";
 import clsx from "clsx";
 import { Heart, Zap, BadgeCheck, Gavel } from "lucide-react";
+import { VerifiedBadge } from "@/components/ui/VerifiedBadge";
 import { GeneratedArt } from "@/components/nft/GeneratedArt";
 import { CountdownTimer } from "@/components/nft/CountdownTimer";
 import { useFavorite } from "@/hooks/useFavorite";
@@ -71,8 +72,10 @@ export function NFTCard({ item }: { item: ItemView }) {
       <div className="p-3.5">
         <div className="flex items-center gap-1 text-[11px] text-white/50 mb-1">
           <span className="truncate">{item.collectionName}</span>
-          {item.collectionVerified && (
-            <BadgeCheck className="w-3.5 h-3.5 text-purple-400 shrink-0" />
+          {item.creatorTier !== "none" ? (
+            <VerifiedBadge tier={item.creatorTier} className="w-3.5 h-3.5" />
+          ) : (
+            item.collectionVerified && <BadgeCheck className="w-3.5 h-3.5 text-purple-400 shrink-0" />
           )}
         </div>
         <h3 className="text-sm font-semibold text-white truncate mb-2">{item.name}</h3>

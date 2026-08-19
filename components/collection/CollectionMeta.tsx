@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { Info, Copy, Check, Globe, Share2, Star, BadgeCheck, X as XIcon } from "lucide-react";
+import { VerifiedBadge } from "@/components/ui/VerifiedBadge";
 import clsx from "clsx";
 import { CollectionDetailView } from "@/lib/types";
 import { CHAIN_META } from "@/lib/web3/config";
@@ -175,7 +176,11 @@ export function CollectionMeta({
         <div className="min-w-0 flex-1">
           <div className="flex items-start gap-3 flex-wrap">
             <h1 className="font-display text-2xl sm:text-3xl font-semibold text-white">{collection.name}</h1>
-            {collection.verified && <BadgeCheck className="w-5 h-5 mt-1.5 text-purple-400 shrink-0" />}
+            {collection.creatorTier !== "none" ? (
+              <VerifiedBadge tier={collection.creatorTier} className="w-5 h-5 mt-1.5" />
+            ) : (
+              collection.verified && <BadgeCheck className="w-5 h-5 mt-1.5 text-purple-400 shrink-0" />
+            )}
             <button
               onClick={() => setFavorited((value) => !value)}
               aria-label={favorited ? "Remove from watchlist" : "Add to watchlist"}

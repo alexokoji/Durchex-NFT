@@ -10,6 +10,9 @@ export interface ItemView {
   collectionName: string;
   collectionSlug: string;
   collectionVerified: boolean;
+  /** Verification tier of whoever created this item's collection, so the
+   *  badge travels with their work rather than living only on a profile. */
+  creatorTier: VerificationTier;
   category: CategoryKey;
   priceEth: number;
   priceUsd: number;
@@ -33,6 +36,8 @@ export interface CollectionView {
   bannerUrl: string;
   category: CategoryKey;
   verified: boolean;
+  /** Verification tier of this collection's creator. */
+  creatorTier: VerificationTier;
   floorEth: number;
   volume24hEth: number;
   volumeChangePct: number;

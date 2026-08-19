@@ -47,6 +47,14 @@ function escapeRegExp(s: string) {
 // rankings, drops and profile holdings all stop showing it. Admin routes
 // query the models directly and are unaffected, which is what lets an
 // admin find it again to unhide it.
+// Cards show the creator's verification badge, so every item query has to
+// reach through its collection to that user. Declared once — a query that
+// forgets the nested populate silently renders every card unverified.
+const WITH_COLLECTION = {
+  path: "collection",
+  populate: { path: "creator", select: "verificationTier" },
+} as const;
+
 const VISIBLE_COLLECTION = { hidden: { $ne: true } } as const;
 
 async function hiddenCollectionIds(): Promise<Types.ObjectId[]> {
@@ -75,6 +83,7 @@ export async function getTrendingCollections(limit = 8): Promise<CollectionView[
   // every collection sits at zero — lifetime volume, then holders, then
   // size break those ties with something real.
   const docs = await Collection.find(VISIBLE_COLLECTION)
+    .populate("creator", "verificationTier")
     .sort({
       "stats.volume24hEth": -1,
       "stats.totalVolumeEth": -1,
@@ -91,7 +100,7 @@ export async function getLiveAuctions(limit = 8): Promise<ItemView[]> {
   const docs = await Item.find(await excludeHidden({ status: "auction" }))
     .sort({ auctionEndsAt: 1 })
     .limit(limit)
-    .populate("collection")
+    .populate(WITH_COLLECTION)
     .lean();
   return docs.map((d) => toItemView(d as never));
 }
@@ -101,7 +110,7 @@ export async function getFeaturedItems(limit = 12): Promise<ItemView[]> {
   const docs = await Item.find(await excludeHidden({ status: { $in: ["fixed_price", "auction"] } }))
     .sort({ favoriteCount: -1 })
     .limit(limit)
-    .populate("collection")
+    .populate(WITH_COLLECTION)
     .lean();
   return docs.map((d) => toItemView(d as never));
 }
@@ -247,7 +256,7 @@ export async function getExploreItems(filters: ExploreFilters) {
       .sort(sortMap[sort] ?? sortMap.recent)
       .skip((page - 1) * pageSize)
       .limit(pageSize)
-      .populate("collection")
+      .populate(WITH_COLLECTION)
       .lean(),
     Item.countDocuments(visibleMatch),
   ]);
@@ -277,7 +286,7 @@ export async function getItemById(id: string): Promise<ItemDetailView | null> {
   if (!Types.ObjectId.isValid(id)) return null;
 
   const doc = await Item.findById(id)
-    .populate("collection")
+    .populate(WITH_COLLECTION)
     .populate("owner")
     .populate("creator")
     .lean();
@@ -301,14 +310,14 @@ export async function getRelatedItems(
   const docs = await Item.find({ collection: collectionId, _id: { $ne: excludeId } })
     .sort({ favoriteCount: -1 })
     .limit(limit)
-    .populate("collection")
+    .populate(WITH_COLLECTION)
     .lean();
   return docs.map((d) => toItemView(d as never));
 }
 
 export async function getCollectionBySlug(slug: string): Promise<CollectionDetailView | null> {
   await connectDB();
-  const doc = await Collection.findOne({ slug, ...VISIBLE_COLLECTION }).populate("creator", "address").lean();
+  const doc = await Collection.findOne({ slug, ...VISIBLE_COLLECTION }).populate("creator", "address verificationTier").lean();
   if (!doc) return null;
 
   // stats.owners is only ever set at seed time — it never reflects real
@@ -423,7 +432,7 @@ export async function getItemsByOwner(userId: string): Promise<ItemView[]> {
     ],
   })
     .sort({ createdAt: -1 })
-    .populate("collection")
+    .populate(WITH_COLLECTION)
     .lean();
   return visibleItems(docs).map((d) => toItemView(d as never));
 }
@@ -432,7 +441,7 @@ export async function getItemsByCreator(userId: string): Promise<ItemView[]> {
   await connectDB();
   const docs = await Item.find({ creator: userId })
     .sort({ createdAt: -1 })
-    .populate("collection")
+    .populate(WITH_COLLECTION)
     .lean();
   return visibleItems(docs).map((d) => toItemView(d as never));
 }
@@ -441,7 +450,7 @@ export async function getFavoritedItems(userId: string): Promise<ItemView[]> {
   await connectDB();
   const favorites = await Favorite.find({ user: userId }).sort({ createdAt: -1 }).lean();
   const itemIds = favorites.map((f) => f.item);
-  const docs = await Item.find({ _id: { $in: itemIds } }).populate("collection").lean();
+  const docs = await Item.find({ _id: { $in: itemIds } }).populate(WITH_COLLECTION).lean();
   const byId = new Map(docs.map((d) => [String(d._id), d]));
   return itemIds
     .map((id) => byId.get(String(id)))
@@ -533,6 +542,7 @@ export async function getRankedCollections(
 ): Promise<CollectionDetailView[]> {
   await connectDB();
   const docs = await Collection.find(VISIBLE_COLLECTION)
+    .populate("creator", "verificationTier")
     .sort({ [RANKINGS_SORT_FIELD[timeframe]]: -1 })
     .limit(limit)
     .lean();
@@ -649,8 +659,8 @@ export async function search(query: string, limit = 8): Promise<SearchResults> {
   const re = new RegExp(escapeRegExp(trimmed), "i");
 
   const [itemDocs, collectionDocs, userDocs] = await Promise.all([
-    excludeHidden({ name: re }).then((m) => Item.find(m).limit(limit).populate("collection").lean()),
-    Collection.find({ name: re, ...VISIBLE_COLLECTION }).limit(limit).lean(),
+    excludeHidden({ name: re }).then((m) => Item.find(m).limit(limit).populate(WITH_COLLECTION).lean()),
+    Collection.find({ name: re, ...VISIBLE_COLLECTION }).populate("creator", "verificationTier").limit(limit).lean(),
     User.find({ username: re }).limit(limit).lean(),
   ]);
 
@@ -675,6 +685,7 @@ export async function getActiveLiveDrop(): Promise<{ slug: string; name: string 
 export async function getDrops(viewerUserId?: string): Promise<DropView[]> {
   await connectDB();
   const docs = await Collection.find({ dropStartsAt: { $ne: null }, ...VISIBLE_COLLECTION })
+    .populate("creator", "verificationTier")
     .sort({ dropStartsAt: 1 })
     .lean();
   if (docs.length === 0) return [];

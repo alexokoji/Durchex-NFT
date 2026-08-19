@@ -8,6 +8,7 @@ import {
   NotificationView,
   UserRef,
 } from "@/lib/types";
+import { VerificationTier } from "@/lib/verification";
 import { isItemMintedOut, isMintedOut, itemMintRemaining, mintRemaining } from "@/lib/listing";
 
 // Loose input types: only the fields we read, works for both lean() Mongoose
@@ -20,6 +21,7 @@ interface CollectionLike {
   logoUrl?: string;
   bannerUrl?: string;
   verified: boolean;
+  creator?: { verificationTier?: string } | null;
   stats: {
     floorEth: number;
     volume24hEth: number;
@@ -55,7 +57,7 @@ interface CollectionDetailLike extends CollectionLike {
   royaltyBps: number;
   contractType?: "lazy" | "drop";
   maxSupply?: number;
-  creator?: { address?: string } | null;
+  creator?: { address?: string; verificationTier?: string } | null;
   mintPhases?: {
     whitelist?: { enabled?: boolean; priceEth?: number; allocation?: number; walletLimit?: number; startsAt?: Date | string | null; endsAt?: Date | string | null };
     og?: { enabled?: boolean; priceEth?: number; allocation?: number; walletLimit?: number; startsAt?: Date | string | null; endsAt?: Date | string | null };
@@ -181,6 +183,7 @@ export function toCollectionView(c: CollectionLike): CollectionView {
     bannerUrl: c.bannerUrl || "",
     category: c.category as CategoryKey,
     verified: c.verified,
+    creatorTier: (c.creator?.verificationTier as VerificationTier) ?? "none",
     floorEth: c.stats.floorEth,
     volume24hEth: c.stats.volume24hEth,
     volumeChangePct: c.stats.volumeChangePct,
@@ -199,6 +202,7 @@ export function toItemView(item: ItemLike): ItemView {
     collectionName: item.collection.name,
     collectionSlug: item.collection.slug,
     collectionVerified: item.collection.verified,
+    creatorTier: (item.collection.creator?.verificationTier as VerificationTier) ?? "none",
     category: item.collection.category as CategoryKey,
     priceEth: item.priceEth,
     priceUsd: item.priceEth * ETH_USD,

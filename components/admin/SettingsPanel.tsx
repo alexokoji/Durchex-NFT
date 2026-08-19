@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { Loader2, Info, Lock, Unlock } from "lucide-react";
 import { Button } from "@/components/ui/Button";
+import { ReconcilePanel } from "@/components/admin/ReconcilePanel";
 
 export function SettingsPanel() {
   type OnChain = {
@@ -161,6 +162,8 @@ export function SettingsPanel() {
               <p className="text-xs text-white/40">Couldn&rsquo;t read the marketplace contract right now.</p>
             )}
           </div>
+
+          <ReconcilePanel />
 
           <div className="flex items-center gap-3">
             <Button onClick={save} disabled={saving} size="sm">

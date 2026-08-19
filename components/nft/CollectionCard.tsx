@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { BadgeCheck, TrendingDown, TrendingUp } from "lucide-react";
+import { VerifiedBadge } from "@/components/ui/VerifiedBadge";
 import clsx from "clsx";
 import { GeneratedArt } from "@/components/nft/GeneratedArt";
 import { CollectionView } from "@/lib/types";
@@ -30,7 +31,14 @@ export function CollectionCard({ collection, rank }: { collection: CollectionVie
       <div className="pt-8 px-4 pb-4">
         <div className="flex items-center gap-1 mb-2">
           <h3 className="text-sm font-semibold text-white truncate">{collection.name}</h3>
-          {collection.verified && <BadgeCheck className="w-3.5 h-3.5 text-purple-400 shrink-0" />}
+          {/* A verified creator's badge travels with their work. Falls
+              back to the collection's own admin check when the creator
+              isn't verified, so one mark rather than two competing ones. */}
+          {collection.creatorTier !== "none" ? (
+            <VerifiedBadge tier={collection.creatorTier} className="w-3.5 h-3.5" />
+          ) : (
+            collection.verified && <BadgeCheck className="w-3.5 h-3.5 text-purple-400 shrink-0" />
+          )}
         </div>
         <div className="flex items-center justify-between text-xs">
           <div>
