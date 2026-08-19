@@ -13,7 +13,7 @@ import { settlePurchase } from "@/lib/web3/settlePurchase";
 import { PHASE_LABELS, PhaseKey } from "@/lib/mintPhases";
 import { ItemDetailView } from "@/lib/types";
 
-type Gate = { configured: boolean; eligiblePhases: PhaseKey[]; canMint: boolean };
+type Gate = { configured: boolean; eligiblePhases: PhaseKey[]; canMint: boolean; walletCapReached: boolean };
 
 /**
  * Buy `quantity` not-yet-minted units of an ERC-1155 edition's primary sale.
@@ -196,10 +196,21 @@ export function BuyEditionButton({
   if (address && gate && gate.configured && !gate.canMint) {
     return (
       <div className="rounded-xl bg-white/5 border border-white/10 p-4 text-center">
-        <p className="text-sm font-medium text-white/60">Not eligible right now</p>
-        <p className="text-xs text-white/35 mt-1">
-          No mint phase this wallet can mint through is open at the moment.
-        </p>
+        {gate.walletCapReached ? (
+          <>
+            <p className="text-sm font-medium text-white/60">This wallet has already minted its limit</p>
+            <p className="text-xs text-white/35 mt-1">
+              You&apos;ve used up this wallet&apos;s per-wallet cap on every phase currently open.
+            </p>
+          </>
+        ) : (
+          <>
+            <p className="text-sm font-medium text-white/60">Not eligible right now</p>
+            <p className="text-xs text-white/35 mt-1">
+              No mint phase this wallet can mint through is open at the moment.
+            </p>
+          </>
+        )}
       </div>
     );
   }

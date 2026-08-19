@@ -13,7 +13,7 @@ import { explorerTxUrl } from "@/lib/web3/explorer";
 import { PHASE_LABELS, PhaseKey } from "@/lib/mintPhases";
 import { ItemDetailView } from "@/lib/types";
 
-type Gate = { configured: boolean; eligiblePhases: PhaseKey[]; canMint: boolean };
+type Gate = { configured: boolean; eligiblePhases: PhaseKey[]; canMint: boolean; walletCapReached: boolean };
 
 /**
  * The one real on-chain purchase path in the app: calls
@@ -150,8 +150,17 @@ export function BuyLazyButton({ item, phase: forcedPhase }: { item: ItemDetailVi
     return (
       <div className="rounded-xl bg-white/5 border border-white/10 p-4 text-center">
         <Lock className="w-4 h-4 text-white/30 mx-auto mb-1.5" />
-        <p className="text-sm font-medium text-white/70">No mint phase this wallet is eligible for is open right now</p>
-        <p className="text-xs text-white/40 mt-1">Check back once GTD, FCFS, or Public opens up.</p>
+        {gate.walletCapReached ? (
+          <>
+            <p className="text-sm font-medium text-white/70">This wallet has already minted its limit</p>
+            <p className="text-xs text-white/40 mt-1">You&apos;ve used up this wallet&apos;s per-wallet cap on every phase currently open.</p>
+          </>
+        ) : (
+          <>
+            <p className="text-sm font-medium text-white/70">No mint phase this wallet is eligible for is open right now</p>
+            <p className="text-xs text-white/40 mt-1">Check back once GTD, FCFS, or Public opens up.</p>
+          </>
+        )}
       </div>
     );
   }

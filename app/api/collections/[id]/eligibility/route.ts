@@ -45,13 +45,20 @@ export async function GET(request: NextRequest, context: { params: Promise<{ id:
   // buyer picks whichever one they're eligible for, not a single "active"
   // phase the system decides for them.
   const configured = hasConfiguredPhases(collection.mintPhases as never);
-  const eligiblePhases: PhaseKey[] = configured
-    ? PHASE_KEYS.filter((key) => result[key].enabled && result[key].eligible && result[key].remaining !== 0)
-    : [];
+  // Split in two steps so "no phase open" and "phase's open, but this
+  // wallet already used up its cap" can be told apart — otherwise both
+  // collapse into the same canMint:false with no way for the UI to explain
+  // which one actually happened.
+  const liveEligiblePhases = configured ? PHASE_KEYS.filter((key) => result[key].enabled && result[key].eligible) : [];
+  const eligiblePhases: PhaseKey[] = liveEligiblePhases.filter((key) => result[key].remaining !== 0);
   const gate = {
     configured,
     eligiblePhases,
     canMint: !configured || eligiblePhases.length > 0,
+    // True only when a phase this wallet qualifies for is genuinely open,
+    // and the sole reason it can't mint is its own per-wallet cap — not
+    // when nothing is open at all, which needs a different message.
+    walletCapReached: configured && liveEligiblePhases.length > 0 && eligiblePhases.length === 0,
   };
 
   return NextResponse.json({ ...result, gate });
