@@ -9,6 +9,7 @@
  * Keeping this in one place means both paths apply state changes identically
  * instead of two hand-maintained copies drifting apart.
  */
+import { Types } from "mongoose";
 import { formatEther } from "viem";
 import { Collection } from "@/lib/models/Collection";
 import { Item } from "@/lib/models/Item";
@@ -255,10 +256,7 @@ export async function handleListing1155Filled(
       { $inc: { quantity: qty } },
       { upsert: true }
     ),
-    Listing.findOneAndUpdate(
-      { seller: sellerUser._id, item: item._id, nft: { $regex: `^${nft}$`, $options: "i" } },
-      { $inc: { filledQuantity: qty } }
-    ),
+    markListingFilled({ sellerId: sellerUser._id, itemId: item._id, nft, qty }),
     Collection.updateOne(
       { _id: collection._id },
       { $inc: { "stats.sales": 1, "stats.volume24hEth": totalPriceEth, "stats.totalVolumeEth": totalPriceEth } }
@@ -277,4 +275,43 @@ export async function handleListing1155Filled(
   ]);
 
   return { synced: true as const, itemId: String(item._id) };
+}
+
+/**
+ * Credits units against the seller's live listing and retires it once
+ * nothing is left.
+ *
+ * The count was being incremented without ever changing status, so a
+ * listing whose units had all sold stayed "active" forever: it kept
+ * appearing on the item page reading "0 of 1 left", still counted as a
+ * live listing, and offered a buy box whose only permitted quantity was
+ * zero. A listing with nothing left is finished, and should say so.
+ */
+async function markListingFilled({
+  sellerId,
+  itemId,
+  nft,
+  qty,
+}: {
+  sellerId: Types.ObjectId;
+  itemId: Types.ObjectId;
+  nft: string;
+  qty: number;
+}) {
+  const listing = await Listing.findOneAndUpdate(
+    {
+      seller: sellerId,
+      item: itemId,
+      nft: { $regex: `^${nft}$`, $options: "i" },
+      // Scoped to live listings so a fill can't be credited against one
+      // the seller already withdrew.
+      status: { $in: ["active", "auction"] },
+    },
+    { $inc: { filledQuantity: qty } },
+    { new: true }
+  );
+  if (listing && listing.filledQuantity >= listing.quantity) {
+    listing.status = "filled";
+    await listing.save();
+  }
 }

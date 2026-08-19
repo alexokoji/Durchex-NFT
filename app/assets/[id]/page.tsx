@@ -6,6 +6,7 @@ import { MediaPanel } from "@/components/item/MediaPanel";
 import { PricePanel } from "@/components/item/PricePanel";
 import { ItemTabs } from "@/components/item/ItemTabs";
 import { ItemStatStrip } from "@/components/item/ItemStatStrip";
+import { SellToTopOffer } from "@/components/item/SellToTopOffer";
 import { CollectionSummary } from "@/components/item/CollectionSummary";
 import { VerifiedBadge } from "@/components/ui/VerifiedBadge";
 import { UserChip } from "@/components/item/UserChip";
@@ -31,6 +32,10 @@ export default async function ItemDetailPage({ params }: PageProps) {
     getActivity({ itemId: item.id, pageSize: 20 }),
     getCollectionSummary(item.collectionId),
   ]);
+
+  // The single best standing offer, so a holder can sell into it without
+  // hunting through the Orders tab for the right row.
+  const topOffer = offers.find((o) => o.type === "offer" && o.status === "active") ?? null;
 
   return (
     <div className="max-w-7xl mx-auto px-6 py-10">
@@ -86,7 +91,10 @@ export default async function ItemDetailPage({ params }: PageProps) {
           </div>
 
           <div className="mb-5">
-            <ItemStatStrip item={item} />
+            <ItemStatStrip
+              item={item}
+              topOfferAction={<SellToTopOffer item={item} topOfferId={topOffer?.id ?? null} />}
+            />
           </div>
 
           <PricePanel item={item} />

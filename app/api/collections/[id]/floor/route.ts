@@ -53,7 +53,7 @@ export async function GET(_req: NextRequest, context: { params: Promise<{ id: st
 
   type Candidate = {
     pricePerUnitEth: number;
-    kind: "lazy_721" | "resale_721" | "primary_1155" | "resale_1155";
+    kind: "resale_721" | "resale_1155";
     item: (typeof items)[number];
     listingId?: string;
     availableQuantity?: number;
@@ -76,31 +76,12 @@ export async function GET(_req: NextRequest, context: { params: Promise<{ id: st
   for (const item of items) {
     const isFuture = (deadline?: string | null) => !!deadline && Number(deadline) > nowSec;
 
-    if (item.standard === "ERC1155") {
-      // Primary sale: still fillable only while supply remains and the
-      // edition voucher hasn't expired.
-      const ev = item.editionVoucher;
-      const remaining = (item.totalSupply ?? 0) - (item.mintedSupply ?? 0);
-      if (ev?.signature && remaining > 0 && isFuture(ev.deadline)) {
-        candidates.push({
-          pricePerUnitEth: item.priceEth,
-          kind: "primary_1155",
-          item,
-          availableQuantity: remaining,
-        });
-      }
-      continue;
-    }
-
-    if (!item.isMinted) {
-      // Lazy 721: a voucher with no deadline predates the redeployed
-      // contract and can never be redeemed against it, so it is not a
-      // valid listing and must not set the floor.
-      if (item.voucher?.signature && isFuture(item.voucher.deadline)) {
-        candidates.push({ pricePerUnitEth: item.priceEth, kind: "lazy_721", item });
-      }
-      continue;
-    }
+    // Primary sales are not floor candidates — see lib/floorValidity.ts.
+    // An edition still minting, or an unredeemed lazy voucher, is the
+    // creator selling, not a holder listing. Buying the floor should buy
+    // somebody's listing.
+    if (item.standard === "ERC1155") continue;
+    if (!item.isMinted) continue;
 
     // Resale 721: needs a live owner-signed listing that hasn't expired.
     // Seller-still-owns is additionally enforced on-chain at fill time.

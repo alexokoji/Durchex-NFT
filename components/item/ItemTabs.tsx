@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import clsx from "clsx";
 import { Sparkles, Link2, Hash, Network, Check, Gavel, Tag } from "lucide-react";
 import { TraitPill } from "@/components/nft/TraitPill";
@@ -24,7 +24,22 @@ export function ItemTabs({
 }) {
   const [tab, setTab] = useState<Tab>("Details");
   const { user } = useSession();
-  const isOwner = !!user && user.address === item.owner?.address;
+  // Who may accept an offer. For an ERC-721 that is the single owner; for
+  // an edition it is anyone holding a unit, since each holder can sell
+  // their own. Gating editions on Item.owner meant only the creator could
+  // ever accept, so holders had no way to sell into a standing offer.
+  const [balance, setBalance] = useState(0);
+  useEffect(() => {
+    if (!user || item.standard !== "ERC1155") return;
+    fetch(`/api/items/${item.id}/balance`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => data && setBalance(Number(data.quantity ?? 0)));
+  }, [user, item.id, item.standard]);
+
+  const isOwner =
+    item.standard === "ERC1155"
+      ? balance > 0
+      : !!user && user.address === item.owner?.address;
 
   return (
     <div className="surface-card p-6">

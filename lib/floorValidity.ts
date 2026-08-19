@@ -42,29 +42,28 @@ function unexpired(deadline?: string | null): boolean {
 }
 
 /**
- * The per-unit ask this item currently offers, or null if it offers none.
+ * The per-unit ask this item currently offers on the SECONDARY market, or
+ * null if it offers none.
  *
- * Mirrors the four shapes the floor endpoint distinguishes: an ERC-1155
- * primary sale, a lazy ERC-721 voucher, an ERC-721 resale listing, and
- * (handled separately, since they are their own documents) ERC-1155
- * resale listings.
+ * Primary sales — an ERC-1155 edition still minting, an unredeemed lazy
+ * ERC-721 voucher — are deliberately excluded. Floor means the cheapest
+ * *listing*, and folding the mint price in made it useless during a mint:
+ * a collection minting at 0.000001 reported that as its floor no matter
+ * what holders were asking, and "Buy Floor" offered a mint rather than
+ * somebody's listing. Minting is its own path with its own panel; this is
+ * about the resale market.
  */
 export function fillableItemAsk(item: FloorItemLike): number | null {
   const price = item.priceEth ?? 0;
   if (price <= 0 || item.status !== "fixed_price") return null;
 
-  if (item.standard === "ERC1155") {
-    const remaining = (item.totalSupply ?? 0) - (item.mintedSupply ?? 0);
-    const ev = item.editionVoucher;
-    return ev?.signature && remaining > 0 && unexpired(ev.deadline) ? price : null;
-  }
+  // An ERC-1155's own priceEth is its primary edition price; resale of an
+  // edition lives in Listing documents instead (several holders can each
+  // be asking a different amount), so there is nothing to take from here.
+  if (item.standard === "ERC1155") return null;
 
-  if (!item.isMinted) {
-    // A voucher with no deadline predates the redeployed contract and can
-    // never be redeemed against it, so it is not a real listing.
-    const v = item.voucher;
-    return v?.signature && unexpired(v.deadline) ? price : null;
-  }
+  // An unminted ERC-721 is still the creator's primary sale.
+  if (!item.isMinted) return null;
 
   const l = item.listing;
   return l?.signature && unexpired(l.deadline) ? price : null;
