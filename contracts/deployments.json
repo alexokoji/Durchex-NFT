@@ -25,6 +25,8 @@
     "feeRecipient": "0xf1b1f1410D82Bb5e4bc775a6DdFba895E396314d",
     "deployedAt": "2026-08-18T10:57:39.627Z",
     "DurchexOffers": "0x6c25bdD92906eb97601410198D398526bA792468",
-    "paymentToken": "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2"
+    "paymentToken": "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2",
+    "DurchexCollectionFactory": "0xc4cbC3A2f1ef10F5A4eD6651314812C3c7f09f76",
+    "DurchexCollectionImplementation": "0x60AcD2CF1700490bA19645721f588420c2F4d0a0"
   }
 }
