@@ -8,6 +8,13 @@ import { useConnectModal } from "@rainbow-me/rainbowkit";
 import { Button } from "@/components/ui/Button";
 import { useTxSuccess } from "@/components/tx/TxSuccess";
 import { MARKETPLACE_ABI, marketplaceAddressFor } from "@/lib/web3/marketplaceAbi";
+import {
+  COLLECTION_FACTORY_ABI,
+  collectionFactoryAddressFor,
+  collectionImplementationAddressFor,
+  collectionSalt,
+  deriveCollectionSymbol,
+} from "@/lib/web3/collectionFactory";
 import { settlePurchase } from "@/lib/web3/settlePurchase";
 import { explorerTxUrl } from "@/lib/web3/explorer";
 import { PHASE_LABELS, PhaseKey } from "@/lib/mintPhases";
@@ -37,7 +44,7 @@ export function BuyLazyButton({ item, phase: forcedPhase }: { item: ItemDetailVi
   const publicClient = usePublicClient({ chainId: item.chainId });
   const { celebrate } = useTxSuccess();
 
-  const [txPhase, setTxPhase] = useState<"idle" | "switching" | "confirm" | "mining" | "done">("idle");
+  const [txPhase, setTxPhase] = useState<"idle" | "switching" | "deploying" | "confirm" | "mining" | "done">("idle");
   const [error, setError] = useState<string | null>(null);
   const [txHash, setTxHash] = useState<string | null>(null);
   const [gate, setGate] = useState<Gate | null>(null);
@@ -76,6 +83,36 @@ export function BuyLazyButton({ item, phase: forcedPhase }: { item: ItemDetailVi
       if (connectedChainId !== item.chainId) {
         setTxPhase("switching");
         await switchChainAsync({ chainId: item.chainId });
+      }
+
+      // Collections created after DurchexCollectionFactory went live each
+      // get their own contract instead of sharing DurchexNFT, so every
+      // Durchex collection shows up as its own collection on external
+      // marketplaces rather than merged into one. The clone only gets
+      // deployed once someone actually buys — if that's this purchase,
+      // deploy it first, then proceed to the mint exactly as before.
+      if (item.standard === "ERC721" && item.contractType === "lazy") {
+        const factoryAddress = collectionFactoryAddressFor(item.chainId);
+        const implementationAddress = collectionImplementationAddressFor(item.chainId);
+        if (factoryAddress && implementationAddress) {
+          const code = await publicClient?.getBytecode({ address: item.contractAddress as `0x${string}` });
+          if (!code || code === "0x") {
+            setTxPhase("deploying");
+            const deployHash = await writeContractAsync({
+              address: factoryAddress,
+              abi: COLLECTION_FACTORY_ABI,
+              functionName: "deployCollection",
+              args: [
+                collectionSalt(item.collectionId),
+                item.collectionName,
+                deriveCollectionSymbol(item.collectionName),
+                (item.creator?.address ?? voucher.creator) as `0x${string}`,
+              ],
+              chainId: item.chainId,
+            });
+            await publicClient?.waitForTransactionReceipt({ hash: deployHash });
+          }
+        }
       }
 
       setTxPhase("confirm");
@@ -194,6 +231,7 @@ export function BuyLazyButton({ item, phase: forcedPhase }: { item: ItemDetailVi
         disabled={txPhase !== "idle"}
       >
         {txPhase === "switching" && "Switch network in your wallet…"}
+        {txPhase === "deploying" && "Setting up this collection's contract…"}
         {txPhase === "confirm" && "Confirm in your wallet…"}
         {txPhase === "mining" && "Minting on-chain…"}
         {txPhase === "idle" && "Buy & Mint (on-chain)"}

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { Types } from "mongoose";
 import { connectDB } from "@/lib/db";
 import { Collection } from "@/lib/models/Collection";
 import { getCurrentUser } from "@/lib/auth/currentUser";
@@ -10,6 +11,12 @@ import {
   DEFAULT_NFT1155_ADDRESS,
   DEFAULT_NFT1155_CHAIN_ID,
 } from "@/lib/web3/deployedContract";
+import {
+  collectionFactoryAddressFor,
+  collectionImplementationAddressFor,
+  collectionSalt,
+  predictCloneAddress,
+} from "@/lib/web3/collectionFactory";
 
 const CATEGORIES: CategoryKey[] = [
   "art",
@@ -121,7 +128,29 @@ export async function POST(req: NextRequest) {
     slug = `${baseSlug}-${++suffix}`;
   }
 
+  // ERC-721 collections get their own dedicated contract when a
+  // DurchexCollectionFactory is live on the target chain — deployed lazily
+  // at first mint (see BuyLazyButton), not here, so a collection that never
+  // sells never costs anyone gas. The address itself is pure CREATE2
+  // arithmetic and needs no chain call, but it does need the collection's
+  // real _id, so that's generated up front instead of left to Mongo.
+  // ERC-1155 has no such factory (DurchexCollectionFactory only clones
+  // DurchexCollection, the 721 contract) and keeps sharing DurchexNFT1155,
+  // same as before.
+  const _id = new Types.ObjectId();
+  const factoryAddress = standard === "ERC721" ? collectionFactoryAddressFor(DEFAULT_NFT_CHAIN_ID) : undefined;
+  const implementationAddress = factoryAddress ? collectionImplementationAddressFor(DEFAULT_NFT_CHAIN_ID) : undefined;
+  const clonedContractAddress =
+    factoryAddress && implementationAddress
+      ? predictCloneAddress({
+          implementation: implementationAddress,
+          salt: collectionSalt(_id.toString()),
+          factory: factoryAddress,
+        })
+      : null;
+
   const collection = await Collection.create({
+    _id,
     slug,
     name,
     description,
@@ -131,7 +160,7 @@ export async function POST(req: NextRequest) {
     creator: user._id,
     royaltyBps,
     standard,
-    contractAddress: standard === "ERC1155" ? DEFAULT_NFT1155_ADDRESS : DEFAULT_NFT_ADDRESS,
+    contractAddress: clonedContractAddress ?? (standard === "ERC1155" ? DEFAULT_NFT1155_ADDRESS : DEFAULT_NFT_ADDRESS),
     chainId: standard === "ERC1155" ? DEFAULT_NFT1155_CHAIN_ID : DEFAULT_NFT_CHAIN_ID,
     contractType: "lazy",
     maxSupply,
