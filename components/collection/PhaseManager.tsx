@@ -11,7 +11,9 @@ type Phase = {
   priceEth: number;
   allocation: number;
   walletLimit: number;
-  allowlist: string[];
+  // Public has no allowlist in the schema, so this is genuinely absent
+  // for that phase rather than an empty array.
+  allowlist?: string[];
   minted: number;
   startsAt: string | null;
   endsAt: string | null;
@@ -100,7 +102,7 @@ function PhaseRow({
   onSave: (patch: Partial<Phase>) => void;
 }) {
   const [draft, setDraft] = useState(phase);
-  const [allowlistText, setAllowlistText] = useState(phase.allowlist.join("\n"));
+  const [allowlistText, setAllowlistText] = useState((phase.allowlist ?? []).join("\n"));
   const fileRef = useRef<HTMLInputElement>(null);
   const isPublic = phaseKey === "public";
   const hasAllowlist = !isPublic;
@@ -109,7 +111,7 @@ function PhaseRow({
   useEffect(() => {
     const id = setTimeout(() => {
       setDraft(phase);
-      setAllowlistText(phase.allowlist.join("\n"));
+      setAllowlistText((phase.allowlist ?? []).join("\n"));
     }, 0);
     return () => clearTimeout(id);
   }, [phase]);
