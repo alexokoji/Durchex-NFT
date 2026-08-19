@@ -2,6 +2,7 @@ import { Types } from "mongoose";
 import { connectDB } from "@/lib/db";
 import { Collection } from "@/lib/models/Collection";
 import { Item } from "@/lib/models/Item";
+import { ItemBalance } from "@/lib/models/ItemBalance";
 import { User } from "@/lib/models/User";
 import { Favorite } from "@/lib/models/Favorite";
 import { Bid } from "@/lib/models/Bid";
@@ -223,12 +224,23 @@ export async function getCollectionBySlug(slug: string): Promise<CollectionDetai
   // stats.owners is only ever set at seed time — it never reflects real
   // ownership changes from minting/buying/reselling, so compute it live
   // instead of trusting the stored (and usually stale/zero) value.
-  const ownersAgg = await Item.aggregate([
-    { $match: { collection: doc._id } },
-    { $group: { _id: "$owner" } },
-    { $count: "count" },
+  // Counted across both ownership models, then de-duplicated: a wallet
+  // holding a 721 and an edition from the same collection is one owner,
+  // not two. Grouping over Item alone missed every 1155 holder.
+  const [owners721, owners1155] = await Promise.all([
+    Item.aggregate([
+      { $match: { collection: doc._id, standard: { $ne: "ERC1155" }, owner: { $ne: null } } },
+      { $group: { _id: "$owner" } },
+    ]),
+    ItemBalance.aggregate([
+      { $lookup: { from: "items", localField: "item", foreignField: "_id", as: "item" } },
+      { $unwind: "$item" },
+      { $match: { "item.collection": doc._id, quantity: { $gt: 0 } } },
+      { $group: { _id: "$owner" } },
+    ]),
   ]);
-  doc.stats.owners = ownersAgg[0]?.count ?? 0;
+  const ownerIds = new Set([...owners721, ...owners1155].map((o) => String(o._id)));
+  doc.stats.owners = ownerIds.size;
   doc.stats.items = await Item.countDocuments({ collection: doc._id });
   // Items actually minted on-chain, as opposed to stats.items (every Item
   // doc, including unminted lazy vouchers pre-created for a drop) — this is
@@ -292,7 +304,27 @@ export async function getProfileByAddress(address: string): Promise<ProfileView 
 
 export async function getItemsByOwner(userId: string): Promise<ItemView[]> {
   await connectDB();
-  const docs = await Item.find({ owner: userId }).sort({ createdAt: -1 }).populate("collection").lean();
+
+  // Ownership is recorded two different ways. An ERC-721 has a single
+  // owner on the Item itself; an ERC-1155 is held by many wallets at once,
+  // so its holdings live in ItemBalance and the Item's own `owner` field
+  // still points at whoever created it. Reading only Item.owner therefore
+  // showed 1155 buyers nothing they had bought, while wrongly listing the
+  // creator as owning editions they had already sold.
+  const balances = await ItemBalance.find({ owner: userId, quantity: { $gt: 0 } })
+    .select("item")
+    .lean();
+  const heldEditionIds = balances.map((b) => b.item);
+
+  const docs = await Item.find({
+    $or: [
+      { owner: userId, standard: { $ne: "ERC1155" } },
+      { _id: { $in: heldEditionIds } },
+    ],
+  })
+    .sort({ createdAt: -1 })
+    .populate("collection")
+    .lean();
   return docs.filter((d) => d.collection).map((d) => toItemView(d as never));
 }
 
