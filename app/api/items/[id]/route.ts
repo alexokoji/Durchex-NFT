@@ -62,7 +62,16 @@ export async function PATCH(req: NextRequest, context: { params: Promise<{ id: s
       listing.seller?.toLowerCase() !== user.address.toLowerCase() ||
       listing.nft?.toLowerCase() !== collection?.contractAddress?.toLowerCase()
     ) {
-      return NextResponse.json({ error: "Listing authorization doesn't match this item" }, { status: 400 });
+      const mismatch =
+        String(listing.tokenId) !== String(item.tokenId)
+          ? `token id (signed ${listing.tokenId}, expected ${item.tokenId})`
+          : listing.seller?.toLowerCase() !== user.address.toLowerCase()
+            ? "signing wallet"
+            : "contract address";
+      return NextResponse.json(
+        { error: `Listing authorization doesn't match this item — ${mismatch}. Reconnect your wallet and try again.` },
+        { status: 400 }
+      );
     }
 
     item.status = "fixed_price";

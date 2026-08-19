@@ -6,6 +6,7 @@ import { PhaseManager } from "@/components/collection/PhaseManager";
 import { ListingControl } from "@/components/collection/ListingControl";
 import { ContractAttach } from "@/components/collection/ContractAttach";
 import { BuyFloorButton } from "@/components/collection/BuyFloorButton";
+import { SellIntoCollectionButton } from "@/components/collection/SellIntoCollectionButton";
 import { MakeCollectionOfferButton } from "@/components/collection/MakeCollectionOfferButton";
 import { CollectionOffersList } from "@/components/collection/CollectionOffersList";
 import { ResaleStatus } from "@/components/collection/ResaleStatus";
@@ -38,6 +39,7 @@ export function CollectionHeader({ collection }: { collection: CollectionDetailV
       {collection.resaleOpen ? (
         <div className="mt-6 px-4 sm:px-8 flex flex-wrap gap-2">
           <BuyFloorButton collection={collection} />
+          <SellIntoCollectionButton collection={collection} />
           <MakeCollectionOfferButton collection={collection} />
         </div>
       ) : (

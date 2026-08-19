@@ -118,7 +118,19 @@ export async function POST(req: NextRequest, context: { params: Promise<{ id: st
     listingData.seller?.toLowerCase() !== user.address.toLowerCase() ||
     listingData.nft?.toLowerCase() !== collection?.contractAddress?.toLowerCase()
   ) {
-    return NextResponse.json({ error: "Listing authorization doesn't match this item" }, { status: 400 });
+    // Naming the field matters: "doesn't match this item" is unactionable
+    // for the seller and undiagnosable for us, and this check has three
+    // independent ways to fail.
+    const mismatch =
+      String(listingData.tokenId) !== String(item.tokenId)
+        ? `token id (signed ${listingData.tokenId}, expected ${item.tokenId})`
+        : listingData.seller?.toLowerCase() !== user.address.toLowerCase()
+          ? "signing wallet"
+          : "contract address";
+    return NextResponse.json(
+      { error: `Listing authorization doesn't match this item — ${mismatch}. Reconnect your wallet and try again.` },
+      { status: 400 }
+    );
   }
 
   const listing = await Listing.create({

@@ -48,6 +48,7 @@ export function EditionListings({ item }: { item: ItemDetailView }) {
   const [listings, setListings] = useState<ResaleListing[] | null>(null);
   const [quantities, setQuantities] = useState<Record<string, string>>({});
   const [bidAmounts, setBidAmounts] = useState<Record<string, string>>({});
+  const [cancelling, setCancelling] = useState<string | null>(null);
   // Ticks once a second so "has this auction ended" stays accurate for an
   // open tab without calling Date.now() directly during render.
   const [now, setNow] = useState<number | null>(() => Date.now());
@@ -67,6 +68,22 @@ export function EditionListings({ item }: { item: ItemDetailView }) {
 
   const marketplaceAddress = marketplaceAddressFor(item.chainId);
   if (!listings || listings.length === 0 || !marketplaceAddress) return null;
+
+  async function cancelListing(listingId: string) {
+    setCancelling(listingId);
+    setError(null);
+    try {
+      const res = await fetch(`/api/items/${item.id}/listings/${listingId}`, { method: "DELETE" });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Couldn't withdraw the listing");
+      setListings((all) => (all ? all.filter((l) => l.id !== listingId) : all));
+      router.refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Couldn't withdraw the listing");
+    } finally {
+      setCancelling(null);
+    }
+  }
 
   async function buy(listing: ResaleListing) {
     if (!address) return openConnectModal?.();
@@ -262,11 +279,29 @@ export function EditionListings({ item }: { item: ItemDetailView }) {
           return (
             <div key={l.id} className="rounded-lg border border-white/10 p-3 flex items-center justify-between gap-3">
               <div className="min-w-0">
-                <div className="text-sm text-white/85 truncate">{l.seller?.username ?? l.seller?.address ?? "Unknown seller"}</div>
+                <div className="flex items-center gap-1.5 text-sm text-white/85">
+                  <span className="truncate">
+                    {isSeller ? "Your listing" : (l.seller?.username ?? l.seller?.address ?? "Unknown seller")}
+                  </span>
+                  {isSeller && (
+                    <span className="rounded-full border border-purple-400/40 bg-purple-500/10 px-1.5 py-0.5 text-[9px] uppercase tracking-wide text-purple-200 shrink-0">
+                      You
+                    </span>
+                  )}
+                </div>
                 <div className="text-[11px] text-white/40">
-                  {l.remaining} of {l.quantity} left · {l.pricePerUnitEth.toFixed(3)} ETH each
+                  {l.remaining} of {l.quantity} left · {l.pricePerUnitEth} ETH each
                   {l.buyer && ` · reserved for ${l.buyer.slice(0, 6)}…`}
                 </div>
+                {isSeller && (
+                  <button
+                    onClick={() => cancelListing(l.id)}
+                    disabled={cancelling === l.id}
+                    className="mt-1 text-[11px] text-white/45 hover:text-danger transition disabled:opacity-40"
+                  >
+                    {cancelling === l.id ? "Withdrawing…" : "Withdraw listing"}
+                  </button>
+                )}
               </div>
               <div className="flex items-center gap-1.5 shrink-0">
                 <input
