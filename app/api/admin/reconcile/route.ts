@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { connectDB } from "@/lib/db";
 import { getCurrentAdmin } from "@/lib/auth/currentAdmin";
-import { CHAINS, getWatermark, reconcileRange, rpcClient, setWatermark } from "@/lib/web3/reconcile";
+import { CHAINS, earliestBlock, getWatermark, reconcileRange, rpcClient, setWatermark } from "@/lib/web3/reconcile";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -44,7 +44,7 @@ export async function POST(req: NextRequest) {
     }
   } else {
     // No explicit start: continue from wherever the reconciler last got to.
-    fromBlock = (await getWatermark(chainId)) ?? BigInt(0);
+    fromBlock = (await getWatermark(chainId)) ?? earliestBlock(chainId);
   }
 
   // A throw here (RPC refusing a range, a provider rate limit, a network

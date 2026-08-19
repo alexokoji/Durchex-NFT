@@ -31,8 +31,22 @@ const SALE_EVENTS = parseAbi([
   "event Listing1155Filled(address indexed nft, uint256 indexed tokenId, address seller, address buyer, uint256 quantity, uint256 totalPrice)",
 ]);
 
-// Free RPC tiers cap eth_getLogs ranges, so any window is walked in chunks.
-const CHUNK = BigInt(9000);
+// Free RPC tiers cap eth_getLogs by response time, not just range, and
+// 9000 blocks was reliably over the line — every backfill call died with
+// "Request timeout on the free plan". 1000 is served comfortably.
+const CHUNK = BigInt(1000);
+
+// Nothing this marketplace cares about happened before its own contract
+// existed, and asking a free RPC for logs from block 0 is both pointless
+// and guaranteed to time out. Scans are clamped to start here.
+const DEPLOY_BLOCK: Record<number, bigint> = {
+  1: BigInt(25_780_000), // Ethereum, shortly before the 2026-08-18 deploy
+  11155111: BigInt(0), // Sepolia: no floor worth pinning for a testnet
+};
+
+export function earliestBlock(chainId: number): bigint {
+  return DEPLOY_BLOCK[chainId] ?? BigInt(0);
+}
 
 export type ReconcileResult = {
   chainId: number;
@@ -88,14 +102,16 @@ export async function reconcileRange({
 
   const startedAt = Date.now();
   const head = await client.getBlockNumber();
-  const ceiling = fromBlock + maxBlocks > head ? head : fromBlock + maxBlocks;
+  const floor = earliestBlock(chainId);
+  const start = fromBlock < floor ? floor : fromBlock;
+  const ceiling = start + maxBlocks > head ? head : start + maxBlocks;
 
   const logs = [];
-  let scannedTo = fromBlock;
-  for (let start = fromBlock; start <= ceiling; start += CHUNK + BigInt(1)) {
-    const end = start + CHUNK > ceiling ? ceiling : start + CHUNK;
+  let scannedTo = start;
+  for (let cursor = start; cursor <= ceiling; cursor += CHUNK + BigInt(1)) {
+    const end = cursor + CHUNK > ceiling ? ceiling : cursor + CHUNK;
     logs.push(
-      ...(await client.getLogs({ address: marketplace, events: SALE_EVENTS, fromBlock: start, toBlock: end }))
+      ...(await client.getLogs({ address: marketplace, events: SALE_EVENTS, fromBlock: cursor, toBlock: end }))
     );
     scannedTo = end;
     if (Date.now() - startedAt > timeBudgetMs) break;
@@ -125,7 +141,7 @@ export async function reconcileRange({
 
   return {
     chainId,
-    fromBlock: String(fromBlock),
+    fromBlock: String(start),
     toBlock: String(scannedTo),
     nextBlock: scannedTo < head ? String(scannedTo + BigInt(1)) : null,
     salesSeen: hashes.length,
