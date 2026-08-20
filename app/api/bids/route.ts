@@ -11,7 +11,9 @@ import {
   leafOf,
   offersAddressFor,
 } from "@/lib/web3/offerCriteria";
-import { parseEther, verifyTypedData } from "viem";
+import { formatEther, parseEther, verifyTypedData } from "viem";
+import { OFFERS_ESCROW_ABI, offersEscrowAddressFor } from "@/lib/web3/offersEscrow";
+import { rpcClient } from "@/lib/web3/reconcile";
 import { getCurrentUser } from "@/lib/auth/currentUser";
 import { recordActivity } from "@/lib/activity";
 import { createNotification } from "@/lib/notifications";
@@ -27,7 +29,7 @@ export async function POST(req: NextRequest) {
   const body = await req.json();
   const itemId = String(body.itemId ?? "");
   const type = body.type === "auction_bid" ? "auction_bid" : "offer";
-  const amountEth = Number(body.amountEth);
+  let amountEth = Number(body.amountEth);
   const quantity = Math.max(1, Math.floor(Number(body.quantity ?? 1)));
 
   if (!itemId || !Number.isFinite(amountEth) || amountEth <= 0) {
@@ -179,42 +181,79 @@ export async function POST(req: NextRequest) {
         { status: 409 }
       );
     }
-    // The signature is what actually moves money at settlement, so it is
-    // checked here rather than taken on trust. Storing an unverifiable one
-    // shows a live offer that can never be filled, and the seller only
-    // discovers that by spending gas on a reverting accept.
+    // Each settlement route has its own proof of good faith, and they are
+    // not interchangeable. A signature offer is authorised by the
+    // signature; an escrowed offer by ETH the contract is already holding.
+    // Running the signature path over an escrowed offer threw on
+    // BigInt("undefined") inside the argument list — before the .catch()
+    // could apply — which is why a funded offer came back as an empty 500.
     const deadlineSeconds = body.deadline ? BigInt(String(body.deadline)) : BigInt(0);
-    const offersAddress = offersAddressFor(collection?.chainId);
-    if (!offersAddress) {
-      return NextResponse.json({ error: "Offers aren't supported on this network" }, { status: 400 });
-    }
-    const signatureValid = await verifyTypedData({
-      address: user.address as `0x${string}`,
-      domain: {
-        name: OFFER_DOMAIN_NAME,
-        version: OFFER_DOMAIN_VERSION,
-        chainId: collection?.chainId ?? 1,
-        verifyingContract: offersAddress,
-      },
-      types: COLLECTION_OFFER_TYPES,
-      primaryType: "CollectionOffer",
-      message: {
-        nft: collection?.contractAddress as `0x${string}`,
-        isERC1155: item.standard === "ERC1155",
-        criteriaRoot: expectedRoot,
-        pricePerItem: parseEther(String(amountEth)),
-        quantity: BigInt(item.standard === "ERC1155" ? quantity : 1),
-        deadline: deadlineSeconds,
-        nonce: BigInt(String(body.nonce)),
-        buyer: user.address as `0x${string}`,
-      },
-      signature: body.signature as `0x${string}`,
-    }).catch(() => false);
-    if (!signatureValid) {
-      return NextResponse.json(
-        { error: "That signature doesn't match the offer — try signing again." },
-        { status: 400 }
-      );
+
+    if (escrowOfferId) {
+      const escrowAddress = offersEscrowAddressFor(collection?.chainId);
+      const client = rpcClient(collection?.chainId ?? 1);
+      if (!escrowAddress || !client) {
+        return NextResponse.json({ error: "Offers aren't supported on this network" }, { status: 400 });
+      }
+      // Read the offer back from the contract rather than trusting the id
+      // sent here: otherwise anyone could claim someone else's deposit, or
+      // an offer that doesn't exist.
+      let onChain;
+      try {
+        onChain = (await client.readContract({
+          address: escrowAddress,
+          abi: OFFERS_ESCROW_ABI,
+          functionName: "offers",
+          args: [BigInt(escrowOfferId)],
+        })) as readonly [string, string, boolean, string, bigint, bigint, bigint, bigint, bigint, boolean];
+      } catch {
+        return NextResponse.json({ error: "Couldn't read that offer on-chain" }, { status: 502 });
+      }
+      const [onChainBuyer, , , onChainRoot, pricePerItem, , , , escrowLeft] = onChain;
+      if (onChainBuyer.toLowerCase() !== user.address.toLowerCase()) {
+        return NextResponse.json({ error: "That offer was funded by a different wallet" }, { status: 403 });
+      }
+      if (escrowLeft === BigInt(0)) {
+        return NextResponse.json({ error: "That offer holds no escrow" }, { status: 409 });
+      }
+      if (String(onChainRoot).toLowerCase() !== expectedRoot.toLowerCase()) {
+        return NextResponse.json({ error: "That offer doesn't cover this NFT" }, { status: 409 });
+      }
+      // The amount recorded is the amount escrowed, never the one posted.
+      amountEth = Number(formatEther(pricePerItem));
+    } else {
+      const offersAddress = offersAddressFor(collection?.chainId);
+      if (!offersAddress) {
+        return NextResponse.json({ error: "Offers aren't supported on this network" }, { status: 400 });
+      }
+      const signatureValid = await verifyTypedData({
+        address: user.address as `0x${string}`,
+        domain: {
+          name: OFFER_DOMAIN_NAME,
+          version: OFFER_DOMAIN_VERSION,
+          chainId: collection?.chainId ?? 1,
+          verifyingContract: offersAddress,
+        },
+        types: COLLECTION_OFFER_TYPES,
+        primaryType: "CollectionOffer",
+        message: {
+          nft: collection?.contractAddress as `0x${string}`,
+          isERC1155: item.standard === "ERC1155",
+          criteriaRoot: expectedRoot,
+          pricePerItem: parseEther(String(amountEth)),
+          quantity: BigInt(item.standard === "ERC1155" ? quantity : 1),
+          deadline: deadlineSeconds,
+          nonce: BigInt(String(body.nonce)),
+          buyer: user.address as `0x${string}`,
+        },
+        signature: body.signature as `0x${string}`,
+      }).catch(() => false);
+      if (!signatureValid) {
+        return NextResponse.json(
+          { error: "That signature doesn't match the offer — try signing again." },
+          { status: 400 }
+        );
+      }
     }
 
     offerSettlement = {
@@ -222,7 +261,7 @@ export async function POST(req: NextRequest) {
       buyerAddress: user.address,
       nft: collection?.contractAddress,
       criteriaRoot: expectedRoot,
-      nonce: String(body.nonce),
+      nonce: escrowOfferId ? null : String(body.nonce),
       deadline: body.deadline ? new Date(Number(body.deadline) * 1000) : null,
       signature: escrowOfferId ? null : body.signature,
       chainId: collection?.chainId,

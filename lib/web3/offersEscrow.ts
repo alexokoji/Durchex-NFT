@@ -56,6 +56,26 @@ export const OFFERS_ESCROW_ABI = [
     outputs: [],
   },
   {
+    // The public mapping getter, so the server can read an offer back and
+    // confirm who funded it rather than trusting an id posted to it.
+    type: "function",
+    name: "offers",
+    stateMutability: "view",
+    inputs: [{ name: "offerId", type: "uint256" }],
+    outputs: [
+      { name: "buyer", type: "address" },
+      { name: "nft", type: "address" },
+      { name: "isERC1155", type: "bool" },
+      { name: "criteriaRoot", type: "bytes32" },
+      { name: "pricePerItem", type: "uint256" },
+      { name: "quantity", type: "uint256" },
+      { name: "filled", type: "uint256" },
+      { name: "deadline", type: "uint256" },
+      { name: "escrow", type: "uint256" },
+      { name: "cancelled", type: "bool" },
+    ],
+  },
+  {
     type: "function",
     name: "escrowOf",
     stateMutability: "view",
