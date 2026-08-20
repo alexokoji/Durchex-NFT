@@ -1,11 +1,15 @@
+"use client";
+
 import Link from "next/link";
 import { BadgeCheck, TrendingDown, TrendingUp } from "lucide-react";
 import { VerifiedBadge } from "@/components/ui/VerifiedBadge";
+import { useCurrency } from "@/components/providers/CurrencyProvider";
 import clsx from "clsx";
 import { GeneratedArt } from "@/components/nft/GeneratedArt";
 import { CollectionView } from "@/lib/types";
 
 export function CollectionCard({ collection, rank }: { collection: CollectionView; rank?: number }) {
+  const { format } = useCurrency();
   const up = collection.volumeChangePct >= 0;
 
   return (
@@ -43,7 +47,7 @@ export function CollectionCard({ collection, rank }: { collection: CollectionVie
         <div className="flex items-center justify-between text-xs">
           <div>
             <div className="text-white/40 mb-0.5">Floor</div>
-            <div className="font-bold text-white tabular-nums">{collection.floorEth.toFixed(2)} ETH</div>
+            <div className="font-bold text-white tabular-nums">{format(collection.floorEth)}</div>
           </div>
           <div className="text-right">
             <div className="text-white/40 mb-0.5">24h Vol</div>

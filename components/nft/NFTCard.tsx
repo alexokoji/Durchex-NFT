@@ -4,12 +4,14 @@ import Link from "next/link";
 import clsx from "clsx";
 import { Heart, Zap, BadgeCheck, Gavel } from "lucide-react";
 import { VerifiedBadge } from "@/components/ui/VerifiedBadge";
+import { useCurrency } from "@/components/providers/CurrencyProvider";
 import { GeneratedArt } from "@/components/nft/GeneratedArt";
 import { CountdownTimer } from "@/components/nft/CountdownTimer";
 import { useFavorite } from "@/hooks/useFavorite";
 import { ItemView } from "@/lib/types";
 
 export function NFTCard({ item }: { item: ItemView }) {
+  const { format } = useCurrency();
   const isAuction = item.status === "auction";
   const isListed = isAuction || item.status === "fixed_price";
   const hasSaleHistory = !isListed && item.lastSalePriceEth != null;
@@ -93,8 +95,13 @@ export function NFTCard({ item }: { item: ItemView }) {
             </div>
             {isListed || hasSaleHistory ? (
               <div className="text-sm font-bold text-white tabular-nums">
-                {(isAuction ? item.highestBidEth ?? item.priceEth : isListed ? item.priceEth : item.lastSalePriceEth!).toFixed(2)}{" "}
-                <span className="text-purple-300">ETH</span>
+                {format(
+                  isAuction
+                    ? item.highestBidEth ?? item.priceEth
+                    : isListed
+                      ? item.priceEth
+                      : item.lastSalePriceEth
+                )}
               </div>
             ) : (
               <div className="text-sm font-bold text-white/30">—</div>

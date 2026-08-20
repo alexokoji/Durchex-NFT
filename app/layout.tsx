@@ -4,6 +4,7 @@ import "./globals.css";
 import { Navbar } from "@/components/layout/Navbar";
 import { Footer } from "@/components/layout/Footer";
 import { Web3Providers } from "@/components/providers/Web3Providers";
+import { CurrencyProvider } from "@/components/providers/CurrencyProvider";
 import { AutoAuthGate } from "@/components/wallet/AutoAuthGate";
 
 const inter = Inter({
@@ -33,10 +34,12 @@ export default function RootLayout({
       </head>
       <body className="min-h-full flex flex-col bg-void text-white">
         <Web3Providers>
+          <CurrencyProvider>
           <AutoAuthGate />
           <Navbar />
           <main className="flex-1">{children}</main>
           <Footer />
+          </CurrencyProvider>
         </Web3Providers>
       </body>
     </html>

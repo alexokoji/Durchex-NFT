@@ -1,4 +1,7 @@
+"use client";
+
 import Link from "next/link";
+import { useCurrency } from "@/components/providers/CurrencyProvider";
 import { Tag, Gavel, ShoppingBag, Sparkles, ArrowLeftRight, XCircle } from "lucide-react";
 import { GeneratedArt } from "@/components/nft/GeneratedArt";
 import { ActivityView } from "@/lib/types";
@@ -21,6 +24,7 @@ function truncate(address: string) {
 }
 
 export function ActivityRow({ activity }: { activity: ActivityView }) {
+  const { format } = useCurrency();
   const meta = TYPE_META[activity.type];
 
   return (
@@ -51,7 +55,7 @@ export function ActivityRow({ activity }: { activity: ActivityView }) {
       <div className="text-right shrink-0">
         {activity.priceEth !== null && (
           <div className="text-sm font-semibold text-white tabular-nums">
-            {activity.priceEth.toFixed(2)} ETH
+            {format(activity.priceEth)}
           </div>
         )}
         <div className="text-[11px] text-white/40">

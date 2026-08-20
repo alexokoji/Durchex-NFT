@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { Menu, X, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { ConnectWalletButton } from "@/components/wallet/ConnectWalletButton";
+import { CurrencyToggle } from "@/components/ui/CurrencyToggle";
 import { NetworkSwitcher } from "@/components/wallet/NetworkSwitcher";
 import { NotificationBell } from "@/components/notifications/NotificationBell";
 import { SearchBox } from "@/components/layout/SearchBox";
@@ -70,6 +71,7 @@ export function Navbar() {
             <Button href="/create" variant="secondary" size="sm">
               Create
             </Button>
+            <CurrencyToggle />
             <NetworkSwitcher compact />
             <NotificationBell />
             <ConnectWalletButton />
@@ -100,6 +102,7 @@ export function Navbar() {
                 Create
               </Button>
               <NetworkSwitcher />
+              <CurrencyToggle className="self-start" />
               <ConnectWalletButton />
             </div>
           </div>

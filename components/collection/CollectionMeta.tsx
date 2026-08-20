@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { Info, Copy, Check, Globe, Share2, Star, BadgeCheck, X as XIcon } from "lucide-react";
 import { VerifiedBadge } from "@/components/ui/VerifiedBadge";
+import { useCurrency } from "@/components/providers/CurrencyProvider";
 import clsx from "clsx";
 import { CollectionDetailView } from "@/lib/types";
 import { CHAIN_META } from "@/lib/web3/config";
@@ -146,6 +147,7 @@ export function CollectionMeta({
   /** Rendered inline to the left of the name, as in the reference layout. */
   logo?: React.ReactNode;
 }) {
+  const { format } = useCurrency();
   const [copied, setCopied] = useState(false);
   const [shared, setShared] = useState(false);
   const [descriptionOpen, setDescriptionOpen] = useState(false);
@@ -259,15 +261,15 @@ export function CollectionMeta({
       {status.startsAt && <Countdown target={status.startsAt} />}
 
       <div className="mt-7 pt-6 border-t border-white/8 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-x-6 gap-y-6">
-        <Stat label="Floor price" value={collection.floorEth > 0 ? `${collection.floorEth} ETH` : "—"} />
+        <Stat label="Floor price" value={collection.floorEth > 0 ? format(collection.floorEth) : "—"} />
         <Stat
           label="1D floor %"
           value={change === null ? "—" : `${change > 0 ? "+" : ""}${change.toFixed(1)}%`}
           tone={change === null || change === 0 ? undefined : change > 0 ? "up" : "down"}
         />
         <Stat label="Top offer" value={collection.topOfferEth ? `${collection.topOfferEth} WETH` : "—"} />
-        <Stat label="24h volume" value={`${collection.volume24hEth.toFixed(2)} ETH`} />
-        <Stat label="Total volume" value={`${collection.totalVolumeEth.toFixed(2)} ETH`} />
+        <Stat label="24h volume" value={format(collection.volume24hEth)} />
+        <Stat label="Total volume" value={format(collection.totalVolumeEth)} />
         <Stat
           label="Owners (unique)"
           value={`${collection.owners.toLocaleString()}${ownerPct > 0 ? ` (${ownerPct.toFixed(1)}%)` : ""}`}

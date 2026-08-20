@@ -3,6 +3,7 @@
 import { Layers } from "lucide-react";
 import { BuyEditionButton } from "@/components/item/BuyEditionButton";
 import { ListEditionForm } from "@/components/item/ListEditionForm";
+import { useCurrency } from "@/components/providers/CurrencyProvider";
 import { ItemDetailView } from "@/lib/types";
 
 /** ERC-1155 items don't have one owner or one price — this replaces
@@ -10,6 +11,7 @@ import { ItemDetailView } from "@/lib/types";
  * (creator) sale if still open, every active resale listing from any
  * holder, and a form for the viewer to list their own balance. */
 export function EditionPanel({ item }: { item: ItemDetailView }) {
+  const { format } = useCurrency();
   const remaining = Math.max(0, item.totalSupply - item.mintedSupply);
   const soldOut = remaining <= 0;
 
@@ -20,9 +22,8 @@ export function EditionPanel({ item }: { item: ItemDetailView }) {
       </div>
       <div className="mb-5">
         <div className="text-[11px] text-white/40 mb-1">Price per unit</div>
-        <div className="flex items-baseline gap-2">
-          <span className="font-display text-3xl font-semibold text-white tabular-nums">{item.priceEth.toFixed(3)}</span>
-          <span className="text-purple-300 font-medium">ETH</span>
+        <div className="font-display text-3xl font-semibold text-white tabular-nums">
+          {format(item.priceEth)}
         </div>
       </div>
 

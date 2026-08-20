@@ -1,6 +1,7 @@
-import { ItemDetailView } from "@/lib/types";
+"use client";
 
-const ETH_USD = 3400;
+import { ItemDetailView } from "@/lib/types";
+import { useCurrency } from "@/components/providers/CurrencyProvider";
 
 /**
  * The four numbers that describe a token's market at a glance.
@@ -39,17 +40,22 @@ function Stat({
   raw?: string;
   action?: React.ReactNode;
 }) {
-  const value = raw ?? (eth !== null && eth !== undefined && eth > 0 ? `${eth} ETH` : "—");
-  const usd = eth !== null && eth !== undefined && eth > 0 ? eth * ETH_USD : null;
+  const { format, currency, rate } = useCurrency();
+  const value = raw ?? (eth !== null && eth !== undefined && eth > 0 ? format(eth) : "—");
+  // The secondary line shows the *other* denomination, so a viewer always
+  // has both without switching. Nothing to add when there is no rate, or
+  // when the figure isn't a price at all.
+  const secondary =
+    raw || eth === null || eth === undefined || eth <= 0 || !rate
+      ? null
+      : currency === "USD"
+        ? `${eth} ETH`
+        : `$${(eth * rate).toLocaleString(undefined, { maximumFractionDigits: 2 })}`;
   return (
     <div>
       <div className="text-[10px] uppercase tracking-wide text-white/35 mb-1">{label}</div>
       <div className="text-sm font-semibold text-white tabular-nums">{value}</div>
-      {usd !== null && (
-        <div className="text-[11px] text-white/35 tabular-nums">
-          ${usd < 0.01 ? "<0.01" : usd.toLocaleString(undefined, { maximumFractionDigits: 2 })}
-        </div>
-      )}
+      {secondary && <div className="text-[11px] text-white/35 tabular-nums">{secondary}</div>}
       {action}
     </div>
   );
