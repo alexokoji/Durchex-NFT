@@ -87,11 +87,10 @@ export function AcceptOfferButton({
 
       setPhase("confirm");
       const o = data.offer;
-      const hash = await writeContractAsync({
-        address: offersAddress!,
-        abi: OFFERS_ABI,
-        functionName: "acceptCollectionOffer",
-        args: [
+      // Simulated before signing: a revert here costs nothing and carries
+      // the contract's own reason string, where a failed send costs gas
+      // and surfaces as a wall of hex.
+      const args = [
           {
             nft: o.nft as `0x${string}`,
             isERC1155: o.isERC1155,
@@ -106,7 +105,21 @@ export function AcceptOfferButton({
           BigInt(data.tokenId),
           BigInt(1),
           (data.proof ?? []) as `0x${string}`[],
-        ],
+        ] as const;
+
+      await publicClient?.simulateContract({
+        address: offersAddress!,
+        abi: OFFERS_ABI,
+        functionName: "acceptCollectionOffer",
+        args,
+        account: address as `0x${string}`,
+      });
+
+      const hash = await writeContractAsync({
+        address: offersAddress!,
+        abi: OFFERS_ABI,
+        functionName: "acceptCollectionOffer",
+        args,
         chainId,
       });
 
@@ -122,7 +135,7 @@ export function AcceptOfferButton({
       setPhase("done");
       celebrate({
         action: "accept",
-        detail: data.offer?.pricePerItemEth ? `${data.offer.pricePerItemEth} WETH` : undefined,
+        detail: data.offer?.pricePerItemEth ? `${data.offer.pricePerItemEth} ETH` : undefined,
         txHash: hash,
         chainId,
         profileHref: address ? `/profile/${address}` : undefined,
@@ -159,4 +172,37 @@ export function AcceptOfferButton({
       {error && <span className="text-[11px] text-danger max-w-[16rem] text-right">{error}</span>}
     </div>
   );
+}
+
+/**
+ * Turns a contract revert into something the seller can act on.
+ *
+ * The raw message leads with the internal function name and the reason is
+ * buried several lines down, so a seller saw only that
+ * "acceptCollectionOffer reverted" — which names our implementation rather
+ * than telling them what went wrong or what to do about it.
+ */
+function explainAcceptFailure(err: unknown): string {
+  const raw = err instanceof Error ? err.message : String(err ?? "");
+  const known: [RegExp, string][] = [
+    [/cannot fill your own offer/i, "This is your own offer — someone else has to accept it."],
+    [/token not eligible/i, "This offer doesn't cover this NFT."],
+    [/offer expired/i, "This offer has expired."],
+    [/offer cancelled/i, "The buyer withdrew this offer."],
+    [/exceeds offer quantity/i, "This offer has already been filled."],
+    [/invalid signature/i, "The buyer's signature is no longer valid — ask them to re-make the offer."],
+    [
+      /transfer amount exceeds (balance|allowance)|insufficient allowance/i,
+      "The buyer no longer has enough wrapped ETH to cover this offer.",
+    ],
+    [/caller is not token owner|insufficient balance for transfer/i, "You no longer hold this NFT."],
+    [/not approved|caller is not approved/i, "Approve the offers contract to move this NFT, then try again."],
+    [/user rejected|denied/i, "You cancelled the transaction."],
+  ];
+  for (const [pattern, message] of known) if (pattern.test(raw)) return message;
+
+  // Unrecognised: show the contract's reason if there is one, never the
+  // function-name line.
+  const reason = raw.match(/reverted with the following reason:[\s]*(.+)/i)?.[1]?.trim();
+  return reason || raw.split("\n")[0] || "Transaction failed";
 }
