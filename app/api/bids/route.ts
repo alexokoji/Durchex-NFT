@@ -165,12 +165,15 @@ export async function POST(req: NextRequest) {
         { status: 400 }
       );
     }
-    if (typeof body.signature !== "string" || !body.nonce || !body.criteriaRoot) {
-      return NextResponse.json({ error: "A signed offer is required" }, { status: 400 });
+    // Two settlement routes. An escrowed offer is authorised by ETH sitting
+    // in the contract, so its id is all we need and no signature exists.
+    const escrowOfferId = body.escrowOfferId ? String(body.escrowOfferId) : null;
+    if (!escrowOfferId && (typeof body.signature !== "string" || !body.nonce || !body.criteriaRoot)) {
+      return NextResponse.json({ error: "A funded or signed offer is required" }, { status: 400 });
     }
     const collection = await Collection.findById(item.collection).select("contractAddress chainId").lean();
     const expectedRoot = leafOf(String(item.tokenId));
-    if (String(body.criteriaRoot).toLowerCase() !== expectedRoot.toLowerCase()) {
+    if (!escrowOfferId && String(body.criteriaRoot).toLowerCase() !== expectedRoot.toLowerCase()) {
       return NextResponse.json(
         { error: "Offer doesn't match this NFT — refresh and try again" },
         { status: 409 }
@@ -215,12 +218,13 @@ export async function POST(req: NextRequest) {
     }
 
     offerSettlement = {
+      escrowOfferId,
       buyerAddress: user.address,
       nft: collection?.contractAddress,
       criteriaRoot: expectedRoot,
       nonce: String(body.nonce),
       deadline: body.deadline ? new Date(Number(body.deadline) * 1000) : null,
-      signature: body.signature,
+      signature: escrowOfferId ? null : body.signature,
       chainId: collection?.chainId,
     };
   }

@@ -2,26 +2,18 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { parseEther } from "viem";
+import { decodeEventLog, parseEther } from "viem";
 import {
   useAccount,
-  useReadContract,
-  useSignTypedData,
+  usePublicClient,
   useSwitchChain,
   useWriteContract,
 } from "wagmi";
 import { useConnectModal } from "@rainbow-me/rainbowkit";
 import { Loader2, Tag } from "lucide-react";
 import { Button } from "@/components/ui/Button";
-import {
-  ERC20_ABI,
-  WETH_ABI,
-  buildCollectionOfferTypedData,
-  generateOfferNonce,
-  leafOf,
-  offersAddressFor,
-  wethAddressFor,
-} from "@/lib/web3/offerCriteria";
+import { leafOf } from "@/lib/web3/offerCriteria";
+import { OFFERS_ESCROW_ABI, offersEscrowAddressFor } from "@/lib/web3/offersEscrow";
 import { ItemDetailView } from "@/lib/types";
 
 const EXPIRY_SECONDS = 7 * 24 * 60 * 60;
@@ -37,11 +29,12 @@ const EXPIRY_SECONDS = 7 * 24 * 60 * 60;
  * same typed data the collection offer does rather than inventing a second
  * shape the accept path would have to learn.
  *
- * Quoted and entered in ETH. Settlement pulls funds from the buyer when
- * the holder accepts, and native ETH cannot be pulled — only its owner can
- * send it, and they are not there at that moment. So the offer is backed
- * by wrapped ETH, and the wrapping happens here as one extra step rather
- * than being the buyer's homework.
+ * Paid in native ETH, escrowed by the contract at the moment the offer is
+ * made. A holder accepting is the one who submits that transaction, and
+ * ETH can only be moved by its owner — so the funds have to already be
+ * under the contract's control for the sale to settle without the buyer
+ * present. Escrowing also means every standing offer is genuinely funded,
+ * which the previous WETH model could not promise.
  */
 export function MakeItemOfferButton({ item }: { item: ItemDetailView }) {
   const router = useRouter();
@@ -49,52 +42,27 @@ export function MakeItemOfferButton({ item }: { item: ItemDetailView }) {
   const { openConnectModal } = useConnectModal();
   const { switchChainAsync } = useSwitchChain();
   const { writeContractAsync } = useWriteContract();
-  const { signTypedDataAsync } = useSignTypedData();
+  const publicClient = usePublicClient({ chainId: item.chainId });
 
   const [open, setOpen] = useState(false);
   const [amount, setAmount] = useState("");
   const [quantity, setQuantity] = useState("1");
   const [phase, setPhase] = useState<
-    "idle" | "switching" | "wrapping" | "approving" | "signing" | "saving"
+    "idle" | "switching" | "confirm" | "mining" | "saving"
   >("idle");
   const [error, setError] = useState<string | null>(null);
 
-  const offersAddress = offersAddressFor(item.chainId);
-  const weth = wethAddressFor(item.chainId);
+  const escrowAddress = offersEscrowAddressFor(item.chainId);
 
   const qty = item.standard === "ERC1155" ? Math.max(1, Math.floor(Number(quantity) || 1)) : 1;
   const total = (Number(amount) || 0) * qty;
   const totalWei = total > 0 ? parseEther(total.toString()) : BigInt(0);
 
-  const { data: allowance, refetch: refetchAllowance } = useReadContract({
-    address: weth,
-    abi: ERC20_ABI,
-    functionName: "allowance",
-    args: address && offersAddress ? [address, offersAddress] : undefined,
-    chainId: item.chainId,
-    query: { enabled: !!address && !!weth && !!offersAddress },
-  });
-  const needsApproval = allowance !== undefined && totalWei > 0 && (allowance as bigint) < totalWei;
 
-  // An offer is settled by pulling WETH from the buyer at accept time, so
-  // an offer backed by plain ETH is one the holder can never fill — it
-  // just reverts on them. Checked here, where it is still the buyer's
-  // problem to fix, rather than surfacing as a failed accept for someone
-  // else.
-  const { data: wethBalance, refetch: refetchWeth } = useReadContract({
-    address: weth,
-    abi: ERC20_ABI,
-    functionName: "balanceOf",
-    args: address ? [address] : undefined,
-    chainId: item.chainId,
-    query: { enabled: !!address && !!weth },
-  });
-  const shortOfWeth =
-    wethBalance !== undefined && totalWei > 0 && (wethBalance as bigint) < totalWei;
 
   // Nothing to offer against until the token exists on-chain, and nothing
-  // to settle through until the offers contract is deployed here.
-  if (!offersAddress || !weth || !item.isMinted || !item.tokenId) return null;
+  // to escrow into until the offers contract is deployed here.
+  if (!escrowAddress || !item.isMinted || !item.tokenId) return null;
 
   const busy = phase !== "idle";
 
@@ -110,56 +78,49 @@ export function MakeItemOfferButton({ item }: { item: ItemDetailView }) {
         await switchChainAsync({ chainId: item.chainId });
       }
 
-      // Native ETH can't be pulled from a wallet at accept time, so the
-      // offer has to be backed by wrapped ETH. Wrapping the shortfall here
-      // means the buyer offers in ETH and never has to know that.
-      if (shortOfWeth) {
-        setPhase("wrapping");
-        const shortfall = totalWei - ((wethBalance as bigint) ?? BigInt(0));
-        await writeContractAsync({
-          address: weth!,
-          abi: WETH_ABI,
-          functionName: "deposit",
-          args: [],
-          value: shortfall,
-          chainId: item.chainId,
-        });
-        await new Promise((r) => setTimeout(r, 2000));
-        await refetchWeth();
-      }
-
-      if (needsApproval) {
-        setPhase("approving");
-        await writeContractAsync({
-          address: weth!,
-          abi: ERC20_ABI,
-          functionName: "approve",
-          args: [offersAddress!, totalWei],
-          chainId: item.chainId,
-        });
-        await new Promise((r) => setTimeout(r, 2000));
-        await refetchAllowance();
-      }
-
-      setPhase("signing");
-      // One token, so the eligible set is a single leaf. The server derives
-      // the same value from the item's own tokenId and rejects anything
-      // else, so this can't be widened from the client.
+      setPhase("confirm");
+      // One token, so the eligible set is a single leaf and the proof at
+      // accept time is empty. The server derives the same root from the
+      // item's own tokenId, so this can't be widened from the client.
       const criteriaRoot = leafOf(String(item.tokenId));
-      const nonce = generateOfferNonce();
-      const typedData = buildCollectionOfferTypedData({
+      const deadline = BigInt(Math.floor(Date.now() / 1000) + EXPIRY_SECONDS);
+      const pricePerItem = parseEther(price.toString());
+
+      const hash = await writeContractAsync({
+        address: escrowAddress!,
+        abi: OFFERS_ESCROW_ABI,
+        functionName: "makeOffer",
+        args: [
+          item.contractAddress as `0x${string}`,
+          item.standard === "ERC1155",
+          criteriaRoot,
+          pricePerItem,
+          BigInt(qty),
+          deadline,
+        ],
+        // The offer is funded now, in ETH, rather than promised. This is
+        // what makes it acceptable later without the buyer present.
+        value: pricePerItem * BigInt(qty),
         chainId: item.chainId,
-        verifyingContract: offersAddress!,
-        nft: item.contractAddress,
-        isERC1155: item.standard === "ERC1155",
-        criteriaRoot,
-        pricePerItemEth: price,
-        quantity: qty,
-        deadlineSeconds: EXPIRY_SECONDS,
-        nonce,
-        buyer: address as `0x${string}`,
       });
-      const signature = await signTypedDataAsync(typedData);
+
+      setPhase("mining");
+      const receipt = await publicClient!.waitForTransactionReceipt({ hash });
+
+      // The id is read back from the contract's own event rather than
+      // guessed from a counter, so a race with another offer in the same
+      // block can't attach the wrong one.
+      const made = receipt.logs
+        .map((log) => {
+          try {
+            return decodeEventLog({ abi: OFFERS_ESCROW_ABI, data: log.data, topics: log.topics });
+          } catch {
+            return null;
+          }
+        })
+        .find((e) => e?.eventName === "OfferMade");
+      const escrowOfferId = (made?.args as { offerId?: bigint } | undefined)?.offerId;
+      if (escrowOfferId === undefined) throw new Error("Offer was funded but its id couldn't be read");
 
       setPhase("saving");
       const res = await fetch("/api/bids", {
@@ -171,13 +132,12 @@ export function MakeItemOfferButton({ item }: { item: ItemDetailView }) {
           amountEth: price,
           quantity: qty,
           criteriaRoot,
-          nonce: nonce.toString(),
-          deadline: typedData.message.deadline.toString(),
-          signature,
+          escrowOfferId: escrowOfferId.toString(),
+          deadline: deadline.toString(),
         }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error ?? "Couldn't place the offer");
+      if (!res.ok) throw new Error(data.error ?? "Offer was funded but couldn't be recorded");
 
       setPhase("idle");
       setOpen(false);
@@ -206,8 +166,8 @@ export function MakeItemOfferButton({ item }: { item: ItemDetailView }) {
         <Tag className="w-4 h-4 text-purple-300" /> Make an offer
       </div>
       <p className="text-xs text-white/45 mb-4">
-        On this NFT specifically. Your ETH stays in your wallet until the holder accepts, and the
-        offer expires in 7 days if nobody takes it.
+        On this NFT specifically. Your ETH is held by the offers contract until a holder accepts —
+        withdraw it whenever you like. The offer expires in 7 days.
       </p>
 
       <div className="flex flex-wrap gap-2 mb-3">
@@ -242,11 +202,8 @@ export function MakeItemOfferButton({ item }: { item: ItemDetailView }) {
       </div>
 
       {total > 0 && (
-        <p
-          className="text-[11px] mb-3 tabular-nums text-white/40"
-        >
-          Total {total} ETH
-          {shortOfWeth ? " · one extra step to wrap your ETH" : ""}
+        <p className="text-[11px] mb-3 tabular-nums text-white/40">
+          Total {total} ETH · held in escrow until accepted, withdrawable any time
         </p>
       )}
 
@@ -257,12 +214,10 @@ export function MakeItemOfferButton({ item }: { item: ItemDetailView }) {
               <Loader2 className="w-3.5 h-3.5 animate-spin" />
               {phase === "switching"
                 ? "Switching network…"
-                : phase === "wrapping"
-                  ? "Wrapping ETH…"
-                  : phase === "approving"
-                  ? "Approving WETH…"
-                  : phase === "signing"
-                    ? "Sign in your wallet…"
+                : phase === "confirm"
+                  ? "Confirm in your wallet…"
+                  : phase === "mining"
+                    ? "Funding offer…"
                     : "Saving…"}
             </>
           ) : (

@@ -95,7 +95,10 @@ export async function POST(req: NextRequest, context: { params: Promise<{ id: st
   if (!Number.isFinite(quantity) || quantity <= 0) {
     return NextResponse.json({ error: "Enter a valid quantity" }, { status: 400 });
   }
-  if (typeof body.signature !== "string" || !body.nonce || !body.criteriaRoot) {
+  // Escrowed offers are authorised by their on-chain deposit, so they
+  // carry an id where the legacy WETH offers carried a signature.
+  const escrowOfferId = body.escrowOfferId ? String(body.escrowOfferId) : null;
+  if (!escrowOfferId && (typeof body.signature !== "string" || !body.nonce || !body.criteriaRoot)) {
     return NextResponse.json({ error: "A signed offer is required" }, { status: 400 });
   }
 
@@ -133,7 +136,8 @@ export async function POST(req: NextRequest, context: { params: Promise<{ id: st
     chainId: collection.chainId,
     nonce: String(body.nonce),
     deadline: body.deadline ? new Date(Number(body.deadline) * 1000) : null,
-    signature: body.signature,
+    signature: escrowOfferId ? null : body.signature,
+    escrowOfferId,
     status: "active",
   });
 

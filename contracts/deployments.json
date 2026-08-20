@@ -29,6 +29,7 @@
     "DurchexCollectionFactory": "0xc4cbC3A2f1ef10F5A4eD6651314812C3c7f09f76",
     "DurchexCollectionImplementation": "0x60AcD2CF1700490bA19645721f588420c2F4d0a0",
     "DurchexCollection1155Factory": "0x8Ca02Cda6E7AED9152c822a0A0Df1a91220768b2",
-    "DurchexCollection1155Implementation": "0x9E1845f1da9D7F918539Bc72cC56d4Bb5EA3f38a"
+    "DurchexCollection1155Implementation": "0x9E1845f1da9D7F918539Bc72cC56d4Bb5EA3f38a",
+    "DurchexOffersEscrow": "0xA3fe086985201dea514D7E4656519Bed605A9d7E"
   }
 }

@@ -40,7 +40,10 @@ const CollectionOfferSchema = new Schema(
     chainId: { type: Number, required: true },
     nonce: { type: String, required: true },
     deadline: { type: Date, default: null },
-    signature: { type: String, required: true },
+    // Required only for the legacy WETH offers; an escrowed ETH offer is
+    // authorised by its on-chain deposit rather than a signature.
+    signature: { type: String, default: null },
+    escrowOfferId: { type: String, default: null },
 
     status: {
       type: String,

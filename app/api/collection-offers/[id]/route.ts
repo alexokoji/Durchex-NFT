@@ -97,6 +97,9 @@ export async function POST(req: NextRequest, context: { params: Promise<{ id: st
     : [];
 
   return NextResponse.json({
+    // Present on escrowed ETH offers; the client settles through
+    // DurchexOffersEscrow when it is, and the legacy WETH path when not.
+    escrowOfferId: offer.escrowOfferId ?? null,
     proof,
     tokenId: String(item.tokenId),
     offer: {

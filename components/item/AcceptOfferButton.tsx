@@ -6,7 +6,7 @@ import { Loader2, Check } from "lucide-react";
 import { useAccount, useSwitchChain, useWriteContract, usePublicClient, useReadContract } from "wagmi";
 import { useConnectModal } from "@rainbow-me/rainbowkit";
 import { ERC721_APPROVAL_ABI } from "@/lib/web3/marketplaceAbi";
-import { OFFERS_ABI, offersAddressFor, wethAddressFor } from "@/lib/web3/offerCriteria";
+import { OFFERS_ESCROW_ABI, offersEscrowAddressFor } from "@/lib/web3/offersEscrow";
 import { useTxSuccess } from "@/components/tx/TxSuccess";
 
 /**
@@ -43,20 +43,19 @@ export function AcceptOfferButton({
   const [phase, setPhase] = useState<"idle" | "preparing" | "approving" | "confirm" | "mining" | "done">("idle");
   const [error, setError] = useState<string | null>(null);
 
-  const offersAddress = offersAddressFor(chainId);
-  const weth = wethAddressFor(chainId);
+  const escrowAddress = offersEscrowAddressFor(chainId);
 
-  // The offers contract must be able to move the seller's NFT.
+  // The escrow contract must be able to move the seller's NFT.
   const { data: isApproved, refetch: refetchApproval } = useReadContract({
     address: nftContract as `0x${string}`,
     abi: ERC721_APPROVAL_ABI,
     functionName: "isApprovedForAll",
-    args: address && offersAddress ? [address, offersAddress] : undefined,
+    args: address && escrowAddress ? [address, escrowAddress] : undefined,
     chainId,
-    query: { enabled: !!address && !!offersAddress },
+    query: { enabled: !!address && !!escrowAddress },
   });
 
-  if (!offersAddress) return null;
+  if (!escrowAddress) return null;
 
   async function accept() {
     if (!address) return openConnectModal?.();
@@ -79,7 +78,7 @@ export function AcceptOfferButton({
           address: nftContract as `0x${string}`,
           abi: ERC721_APPROVAL_ABI,
           functionName: "setApprovalForAll",
-          args: [offersAddress!, true],
+          args: [escrowAddress!, true],
           chainId,
         });
         await new Promise((r) => setTimeout(r, 2000));
@@ -87,73 +86,42 @@ export function AcceptOfferButton({
       }
 
       setPhase("confirm");
-      const o = data.offer;
-
-      // Canonical WETH reverts with no reason string at all, so a buyer
-      // who has spent or unwrapped their balance produces a bare
-      // "reverted" that names nothing. Checking their balance and
-      // allowance here turns the most common failure into a sentence, and
-      // costs the seller nothing.
-      const owed = BigInt(o.pricePerItem) * BigInt(1);
-      const [buyerBalance, buyerAllowance] = await Promise.all([
-        publicClient!.readContract({
-          address: weth!,
-          abi: WETH_ALLOWANCE_ABI,
-          functionName: "balanceOf",
-          args: [o.buyer as `0x${string}`],
-        }),
-        publicClient!.readContract({
-          address: weth!,
-          abi: WETH_ALLOWANCE_ABI,
-          functionName: "allowance",
-          args: [o.buyer as `0x${string}`, offersAddress!],
-        }),
-      ]);
-      if ((buyerBalance as bigint) < owed) {
-        throw new Error(
-          "The buyer no longer holds enough wrapped ETH to cover this offer, so it can't be filled."
-        );
-      }
-      if ((buyerAllowance as bigint) < owed) {
-        throw new Error(
-          "The buyer hasn't approved enough wrapped ETH for this offer, so it can't be filled."
-        );
-      }
-      // Simulated before signing: a revert here costs nothing and carries
-      // the contract's own reason string, where a failed send costs gas
-      // and surfaces as a wall of hex.
-      const args = [
-          {
-            nft: o.nft as `0x${string}`,
-            isERC1155: o.isERC1155,
-            criteriaRoot: o.criteriaRoot as `0x${string}`,
-            pricePerItem: BigInt(o.pricePerItem),
-            quantity: BigInt(o.quantity),
-            deadline: BigInt(o.deadline),
-            nonce: BigInt(o.nonce),
-            buyer: o.buyer as `0x${string}`,
-          },
-          data.signature as `0x${string}`,
+      // Escrowed offers settle straight from the contract's own funds, so
+      // there is nothing to verify about the buyer's wallet and no
+      // signature to pass — just the id, the token and its proof.
+      let hash: `0x${string}`;
+      if (data.escrowOfferId) {
+        const args = [
+          BigInt(data.escrowOfferId),
           BigInt(data.tokenId),
           BigInt(1),
           (data.proof ?? []) as `0x${string}`[],
         ] as const;
 
-      await publicClient?.simulateContract({
-        address: offersAddress!,
-        abi: OFFERS_ABI,
-        functionName: "acceptCollectionOffer",
-        args,
-        account: address as `0x${string}`,
-      });
+        await publicClient?.simulateContract({
+          address: escrowAddress!,
+          abi: OFFERS_ESCROW_ABI,
+          functionName: "acceptOffer",
+          args,
+          account: address as `0x${string}`,
+        });
 
-      const hash = await writeContractAsync({
-        address: offersAddress!,
-        abi: OFFERS_ABI,
-        functionName: "acceptCollectionOffer",
-        args,
-        chainId,
-      });
+        hash = await writeContractAsync({
+          address: escrowAddress!,
+          abi: OFFERS_ESCROW_ABI,
+          functionName: "acceptOffer",
+          args,
+          chainId,
+        });
+      } else {
+        // Offers made before ETH escrow were WETH promises against the old
+        // contract, and are only fillable if the buyer still holds and has
+        // approved the WETH. Rather than run a second settlement path that
+        // mostly fails, they are refused with the remedy.
+        throw new Error(
+          "This offer was made under the old WETH system and can no longer be accepted. Ask the buyer to withdraw it and make a new one."
+        );
+      }
 
       setPhase("mining");
       await publicClient?.waitForTransactionReceipt({ hash });
@@ -167,7 +135,7 @@ export function AcceptOfferButton({
       setPhase("done");
       celebrate({
         action: "accept",
-        detail: data.offer?.pricePerItemEth ? `${data.offer.pricePerItemEth} ETH` : undefined,
+        detail: undefined,
         txHash: hash,
         chainId,
         profileHref: address ? `/profile/${address}` : undefined,
@@ -223,10 +191,8 @@ function explainAcceptFailure(err: unknown): string {
     [/offer cancelled/i, "The buyer withdrew this offer."],
     [/exceeds offer quantity/i, "This offer has already been filled."],
     [/invalid signature/i, "The buyer's signature is no longer valid — ask them to re-make the offer."],
-    [
-      /transfer amount exceeds (balance|allowance)|insufficient allowance/i,
-      "The buyer no longer has enough wrapped ETH to cover this offer.",
-    ],
+    [/offer underfunded|no such offer/i, "This offer is no longer funded."],
+    [/offer withdrawn/i, "The buyer withdrew this offer."],
     [/caller is not token owner|insufficient balance for transfer/i, "You no longer hold this NFT."],
     [/not approved|caller is not approved/i, "Approve the offers contract to move this NFT, then try again."],
     [/user rejected|denied/i, "You cancelled the transaction."],
@@ -245,22 +211,3 @@ function explainAcceptFailure(err: unknown): string {
   return reason || raw.split("\n")[0] || "Transaction failed";
 }
 
-const WETH_ALLOWANCE_ABI = [
-  {
-    type: "function",
-    name: "balanceOf",
-    stateMutability: "view",
-    inputs: [{ name: "account", type: "address" }],
-    outputs: [{ type: "uint256" }],
-  },
-  {
-    type: "function",
-    name: "allowance",
-    stateMutability: "view",
-    inputs: [
-      { name: "owner", type: "address" },
-      { name: "spender", type: "address" },
-    ],
-    outputs: [{ type: "uint256" }],
-  },
-] as const;

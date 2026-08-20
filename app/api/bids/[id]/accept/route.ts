@@ -38,7 +38,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   // Offers created before on-chain settlement existed carry no signature
   // and can never be filled. Say so plainly instead of failing obscurely
   // in the user's wallet.
-  if (!bid.signature || !bid.nonce || !bid.criteriaRoot || !bid.nft) {
+  // An escrowed offer needs nothing but its id — the funds are already
+  // in the contract, so there is no signature to validate.
+  if (!bid.escrowOfferId && (!bid.signature || !bid.nonce || !bid.criteriaRoot || !bid.nft)) {
     return NextResponse.json(
       {
         error:
@@ -68,6 +70,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   }
 
   return NextResponse.json({
+    // Present on escrowed ETH offers; the client settles through
+    // DurchexOffersEscrow when it is, and the legacy WETH path when not.
+    escrowOfferId: bid.escrowOfferId ?? null,
     // Single-token eligible set: root is the leaf, so no proof is needed.
     proof: [],
     tokenId: String(item.tokenId),

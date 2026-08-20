@@ -33,6 +33,10 @@ const BidSchema = new Schema(
     nonce: { type: String, default: null },
     deadline: { type: Date, default: null },
     signature: { type: String, default: null },
+    // On-chain offer id in DurchexOffersEscrow. Present on ETH-escrowed
+    // offers; null on the older WETH signature offers, which is how the
+    // accept path tells the two settlement routes apart.
+    escrowOfferId: { type: String, default: null },
     chainId: { type: Number, default: null },
   },
   { timestamps: true }
