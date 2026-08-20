@@ -87,6 +87,49 @@ export const OFFERS_ESCROW_ABI = [
       { name: "totalPrice", type: "uint256", indexed: false },
     ],
   },
+  // Custom errors from the OpenZeppelin bases the contract inherits, and
+  // from the NFTs it moves. Without these in the ABI a revert decodes to
+  // nothing and surfaces as "reverted with the following signature: 0x…",
+  // which names the failure in a way nobody can act on. Solidity string
+  // requires decode without help; custom errors do not.
+  {
+    type: "error",
+    name: "ERC1155MissingApprovalForAll",
+    inputs: [
+      { name: "operator", type: "address" },
+      { name: "owner", type: "address" },
+    ],
+  },
+  {
+    type: "error",
+    name: "ERC1155InsufficientBalance",
+    inputs: [
+      { name: "sender", type: "address" },
+      { name: "balance", type: "uint256" },
+      { name: "needed", type: "uint256" },
+      { name: "tokenId", type: "uint256" },
+    ],
+  },
+  {
+    type: "error",
+    name: "ERC721InsufficientApproval",
+    inputs: [
+      { name: "operator", type: "address" },
+      { name: "tokenId", type: "uint256" },
+    ],
+  },
+  {
+    type: "error",
+    name: "ERC721IncorrectOwner",
+    inputs: [
+      { name: "sender", type: "address" },
+      { name: "tokenId", type: "uint256" },
+      { name: "owner", type: "address" },
+    ],
+  },
+  { type: "error", name: "ERC721NonexistentToken", inputs: [{ name: "tokenId", type: "uint256" }] },
+  { type: "error", name: "EnforcedPause", inputs: [] },
+  { type: "error", name: "ReentrancyGuardReentrantCall", inputs: [] },
   {
     type: "event",
     name: "OfferWithdrawn",

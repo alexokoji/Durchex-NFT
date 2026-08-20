@@ -75,14 +75,19 @@ export function AcceptOfferButton({
 
       if (!isApproved) {
         setPhase("approving");
-        await writeContractAsync({
+        const approvalHash = await writeContractAsync({
           address: nftContract as `0x${string}`,
           abi: ERC721_APPROVAL_ABI,
           functionName: "setApprovalForAll",
           args: [escrowAddress!, true],
           chainId,
         });
-        await new Promise((r) => setTimeout(r, 2000));
+        // Waiting for the receipt, not for a fixed two seconds. On mainnet
+        // an approval rarely mines that fast, so the accept was going out
+        // before the approval existed and reverting on the NFT's own
+        // "missing approval" error — which decoded to nothing and read as
+        // a bare revert.
+        await publicClient?.waitForTransactionReceipt({ hash: approvalHash });
         await refetchApproval();
       }
 
@@ -195,6 +200,15 @@ function explainAcceptFailure(err: unknown): string | null {
     [/exceeds offer quantity/i, "This offer has already been filled."],
     [/invalid signature/i, "The buyer's signature is no longer valid — ask them to re-make the offer."],
     [/offer underfunded|no such offer/i, "This offer is no longer funded."],
+    [
+      /ERC1155MissingApprovalForAll|ERC721InsufficientApproval/i,
+      "Approve the offers contract to move this NFT, then try again.",
+    ],
+    [
+      /ERC1155InsufficientBalance|ERC721IncorrectOwner/i,
+      "Your wallet doesn't hold this NFT on-chain, so it can't be sold.",
+    ],
+    [/EnforcedPause/i, "Offers are paused right now."],
     [/offer withdrawn/i, "The buyer withdrew this offer."],
     [/caller is not token owner|insufficient balance for transfer/i, "You no longer hold this NFT."],
     [/not approved|caller is not approved/i, "Approve the offers contract to move this NFT, then try again."],

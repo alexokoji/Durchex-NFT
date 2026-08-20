@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import clsx from "clsx";
 import { Zap, Gavel, Heart, Share2, ArrowRight } from "lucide-react";
 import { useConnectModal } from "@rainbow-me/rainbowkit";
-import { useAccount, useSwitchChain, useWriteContract, useReadContract, useSignTypedData } from "wagmi";
+import { useAccount, useSwitchChain, useWriteContract, useReadContract, useSignTypedData, usePublicClient } from "wagmi";
 import { parseEther, formatEther } from "viem";
 import {
   buildCollectionOfferTypedData,
@@ -255,6 +255,7 @@ function BidOfferForm({
   const { address, chainId: connectedChainId } = useAccount();
   const { switchChainAsync } = useSwitchChain();
   const { writeContractAsync } = useWriteContract();
+  const publicClient = usePublicClient({ chainId: item.chainId });
   const { signTypedDataAsync } = useSignTypedData();
   const { celebrate } = useTxSuccess();
   const [amount, setAmount] = useState(type === "auction_bid" ? (minAmount + 0.05).toFixed(2) : "");
@@ -315,14 +316,16 @@ function BidOfferForm({
 
         if (allowance === undefined || (allowance as bigint) < amountWei) {
           setPhase("approving");
-          await writeContractAsync({
+          const approvalHash = await writeContractAsync({
             address: weth,
             abi: ERC20_ABI,
             functionName: "approve",
             args: [offersAddress, amountWei],
             chainId: item.chainId,
           });
-          await new Promise((r) => setTimeout(r, 2000));
+          // The receipt, not a fixed delay — an approval that hasn't mined
+          // yet is an approval that isn't there.
+          await publicClient?.waitForTransactionReceipt({ hash: approvalHash });
           await refetchAllowance();
         }
 

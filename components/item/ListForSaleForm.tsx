@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Tag, Loader2 } from "lucide-react";
-import { useAccount, useSwitchChain, useWriteContract, useReadContract, useSignTypedData } from "wagmi";
+import { useAccount, useSwitchChain, useWriteContract, useReadContract, useSignTypedData, usePublicClient} from "wagmi";
 import { Button } from "@/components/ui/Button";
 import { useTxSuccess } from "@/components/tx/TxSuccess";
 import { ERC721_APPROVAL_ABI, marketplaceAddressFor } from "@/lib/web3/marketplaceAbi";
@@ -26,6 +26,7 @@ export function ListForSaleForm({ item }: { item: ItemDetailView }) {
   const { address, chainId: connectedChainId } = useAccount();
   const { switchChainAsync } = useSwitchChain();
   const { writeContractAsync } = useWriteContract();
+  const publicClient = usePublicClient({ chainId: item.chainId });
   const { signTypedDataAsync } = useSignTypedData();
   const marketplaceAddress = marketplaceAddressFor(item.chainId);
   const { celebrate } = useTxSuccess();
@@ -82,10 +83,11 @@ export function ListForSaleForm({ item }: { item: ItemDetailView }) {
           args: [marketplaceAddress!, true],
           chainId: item.chainId,
         });
-        // Wait a tick then re-check on-chain state rather than trusting the tx alone.
-        await new Promise((r) => setTimeout(r, 2000));
+        // Wait for the receipt rather than a fixed delay: on mainnet an
+        // approval rarely mines in two seconds, and continuing early signs
+        // a listing the marketplace cannot yet fill.
+        await publicClient?.waitForTransactionReceipt({ hash });
         await refetchApproval();
-        void hash;
       }
 
       setPhase("signing");

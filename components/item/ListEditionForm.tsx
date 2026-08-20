@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Tag, Loader2 } from "lucide-react";
-import { useAccount, useSwitchChain, useWriteContract, useReadContract, useSignTypedData } from "wagmi";
+import { useAccount, useSwitchChain, useWriteContract, useReadContract, useSignTypedData, usePublicClient} from "wagmi";
 import { Button } from "@/components/ui/Button";
 import { useTxSuccess } from "@/components/tx/TxSuccess";
 import { ERC721_APPROVAL_ABI, marketplaceAddressFor } from "@/lib/web3/marketplaceAbi";
@@ -19,6 +19,7 @@ export function ListEditionForm({ item }: { item: ItemDetailView }) {
   const { address, chainId: connectedChainId } = useAccount();
   const { switchChainAsync } = useSwitchChain();
   const { writeContractAsync } = useWriteContract();
+  const publicClient = usePublicClient({ chainId: item.chainId });
   const { signTypedDataAsync } = useSignTypedData();
 
   const marketplaceAddress = marketplaceAddressFor(item.chainId);
@@ -85,14 +86,17 @@ export function ListEditionForm({ item }: { item: ItemDetailView }) {
 
       if (!isApproved) {
         setPhase("approving");
-        await writeContractAsync({
+        const approvalHash = await writeContractAsync({
           address: item.contractAddress as `0x${string}`,
           abi: ERC721_APPROVAL_ABI,
           functionName: "setApprovalForAll",
           args: [marketplaceAddress!, true],
           chainId: item.chainId,
         });
-        await new Promise((r) => setTimeout(r, 2000));
+        // Wait for the receipt rather than a fixed delay: on mainnet an
+        // approval rarely mines in two seconds, and continuing early sends
+        // the next call before the approval exists, which reverts.
+        await publicClient?.waitForTransactionReceipt({ hash: approvalHash });
         await refetchApproval();
       }
 

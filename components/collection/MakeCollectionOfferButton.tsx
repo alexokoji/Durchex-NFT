@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Tag, Loader2, X, Info } from "lucide-react";
-import { useAccount, useSwitchChain, useSignTypedData, useReadContract, useWriteContract } from "wagmi";
+import { useAccount, useSwitchChain, useSignTypedData, useReadContract, useWriteContract, usePublicClient} from "wagmi";
 import { useConnectModal } from "@rainbow-me/rainbowkit";
 import { parseEther } from "viem";
 import { Button } from "@/components/ui/Button";
@@ -42,6 +42,7 @@ export function MakeCollectionOfferButton({ collection }: { collection: Collecti
   const { switchChainAsync } = useSwitchChain();
   const { signTypedDataAsync } = useSignTypedData();
   const { writeContractAsync } = useWriteContract();
+  const publicClient = usePublicClient({ chainId: collection.chainId });
 
   const [open, setOpen] = useState(false);
   const [pricePerItem, setPricePerItem] = useState("");
@@ -140,7 +141,7 @@ export function MakeCollectionOfferButton({ collection }: { collection: Collecti
       if (shortOfWeth) {
         setPhase("wrapping");
         const shortfall = totalWei - ((wethBalance as bigint) ?? BigInt(0));
-        await writeContractAsync({
+        const approvalHash = await writeContractAsync({
           address: weth!,
           abi: WETH_ABI,
           functionName: "deposit",
@@ -148,20 +149,26 @@ export function MakeCollectionOfferButton({ collection }: { collection: Collecti
           value: shortfall,
           chainId: collection.chainId,
         });
-        await new Promise((r) => setTimeout(r, 2000));
+        // Wait for the receipt rather than a fixed delay: on mainnet an
+        // approval rarely mines in two seconds, and continuing early sends
+        // the next call before the approval exists, which reverts.
+        await publicClient?.waitForTransactionReceipt({ hash: approvalHash });
         await refetchWeth();
       }
 
       if (needsApproval) {
         setPhase("approving");
-        await writeContractAsync({
+        const approvalHash = await writeContractAsync({
           address: weth!,
           abi: ERC20_ABI,
           functionName: "approve",
           args: [offersAddress!, totalWei],
           chainId: collection.chainId,
         });
-        await new Promise((r) => setTimeout(r, 2000));
+        // Wait for the receipt rather than a fixed delay: on mainnet an
+        // approval rarely mines in two seconds, and continuing early sends
+        // the next call before the approval exists, which reverts.
+        await publicClient?.waitForTransactionReceipt({ hash: approvalHash });
         await refetchAllowance();
       }
 
