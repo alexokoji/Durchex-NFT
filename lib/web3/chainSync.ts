@@ -331,12 +331,16 @@ export async function markListingFilled({
   }).sort({ pricePerUnitEth: 1 });
 
   const withRoom = live.filter((l) => (l.filledQuantity ?? 0) < l.quantity);
-  const listing =
-    (pricePerUnitEth !== undefined
-      ? withRoom.find((l) => Math.abs(l.pricePerUnitEth - pricePerUnitEth) < 1e-9)
-      : undefined) ??
-    // No price match: the cheapest live one is what a floor purchase took.
-    withRoom[0];
+  // Oldest first among equal prices, so a relisting at the same price
+  // doesn't absorb a fill that belongs to the listing already standing.
+  const byPrice =
+    pricePerUnitEth !== undefined
+      ? withRoom
+          .filter((l) => Math.abs(l.pricePerUnitEth - pricePerUnitEth) < 1e-9)
+          .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime())
+      : [];
+  // No price match: the cheapest live one is what a floor purchase took.
+  const listing = byPrice[0] ?? withRoom[0];
   if (!listing) return;
 
   listing.filledQuantity = (listing.filledQuantity ?? 0) + qty;

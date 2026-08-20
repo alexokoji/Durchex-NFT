@@ -161,39 +161,67 @@ export async function repairListingFills(chainId: number) {
     );
   }
 
-  // Filled counts are rebuilt from zero rather than incremented, so a fill
-  // that was credited twice is corrected rather than compounded.
-  const tally = new Map<string, number>();
+  // Each fill is kept as its own dated event rather than summed per
+  // seller-and-price. Summing was actively destructive: a seller who sold
+  // at a price and later listed again at the same price had the old fill
+  // applied to the new listing, so a listing created seconds earlier came
+  // back marked sold. Running every five minutes, that quietly killed
+  // relistings.
+  const fills: { seller: string; pricePerUnit: number; qty: number; at: number }[] = [];
+  const blockTimes = new Map<string, number>();
   for (const log of logs) {
     const a = log.args as { seller?: string; quantity?: bigint; totalPrice?: bigint };
     if (!a.seller || !a.quantity) continue;
+    const key = String(log.blockNumber);
+    if (!blockTimes.has(key)) {
+      const block = await client.getBlock({ blockNumber: log.blockNumber });
+      blockTimes.set(key, Number(block.timestamp) * 1000);
+    }
     const qty = Number(a.quantity);
-    const perUnit = Number(formatEther(a.totalPrice ?? BigInt(0))) / (qty || 1);
-    tally.set(`${a.seller.toLowerCase()}:${perUnit.toFixed(9)}`, (tally.get(`${a.seller.toLowerCase()}:${perUnit.toFixed(9)}`) ?? 0) + qty);
+    fills.push({
+      seller: a.seller.toLowerCase(),
+      pricePerUnit: Number(formatEther(a.totalPrice ?? BigInt(0))) / (qty || 1),
+      qty,
+      at: blockTimes.get(key) ?? 0,
+    });
   }
 
   let repaired = 0;
   let unmatched = 0;
+  // Oldest listings first, so an older listing claims an older fill.
   const listings = await Listing.find({ status: { $in: ["active", "auction", "filled"] } })
+    .sort({ createdAt: 1 })
     .populate("seller", "address")
     .lean();
+
+  const consumed = new Set<number>();
   for (const listing of listings) {
     const address = (listing.seller as { address?: string } | null)?.address;
     if (!address) continue;
-    const key = `${address.toLowerCase()}:${listing.pricePerUnitEth.toFixed(9)}`;
-    const filledOnChain = tally.get(key);
-    if (filledOnChain === undefined) continue;
-    const credited = Math.min(filledOnChain, listing.quantity);
+    const createdAt = new Date(listing.createdAt as Date).getTime();
+
+    let credited = 0;
+    fills.forEach((fill, index) => {
+      if (consumed.has(index)) return;
+      if (credited >= listing.quantity) return;
+      if (fill.seller !== address.toLowerCase()) return;
+      if (Math.abs(fill.pricePerUnit - listing.pricePerUnitEth) > 1e-9) return;
+      // A fill that happened before the listing existed cannot be a fill
+      // *of* it. This is the check whose absence caused the damage.
+      if (fill.at < createdAt) return;
+      credited += fill.qty;
+      consumed.add(index);
+    });
+    credited = Math.min(credited, listing.quantity);
+
     if (credited === (listing.filledQuantity ?? 0)) continue;
     await Listing.updateOne(
       { _id: listing._id },
       {
         filledQuantity: credited,
-        ...(credited >= listing.quantity ? { status: "filled" } : {}),
+        status: credited >= listing.quantity ? "filled" : "active",
       }
     );
-    // Each unit is spent once across listings sharing a seller and price.
-    tally.set(key, filledOnChain - credited);
     repaired += 1;
   }
   void unmatched;
