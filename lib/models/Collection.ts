@@ -92,6 +92,15 @@ const CollectionSchema = new Schema(
       // be unanswerable.
       floorEth24hAgo: { type: Number, default: 0 },
       floorSnapshotAt: { type: Date, default: null },
+      // A short series of observations, so "1D floor %" can compare against
+      // what the floor genuinely was a day ago. A single rolled baseline
+      // couldn't: it captured whatever the floor happened to be when the
+      // roll fired, and survived a change in what "floor" even means —
+      // which is how the collection came to advertise +92,900%.
+      floorHistory: {
+        type: [{ at: { type: Date, required: true }, floorEth: { type: Number, required: true } }],
+        default: [],
+      },
       volume24hEth: { type: Number, default: 0 },
       volume7dEth: { type: Number, default: 0 },
       totalVolumeEth: { type: Number, default: 0 },

@@ -47,14 +47,28 @@ export async function recalculateCollectionFloor(collectionId: Types.ObjectId | 
   // 24h, so the header's "1D floor %" compares against a real yesterday
   // rather than an arbitrary earlier reading. The value being replaced is
   // the floor as it stood at the last roll — i.e. a day ago.
-  const existing = await Collection.findById(id).select("stats.floorEth stats.floorSnapshotAt").lean();
-  const snapshotAt: Date | null = existing?.stats?.floorSnapshotAt ?? null;
-  const stale = !snapshotAt || Date.now() - new Date(snapshotAt).getTime() >= 24 * 60 * 60 * 1000;
-  const update: Record<string, unknown> = { "stats.floorEth": floor };
-  if (stale) {
-    update["stats.floorEth24hAgo"] = existing?.stats?.floorEth ?? floor;
-    update["stats.floorSnapshotAt"] = new Date();
-  }
+  const existing = await Collection.findById(id)
+    .select("stats.floorEth stats.floorHistory")
+    .lean();
 
-  await Collection.updateOne({ _id: id }, { $set: update });
+  // Keep a series rather than one rolled baseline. The old approach stored
+  // "the floor when the roll last fired" and called it yesterday's floor,
+  // which is only true if the roll fires exactly daily — and it carried a
+  // value across the change in what counts as a floor at all.
+  const now = new Date();
+  const history: { at: Date; floorEth: number }[] = (existing?.stats?.floorHistory ?? []).map(
+    (h: { at: Date; floorEth: number }) => ({ at: new Date(h.at), floorEth: h.floorEth })
+  );
+  const newest = history[history.length - 1];
+  const HOUR = 60 * 60 * 1000;
+  if (!newest || now.getTime() - newest.at.getTime() >= HOUR) {
+    history.push({ at: now, floorEth: floor });
+  }
+  // Two days of hourly points is all a 1D comparison can use.
+  const trimmed = history.slice(-48);
+
+  await Collection.updateOne(
+    { _id: id },
+    { $set: { "stats.floorEth": floor, "stats.floorHistory": trimmed, "stats.floorSnapshotAt": now } }
+  );
 }

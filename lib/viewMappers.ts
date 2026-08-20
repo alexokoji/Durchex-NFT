@@ -75,6 +75,7 @@ interface CollectionDetailLike extends CollectionLike {
   exclusivePhaseLive?: boolean;
   publicPhaseLive?: boolean;
   stats: CollectionLike["stats"] & {
+    floorHistory?: { at: Date | string; floorEth: number }[];
     volume7dEth: number;
     totalVolumeEth: number;
     sales: number;
@@ -164,6 +165,19 @@ const ETH_USD = 3400;
 
 // Mint-out is measured in units, never in item rows — an ERC-1155 row is
 // an edition of many. See lib/collectionSupply.ts.
+function floorChange1d(c: CollectionDetailLike): number | null {
+  const history = c.stats?.floorHistory ?? [];
+  const cutoff = Date.now() - 24 * 60 * 60 * 1000;
+  // The newest observation that is at least a day old; anything younger
+  // would describe a shorter window while claiming to describe a day.
+  const baseline = [...history]
+    .map((h) => ({ at: new Date(h.at).getTime(), floorEth: h.floorEth }))
+    .filter((h) => h.at <= cutoff)
+    .sort((a, b) => b.at - a.at)[0];
+  if (!baseline || baseline.floorEth <= 0) return null;
+  return ((c.stats.floorEth - baseline.floorEth) / baseline.floorEth) * 100;
+}
+
 function supplyOf(c: CollectionDetailLike) {
   return {
     maxSupply: c.maxSupply ?? 0,
@@ -266,10 +280,11 @@ export function toCollectionDetailView(c: CollectionDetailLike): CollectionDetai
     mintRemaining: mintRemaining(supplyOf(c)),
     // Only a real baseline gives a meaningful percentage: a collection whose
     // floor was 0 yesterday (nothing listed) has no move to express.
-    floorChange1dPct:
-      c.stats.floorEth24hAgo && c.stats.floorEth24hAgo > 0
-        ? ((c.stats.floorEth - c.stats.floorEth24hAgo) / c.stats.floorEth24hAgo) * 100
-        : null,
+    // Measured against what the floor genuinely was ~24h ago, from the
+    // stored series. Null when the collection has no observation that old
+    // yet — "—" is honest where a number invented from a shorter window
+    // is not.
+    floorChange1dPct: floorChange1d(c),
     topOfferEth: c.topOfferEth ?? null,
     links: {
       website: c.links?.website ?? "",

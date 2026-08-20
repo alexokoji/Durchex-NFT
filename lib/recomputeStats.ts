@@ -94,6 +94,14 @@ export async function recomputeStats(): Promise<StatsRecomputeResult> {
         "stats.items": itemIds.length,
       }
     );
+    // The old single-value baseline was captured under a different
+    // definition of "floor" — it counted the primary mint — so comparing
+    // today's listing floor against it produced a five-figure percentage.
+    // Clearing it lets the series be the only source.
+    await Collection.updateOne(
+      { _id: collection._id },
+      { $set: { "stats.floorEth24hAgo": 0 } }
+    );
     await recalculateCollectionFloor(collection._id);
 
     const fresh = await Collection.findById(collection._id).select("stats.floorEth").lean();
