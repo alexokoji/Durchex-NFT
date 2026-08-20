@@ -13,6 +13,7 @@ import { VerifiedBadge } from "@/components/ui/VerifiedBadge";
 import { UserChip } from "@/components/item/UserChip";
 import { NFTCard } from "@/components/nft/NFTCard";
 import { ReportButton } from "@/components/moderation/ReportButton";
+import { LiveRefresh } from "@/components/providers/LiveRefresh";
 
 // Live marketplace data (price, ownership, offers) — never prerender a stale
 // snapshot at build time.
@@ -40,6 +41,7 @@ export default async function ItemDetailPage({ params }: PageProps) {
 
   return (
     <div className="max-w-7xl mx-auto px-6 py-10">
+      <LiveRefresh />
       <div className="flex items-center gap-1.5 text-sm text-white/40 mb-6">
         <Link href="/explore" className="hover:text-white transition">
           Explore

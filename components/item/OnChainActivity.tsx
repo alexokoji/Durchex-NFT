@@ -6,6 +6,7 @@ import { ArrowUpRight, Gavel, Loader2, Send, ShoppingCart, Sparkles, Tag } from 
 import clsx from "clsx";
 import { VerifiedBadge } from "@/components/ui/VerifiedBadge";
 import { UserAvatar } from "@/components/ui/UserAvatar";
+import { onLiveRefresh } from "@/components/providers/LiveRefresh";
 import { useCurrency } from "@/components/providers/CurrencyProvider";
 import { ActivityView } from "@/lib/types";
 import type { VerificationTier } from "@/lib/verification";
@@ -72,7 +73,7 @@ export function OnChainActivity({
   const [filter, setFilter] = useState<Filter>("All");
   const [note, setNote] = useState<string | null>(null);
 
-  useEffect(() => {
+  const loadChainHistory = () => {
     let cancelled = false;
     fetch(`/api/items/${itemId}/onchain-activity`)
       .then((r) => r.json())
@@ -87,7 +88,9 @@ export function OnChainActivity({
     return () => {
       cancelled = true;
     };
-  }, [itemId]);
+  };
+  useEffect(loadChainHistory, [itemId]);
+  useEffect(() => onLiveRefresh(() => loadChainHistory()), [itemId]);
 
   const rows = useMemo(() => {
     const asParty = (u: ActivityView["from"]): Party | null =>

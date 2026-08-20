@@ -9,6 +9,7 @@ import { CollectionHeader } from "@/components/collection/CollectionHeader";
 import { FilterSidebar } from "@/components/explore/FilterSidebar";
 import { Toolbar } from "@/components/explore/Toolbar";
 import { InfiniteGrid } from "@/components/explore/InfiniteGrid";
+import { LiveRefresh } from "@/components/providers/LiveRefresh";
 
 // Live marketplace data — never prerender a stale snapshot at build time.
 export const dynamic = "force-dynamic";
@@ -57,6 +58,7 @@ export default async function CollectionPage({ params, searchParams }: PageProps
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 py-10">
+      <LiveRefresh />
       <CollectionHeader collection={collection} />
 
       <div className="flex flex-col lg:flex-row gap-8 mt-10">

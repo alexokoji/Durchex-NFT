@@ -8,6 +8,7 @@ import { useConnectModal } from "@rainbow-me/rainbowkit";
 import { Button } from "@/components/ui/Button";
 import { CountdownTimer } from "@/components/nft/CountdownTimer";
 import { useSession } from "@/hooks/useSession";
+import { onLiveRefresh } from "@/components/providers/LiveRefresh";
 import { MARKETPLACE_ABI, marketplaceAddressFor } from "@/lib/web3/marketplaceAbi";
 import { buildListing1155TypedData } from "@/lib/web3/listing1155";
 import { ItemDetailView } from "@/lib/types";
@@ -67,6 +68,10 @@ export function EditionListings({ item }: { item: ItemDetailView }) {
       .then((data) => setListings(data.listings ?? []));
   }
   useEffect(load, [item.id]);
+  // Fetched in the browser rather than rendered on the server, so a page
+  // refresh alone would leave this list a cycle behind everything around
+  // it. It reloads on the same beat instead.
+  useEffect(() => onLiveRefresh(load), [item.id]);
 
   const marketplaceAddress = marketplaceAddressFor(item.chainId);
   if (!listings || listings.length === 0 || !marketplaceAddress) return null;

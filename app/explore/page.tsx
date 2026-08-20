@@ -3,6 +3,7 @@ import { CategoryTabs } from "@/components/explore/CategoryTabs";
 import { FilterSidebar } from "@/components/explore/FilterSidebar";
 import { Toolbar } from "@/components/explore/Toolbar";
 import { InfiniteGrid } from "@/components/explore/InfiniteGrid";
+import { LiveRefresh } from "@/components/providers/LiveRefresh";
 
 // Live marketplace data — never prerender a stale snapshot at build time.
 export const dynamic = "force-dynamic";
@@ -32,6 +33,7 @@ export default async function ExplorePage({ searchParams }: PageProps) {
 
   return (
     <div className="max-w-7xl mx-auto px-6 py-10">
+      <LiveRefresh />
       <div className="mb-8">
         <h1 className="font-display text-3xl sm:text-4xl font-semibold text-white mb-2">Explore</h1>
         <p className="text-white/50 text-sm max-w-xl">

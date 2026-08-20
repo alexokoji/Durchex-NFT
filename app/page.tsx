@@ -16,6 +16,7 @@ import {
   getDrops,
 } from "@/lib/queries";
 import { getCurrentUserFromCookies } from "@/lib/auth/currentUser";
+import { LiveRefresh } from "@/components/providers/LiveRefresh";
 
 // Reading the viewer's session (for personalized drop-notify state) already
 // forces this to render per-request — `revalidate` doesn't apply once a page
@@ -35,6 +36,7 @@ export default async function Home() {
 
   return (
     <div>
+      <LiveRefresh />
       <Hero stats={stats} collections={collections} />
       <TrendingCollections collections={collections} />
       <LiveAuctions items={auctions} />
