@@ -6,7 +6,7 @@ import { Loader2, Check } from "lucide-react";
 import { useAccount, useSwitchChain, useWriteContract, usePublicClient, useReadContract } from "wagmi";
 import { useConnectModal } from "@rainbow-me/rainbowkit";
 import { ERC721_APPROVAL_ABI } from "@/lib/web3/marketplaceAbi";
-import { OFFERS_ABI, offersAddressFor } from "@/lib/web3/offerCriteria";
+import { OFFERS_ABI, offersAddressFor, wethAddressFor } from "@/lib/web3/offerCriteria";
 import { useTxSuccess } from "@/components/tx/TxSuccess";
 
 /**
@@ -44,6 +44,7 @@ export function AcceptOfferButton({
   const [error, setError] = useState<string | null>(null);
 
   const offersAddress = offersAddressFor(chainId);
+  const weth = wethAddressFor(chainId);
 
   // The offers contract must be able to move the seller's NFT.
   const { data: isApproved, refetch: refetchApproval } = useReadContract({
@@ -87,6 +88,37 @@ export function AcceptOfferButton({
 
       setPhase("confirm");
       const o = data.offer;
+
+      // Canonical WETH reverts with no reason string at all, so a buyer
+      // who has spent or unwrapped their balance produces a bare
+      // "reverted" that names nothing. Checking their balance and
+      // allowance here turns the most common failure into a sentence, and
+      // costs the seller nothing.
+      const owed = BigInt(o.pricePerItem) * BigInt(1);
+      const [buyerBalance, buyerAllowance] = await Promise.all([
+        publicClient!.readContract({
+          address: weth!,
+          abi: WETH_ALLOWANCE_ABI,
+          functionName: "balanceOf",
+          args: [o.buyer as `0x${string}`],
+        }),
+        publicClient!.readContract({
+          address: weth!,
+          abi: WETH_ALLOWANCE_ABI,
+          functionName: "allowance",
+          args: [o.buyer as `0x${string}`, offersAddress!],
+        }),
+      ]);
+      if ((buyerBalance as bigint) < owed) {
+        throw new Error(
+          "The buyer no longer holds enough wrapped ETH to cover this offer, so it can't be filled."
+        );
+      }
+      if ((buyerAllowance as bigint) < owed) {
+        throw new Error(
+          "The buyer hasn't approved enough wrapped ETH for this offer, so it can't be filled."
+        );
+      }
       // Simulated before signing: a revert here costs nothing and carries
       // the contract's own reason string, where a failed send costs gas
       // and surfaces as a wall of hex.
@@ -201,8 +233,34 @@ function explainAcceptFailure(err: unknown): string {
   ];
   for (const [pattern, message] of known) if (pattern.test(raw)) return message;
 
+  // A revert carrying no reason at all is almost always WETH, which uses
+  // bare requires — saying "reverted" would leave the seller with nothing.
+  if (/reverted\.?[\s]*$/i.test(raw.split("\n")[0] ?? "")) {
+    return "The buyer's wrapped ETH is no longer available, so this offer can't be filled.";
+  }
+
   // Unrecognised: show the contract's reason if there is one, never the
   // function-name line.
   const reason = raw.match(/reverted with the following reason:[\s]*(.+)/i)?.[1]?.trim();
   return reason || raw.split("\n")[0] || "Transaction failed";
 }
+
+const WETH_ALLOWANCE_ABI = [
+  {
+    type: "function",
+    name: "balanceOf",
+    stateMutability: "view",
+    inputs: [{ name: "account", type: "address" }],
+    outputs: [{ type: "uint256" }],
+  },
+  {
+    type: "function",
+    name: "allowance",
+    stateMutability: "view",
+    inputs: [
+      { name: "owner", type: "address" },
+      { name: "spender", type: "address" },
+    ],
+    outputs: [{ type: "uint256" }],
+  },
+] as const;
