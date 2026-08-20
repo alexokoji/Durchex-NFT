@@ -24,7 +24,11 @@ export function mintStatus(collection: CollectionDetailView, now = new Date()) {
   // Supply outranks the schedule. A phase left enabled after the last unit
   // is gone still looks "live" by its dates, so the badge went on claiming
   // MINTING NOW on a collection with nothing left to mint.
-  if (collection.mintedOut) return { label: "SOLD OUT", startsAt: null as Date | null };
+  // "Minted out" rather than "sold out": the state being described is that
+  // every unit is on-chain, which is also the moment resale opens. "Sold
+  // out" reads as nothing left to buy, when in fact this is exactly when
+  // the secondary market starts.
+  if (collection.mintedOut) return { label: "MINTED OUT", startsAt: null as Date | null };
 
   const phases = PHASE_KEYS.map((key) => collection.mintPhases[key]).filter((phase) => phase.enabled);
   if (phases.length === 0) return { label: null, startsAt: null as Date | null };
@@ -248,7 +252,7 @@ export function CollectionMeta({
                 ? "live"
                 : status.label === "MINTING SOON"
                   ? "soon"
-                  : status.label === "SOLD OUT"
+                  : status.label === "MINTED OUT"
                     ? "done"
                     : undefined
             }
