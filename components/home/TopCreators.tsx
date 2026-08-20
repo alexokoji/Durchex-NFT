@@ -1,5 +1,6 @@
 import { Crown } from "lucide-react";
 import { VerifiedBadge } from "@/components/ui/VerifiedBadge";
+import { UserAvatar } from "@/components/ui/UserAvatar";
 import { SectionHeading } from "@/components/home/SectionHeading";
 import { GeneratedArt } from "@/components/nft/GeneratedArt";
 
@@ -29,13 +30,12 @@ export function TopCreators({ creators }: { creators: Creator[] }) {
             <div className="w-6 text-center font-display font-semibold text-white/40">
               {i === 0 ? <Crown className="w-4 h-4 text-purple-400 mx-auto" /> : i + 1}
             </div>
-            <div className="w-10 h-10 rounded-full overflow-hidden shrink-0 border border-white/10">
-              {creator.avatarUrl ? (
-                <img src={creator.avatarUrl} alt="" className="w-full h-full object-cover" />
-              ) : (
-                <GeneratedArt seedKey={`creator-${creator.id}`} className="w-full h-full" />
-              )}
-            </div>
+            <UserAvatar
+              address={creator.id}
+              avatarUrl={creator.avatarUrl}
+              seedKey={`creator-${creator.id}`}
+              className="w-10 h-10 border border-white/10"
+            />
             <div className="flex-1 min-w-0 flex items-center gap-1">
               <span className="font-medium text-white truncate">@{creator.username}</span>
               <VerifiedBadge tier={creator.verificationTier} className="w-4 h-4" />

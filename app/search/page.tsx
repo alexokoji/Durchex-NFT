@@ -5,6 +5,7 @@ import { search } from "@/lib/queries";
 import { NFTCard } from "@/components/nft/NFTCard";
 import { CollectionCard } from "@/components/nft/CollectionCard";
 import { GeneratedArt } from "@/components/nft/GeneratedArt";
+import { UserAvatar } from "@/components/ui/UserAvatar";
 
 // Live marketplace data — never prerender a stale snapshot at build time.
 export const dynamic = "force-dynamic";
@@ -61,9 +62,7 @@ export default async function SearchPage({ searchParams }: PageProps) {
                 href={`/profile/${u.address}`}
                 className="surface-card surface-card-hover flex items-center gap-3 p-3.5"
               >
-                <span className="w-10 h-10 rounded-full overflow-hidden shrink-0">
-                  <GeneratedArt seedKey={u.address} className="w-full h-full" />
-                </span>
+                <UserAvatar address={u.address} avatarUrl={u.avatarUrl} className="w-10 h-10" />
                 <span className="text-sm font-medium text-white flex items-center gap-1 truncate">
                   {u.username}
                   <VerifiedBadge tier={u.verificationTier} className="w-3.5 h-3.5" />

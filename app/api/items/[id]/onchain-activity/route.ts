@@ -55,7 +55,7 @@ export async function GET(req: NextRequest, context: { params: Promise<{ id: str
     a.toLowerCase()
   );
   const users = addresses.length
-    ? await User.find({ address: { $in: addresses } }).select("address username verificationTier").lean()
+    ? await User.find({ address: { $in: addresses } }).select("address username verificationTier avatarUrl").lean()
     : [];
   const byAddress = new Map(users.map((u) => [u.address.toLowerCase(), u]));
 
@@ -65,6 +65,7 @@ export async function GET(req: NextRequest, context: { params: Promise<{ id: str
       address,
       username: user?.username ?? null,
       verificationTier: user?.verificationTier ?? "none",
+      avatarUrl: user?.avatarUrl ?? null,
     };
   };
 

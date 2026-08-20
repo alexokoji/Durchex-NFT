@@ -5,10 +5,16 @@ import Link from "next/link";
 import { ArrowUpRight, Gavel, Loader2, Send, ShoppingCart, Sparkles, Tag } from "lucide-react";
 import clsx from "clsx";
 import { VerifiedBadge } from "@/components/ui/VerifiedBadge";
+import { UserAvatar } from "@/components/ui/UserAvatar";
 import { ActivityView } from "@/lib/types";
 import type { VerificationTier } from "@/lib/verification";
 
-type Party = { address: string; username: string | null; verificationTier: VerificationTier };
+type Party = {
+  address: string;
+  username: string | null;
+  verificationTier: VerificationTier;
+  avatarUrl?: string | null;
+};
 type ChainTransfer = {
   txHash: string;
   type: "mint" | "transfer";
@@ -83,7 +89,14 @@ export function OnChainActivity({
 
   const rows = useMemo(() => {
     const asParty = (u: ActivityView["from"]): Party | null =>
-      u ? { address: u.address, username: u.username, verificationTier: u.verificationTier } : null;
+      u
+        ? {
+            address: u.address,
+            username: u.username,
+            verificationTier: u.verificationTier,
+            avatarUrl: u.avatarUrl,
+          }
+        : null;
 
     const local: Row[] = activity
       .filter((a) => a.type !== "cancel")
@@ -236,8 +249,9 @@ function PartyCell({ party }: { party: Party | null }) {
   return (
     <Link
       href={`/profile/${party.address}`}
-      className="inline-flex items-center gap-1 text-white/70 hover:text-purple-300 transition"
+      className="inline-flex items-center gap-1.5 text-white/70 hover:text-purple-300 transition"
     >
+      <UserAvatar address={party.address} avatarUrl={party.avatarUrl} className="w-5 h-5" />
       <span className="truncate max-w-[9rem]">{label}</span>
       <VerifiedBadge tier={party.verificationTier} className="w-3 h-3" />
     </Link>

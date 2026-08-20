@@ -6,6 +6,8 @@ export interface SessionUser {
   address: string;
   username: string;
   isVerified: boolean;
+  verificationTier?: "none" | "white" | "purple";
+  avatarUrl?: string;
   nextVoucherNonce: number;
 }
 

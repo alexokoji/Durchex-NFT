@@ -10,6 +10,7 @@ import { EditionListings } from "@/components/item/EditionListings";
 import { useSession } from "@/hooks/useSession";
 import { AcceptOfferButton } from "@/components/item/AcceptOfferButton";
 import { ActivityView, BidView, ItemDetailView } from "@/lib/types";
+import { UserAvatar } from "@/components/ui/UserAvatar";
 
 const TABS = ["Details", "Properties", "Listings", "Offers", "Activity"] as const;
 type Tab = (typeof TABS)[number];
@@ -137,9 +138,7 @@ function OfferRow({
   return (
     <div className="flex items-center justify-between gap-3 p-3 rounded-xl bg-white/5 border border-white/10">
       <div className="flex items-center gap-2.5 min-w-0">
-        <span className="w-8 h-8 rounded-full overflow-hidden shrink-0">
-          <GeneratedArt seedKey={offer.bidder.address} className="w-full h-full" />
-        </span>
+        <UserAvatar address={offer.bidder.address} avatarUrl={offer.bidder.avatarUrl} className="w-8 h-8" />
         <div className="min-w-0">
           <div className="flex items-center gap-1.5">
             <span className="text-sm font-medium text-white truncate">{offer.bidder.username}</span>

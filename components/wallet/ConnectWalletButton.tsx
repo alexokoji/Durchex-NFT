@@ -6,6 +6,7 @@ import { ConnectButton } from "@rainbow-me/rainbowkit";
 import { useAccount, useDisconnect, useSwitchChain } from "wagmi";
 import { ChevronDown, LogOut, Wallet, AlertTriangle, RotateCcw, User, Check, Loader2 } from "lucide-react";
 import { GeneratedArt } from "@/components/nft/GeneratedArt";
+import { UserAvatar } from "@/components/ui/UserAvatar";
 import { useConnectFlow } from "@/components/wallet/ConnectFlow";
 import { useSession } from "@/hooks/useSession";
 import { useAutoSiweSignIn } from "@/hooks/useAutoSiweSignIn";
@@ -104,9 +105,7 @@ export function ConnectWalletButton() {
               onClick={() => setMenuOpen((v) => !v)}
               className="flex items-center gap-2 pl-1.5 pr-3 py-1.5 rounded-xl bg-white/5 border border-white/10 hover:border-purple-500/40 transition"
             >
-              <span className="w-6 h-6 rounded-full overflow-hidden">
-                <GeneratedArt seedKey={account.address} className="w-full h-full" />
-              </span>
+              <UserAvatar address={account.address} avatarUrl={user?.avatarUrl} className="w-6 h-6" />
               <span className="text-sm font-medium text-white">
                 {user?.username ?? truncateAddress(account.address)}
               </span>

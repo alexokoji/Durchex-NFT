@@ -3,6 +3,7 @@ import clsx from "clsx";
 import { Gavel, Tag, TrendingDown, CheckCircle2, ShoppingBag, UserPlus } from "lucide-react";
 import { GeneratedArt } from "@/components/nft/GeneratedArt";
 import { NotificationView } from "@/lib/types";
+import { UserAvatar } from "@/components/ui/UserAvatar";
 
 const TYPE_META: Record<
   NotificationView["type"],
@@ -78,9 +79,11 @@ export function NotificationRow({
         </span>
       ) : (
         notification.fromUser && (
-          <span className="w-9 h-9 rounded-full overflow-hidden shrink-0">
-            <GeneratedArt seedKey={notification.fromUser.address} className="w-full h-full" />
-          </span>
+          <UserAvatar
+            address={notification.fromUser.address}
+            avatarUrl={notification.fromUser.avatarUrl}
+            className="w-9 h-9"
+          />
         )
       )}
 

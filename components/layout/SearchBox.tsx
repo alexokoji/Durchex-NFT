@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { VerifiedBadge } from "@/components/ui/VerifiedBadge";
+import { UserAvatar } from "@/components/ui/UserAvatar";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Search, BadgeCheck, Loader2 } from "lucide-react";
@@ -123,9 +124,7 @@ export function SearchBox() {
                       onClick={() => setOpen(false)}
                       className="flex items-center gap-2.5 px-3 py-2 rounded-lg hover:bg-white/5 transition"
                     >
-                      <span className="w-7 h-7 rounded-full overflow-hidden shrink-0">
-                        <GeneratedArt seedKey={u.address} className="w-full h-full" />
-                      </span>
+                      <UserAvatar address={u.address} avatarUrl={u.avatarUrl} className="w-7 h-7" />
                       <span className="text-sm text-white truncate flex items-center gap-1">
                         {u.username}
                         <VerifiedBadge tier={u.verificationTier} className="w-3 h-3" />
