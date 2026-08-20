@@ -151,14 +151,21 @@ export async function repairListingFills(chainId: number) {
   const marketplace = marketplaceAddressFor(chainId);
   if (!client || !marketplace) return { repaired: 0, unmatched: 0 };
 
+  // Roughly three days. Fifty thousand blocks meant ~56 chunked log calls
+  // plus a block read per fill, which the free RPC tier refuses outright —
+  // and a listing older than this has long since been reconciled.
   const head = await client.getBlockNumber();
-  const from = head > BigInt(50_000) ? head - BigInt(50_000) : BigInt(0);
+  const from = head > BigInt(20_000) ? head - BigInt(20_000) : BigInt(0);
+  const deadline = Date.now() + 20_000;
   const logs = [];
   for (let cursor = from; cursor <= head; cursor += BigInt(901)) {
     const to = cursor + BigInt(900) > head ? head : cursor + BigInt(900);
     logs.push(
       ...(await client.getLogs({ address: marketplace, event: LISTING_FILLED, fromBlock: cursor, toBlock: to }))
     );
+    // Better to repair part of the window now than to fail the whole pass
+    // and repair none of it.
+    if (Date.now() > deadline) break;
   }
 
   // Each fill is kept as its own dated event rather than summed per

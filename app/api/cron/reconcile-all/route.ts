@@ -96,10 +96,15 @@ export async function GET(req: NextRequest) {
     })
   );
 
+  // A step that failed on a rate-limited RPC will succeed on the next
+  // tick five minutes later, so it is reported without failing the run —
+  // otherwise the workflow is permanently red and stops meaning anything.
+  const critical = new Set(["sales", "offers"]);
   return NextResponse.json({
     chainId,
     ranAt: new Date().toISOString(),
-    ok: steps.every((s) => s.ok),
+    ok: steps.filter((s) => critical.has(s.name)).every((s) => s.ok),
+    degraded: steps.filter((s) => !s.ok).map((s) => s.name),
     steps,
   });
 }
