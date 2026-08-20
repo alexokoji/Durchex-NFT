@@ -15,6 +15,14 @@ import { UserAvatar } from "@/components/ui/UserAvatar";
 import { useCurrency } from "@/components/providers/CurrencyProvider";
 
 const TABS = ["Details", "Properties", "Listings", "Offers", "Activity"] as const;
+
+// Lets the trade panel send a visitor to the listings without either side
+// importing the other's state — the panel is above the tabs, and a shared
+// event is lighter than lifting tab state up through the page.
+const SHOW_LISTINGS = "durchex:show-listings";
+export function showItemListings() {
+  window.dispatchEvent(new Event(SHOW_LISTINGS));
+}
 type Tab = (typeof TABS)[number];
 
 export function ItemTabs({
@@ -28,6 +36,15 @@ export function ItemTabs({
 }) {
   const { format } = useCurrency();
   const [tab, setTab] = useState<Tab>("Details");
+  useEffect(() => {
+    const open = () => {
+      setTab("Listings");
+      // Switching a tab the reader can't see is not much use.
+      document.getElementById("item-tabs")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    };
+    window.addEventListener(SHOW_LISTINGS, open);
+    return () => window.removeEventListener(SHOW_LISTINGS, open);
+  }, []);
   const { user } = useSession();
   // Who may accept an offer. For an ERC-721 that is the single owner; for
   // an edition it is anyone holding a unit, since each holder can sell
@@ -47,7 +64,7 @@ export function ItemTabs({
       : !!user && user.address === item.owner?.address;
 
   return (
-    <div className="surface-card p-6">
+    <div id="item-tabs" className="surface-card p-6 scroll-mt-24">
       <div className="flex gap-1 border-b border-white/10 mb-5 -mt-1">
         {TABS.map((t) => (
           <button

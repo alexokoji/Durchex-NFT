@@ -3,6 +3,9 @@
 import { Layers } from "lucide-react";
 import { BuyEditionButton } from "@/components/item/BuyEditionButton";
 import { ListEditionForm } from "@/components/item/ListEditionForm";
+import { BuyItemFloor } from "@/components/item/BuyItemFloor";
+import { useEffect, useState } from "react";
+import { useAccount } from "wagmi";
 import { useCurrency } from "@/components/providers/CurrencyProvider";
 import { ItemDetailView } from "@/lib/types";
 
@@ -12,6 +15,17 @@ import { ItemDetailView } from "@/lib/types";
  * holder, and a form for the viewer to list their own balance. */
 export function EditionPanel({ item }: { item: ItemDetailView }) {
   const { format } = useCurrency();
+  // Read from the chain by the balance route, so a holder whose purchase
+  // we failed to record still gets the form.
+  const [holds, setHolds] = useState(0);
+  const { address } = useAccount();
+  useEffect(() => {
+    if (!address) return setHolds(0);
+    fetch(`/api/items/${item.id}/balance`)
+      .then((r) => (r.ok ? r.json() : { quantity: 0 }))
+      .then((d) => setHolds(Number(d.quantity ?? 0)))
+      .catch(() => setHolds(0));
+  }, [item.id, address]);
   const remaining = Math.max(0, item.totalSupply - item.mintedSupply);
   const soldOut = remaining <= 0;
 
@@ -43,7 +57,9 @@ export function EditionPanel({ item }: { item: ItemDetailView }) {
       {/* Resale listings live in the Listings tab now — stacking every
           seller's row above the form pushed the form itself off screen and
           made the panel read as a list rather than an action. */}
-      <ListEditionForm item={item} />
+      {/* A holder gets the form; everyone else gets the two things they
+          can actually do, in the same place rather than as a blank gap. */}
+      {holds > 0 ? <ListEditionForm item={item} /> : <BuyItemFloor item={item} />}
     </div>
   );
 }
