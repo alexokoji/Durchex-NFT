@@ -23,7 +23,7 @@ export function EditionPanel({ item }: { item: ItemDetailView }) {
       <div className="mb-5">
         <div className="text-[11px] text-white/40 mb-1">Price per unit</div>
         <div className="font-display text-3xl font-semibold text-white tabular-nums">
-          {format(item.priceEth)}
+          {format(item.priceEth, { decimals: 3 })}
         </div>
       </div>
 

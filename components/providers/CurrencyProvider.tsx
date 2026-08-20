@@ -10,10 +10,32 @@ type CurrencyContext = {
   /** Live ETH/USD, or null when no rate could be fetched. */
   rate: number | null;
   /** Formats an ETH amount in whichever currency is selected. */
-  format: (eth: number | null | undefined, opts?: { compact?: boolean }) => string;
+  format: (eth: number | null | undefined, opts?: { compact?: boolean; decimals?: number }) => string;
 };
 
 const Ctx = createContext<CurrencyContext | null>(null);
+
+/**
+ * ETH to a fixed number of decimals — two by default, the way prices read
+ * everywhere before the currency toggle existed.
+ *
+ * With one exception, because rounding is not allowed to lie: a real price
+ * that would render as "0.00" gets just enough precision to show a
+ * non-zero figure. A mint at 0.000001 displaying as 0.00 ETH reads as
+ * free, which is how a Buy Floor dialog ended up quoting "0.000 ETH".
+ */
+function formatEthAmount(eth: number, decimals: number): string {
+  if (eth === 0) return "0";
+  const fixed = eth.toFixed(decimals);
+  if (Number(fixed) !== 0) return String(Number(fixed));
+  // Enough places to reach the first significant digit, then Number()
+  // trims the trailing zeros that padding leaves behind — 0.00080 is not
+  // how anyone writes eight ten-thousandths. toFixed rather than
+  // toPrecision because the latter returns exponent form on small
+  // numbers, which nobody reads as a price.
+  const places = Math.min(18, Math.max(decimals, -Math.floor(Math.log10(Math.abs(eth))) + 1));
+  return String(Number(eth.toFixed(places)));
+}
 const STORAGE_KEY = "durchex:currency";
 
 /**
@@ -61,7 +83,7 @@ export function CurrencyProvider({ children }: { children: React.ReactNode }) {
       window.localStorage.setItem(STORAGE_KEY, next);
     }
 
-    function format(eth: number | null | undefined, opts?: { compact?: boolean }) {
+    function format(eth: number | null | undefined, opts?: { compact?: boolean; decimals?: number }) {
       if (eth === null || eth === undefined) return "—";
       // Falling back to ETH when there is no rate is deliberate: a dollar
       // figure invented from a stale or missing rate misinforms, where ETH
@@ -73,10 +95,7 @@ export function CurrencyProvider({ children }: { children: React.ReactNode }) {
           maximumFractionDigits: usd >= 1000 || opts?.compact ? 0 : 2,
         })}`;
       }
-      // Small ETH amounts are common here and toFixed(3) rounds them to
-      // zero, which reads as free. Show what the number actually is.
-      const shown = eth >= 0.001 || eth === 0 ? Number(eth.toFixed(4)) : eth;
-      return `${shown} ETH`;
+      return `${formatEthAmount(eth, opts?.decimals ?? 2)} ETH`;
     }
 
     return { currency, setCurrency, rate, format };
