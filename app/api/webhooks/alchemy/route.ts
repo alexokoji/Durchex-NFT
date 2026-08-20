@@ -3,7 +3,6 @@ import { createHmac, timingSafeEqual } from "node:crypto";
 import { connectDB } from "@/lib/db";
 import { verifyAndSyncPurchase } from "@/lib/web3/verifyPurchase";
 import { verifyAndSyncOfferFill } from "@/lib/web3/verifyOfferFill";
-import { reconcileOffers } from "@/lib/web3/reconcileOffers";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -19,8 +18,9 @@ export const maxDuration = 60;
  * only when there is one.
  *
  * The scheduled reconciler stays as the backstop, for the times a webhook
- * is dropped or this endpoint is down. Push for latency, poll for
- * certainty — neither alone is enough.
+ * is dropped or this endpoint is down, and for the events this cannot
+ * settle from a receipt alone. Push for latency, poll for certainty —
+ * neither alone is enough.
  *
  * Everything here is idempotent and keyed on transaction hash, so a
  * webhook that arrives twice, or arrives after the cron already repaired
@@ -81,38 +81,45 @@ export async function POST(req: NextRequest) {
 
   await connectDB();
 
+  // A webhook has to answer fast — Alchemy retries anything slow, and a
+  // handler that re-scans the chain on every event turns a burst of
+  // activity into a queue of timeouts. So this does one thing: replay the
+  // transactions it was told about. Anything not covered here (a funded
+  // offer, a fill this missed) is the scheduled reconciler's job.
+  const budgetUntil = Date.now() + 20_000;
   const handled: string[] = [];
+  const deferred: string[] = [];
   for (const txHash of unique) {
+    if (Date.now() > budgetUntil) {
+      // Left for the cron rather than risking a timeout, which would make
+      // Alchemy retry the whole batch including what already succeeded.
+      deferred.push(txHash);
+      continue;
+    }
     // Which kind of settlement this was isn't known from the hash alone,
     // so both verifiers are offered it. Each one checks the receipt itself
     // and declines a transaction that isn't its concern, so trying both is
     // cheap and cannot mis-attribute anything.
-    const purchase = await verifyAndSyncPurchase({
-      txHash: txHash as `0x${string}`,
-      chainId,
-      // The buyer is read from the event; there is no client claim here to
-      // check it against.
-      expectedBuyer: null,
-    }).catch(() => ({ ok: false as const }));
-    if (purchase.ok) {
-      handled.push(txHash);
-      continue;
-    }
-    const fill = await verifyAndSyncOfferFill({
-      txHash: txHash as `0x${string}`,
-      chainId,
-      expectedSeller: null,
-    }).catch(() => ({ ok: false as const }));
-    if (fill.ok) handled.push(txHash);
+    // Both are tried because the hash alone doesn't say which kind of
+    // settlement it was. Each verifier reads the receipt and declines a
+    // transaction that isn't its concern, so this can't mis-attribute
+    // anything — and running them together halves the wait.
+    const [purchase, fill] = await Promise.all([
+      verifyAndSyncPurchase({
+        txHash: txHash as `0x${string}`,
+        chainId,
+        // The buyer is read from the event; there is no client claim here
+        // to check it against.
+        expectedBuyer: null,
+      }).catch(() => ({ ok: false as const })),
+      verifyAndSyncOfferFill({
+        txHash: txHash as `0x${string}`,
+        chainId,
+        expectedSeller: null,
+      }).catch(() => ({ ok: false as const })),
+    ]);
+    if (purchase.ok || fill.ok) handled.push(txHash);
   }
 
-  // A funded offer emits OfferMade rather than a fill, and there is no
-  // receipt-level handler for it — the reconciler is what turns it into a
-  // row, and against a warm watermark it is a cheap call.
-  const offers = await reconcileOffers({ chainId, lookbackBlocks: BigInt(200) }).catch(() => null);
-
-  return NextResponse.json({
-    handled: handled.length,
-    offersRecovered: offers && !("error" in offers) ? offers.recovered.length : 0,
-  });
+  return NextResponse.json({ handled: handled.length, deferred: deferred.length });
 }
