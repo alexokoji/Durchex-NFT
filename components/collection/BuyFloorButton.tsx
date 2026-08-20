@@ -15,7 +15,11 @@ import { BuyEditionButton } from "@/components/item/BuyEditionButton";
 import { MARKETPLACE_ABI, marketplaceAddressFor } from "@/lib/web3/marketplaceAbi";
 import { CollectionDetailView, ItemDetailView } from "@/lib/types";
 
-type FloorKind = "lazy_721" | "resale_721" | "primary_1155" | "resale_1155";
+// Only resale shapes reach here. A mint is not a floor — see
+// lib/floorValidity.ts — so the primary kinds this once handled can no
+// longer be returned, and keeping branches for them would quietly
+// reintroduce "Buy Floor" opening onto a mint.
+type FloorKind = "resale_721" | "resale_1155";
 type Listing1155Payload = {
   nft: string;
   tokenId: string;
@@ -237,9 +241,7 @@ export function BuyFloorButton({ collection }: { collection: CollectionDetailVie
                       {floor.item.name}
                     </Link>
                     <div className="text-[11px] text-white/40 mt-0.5">
-                      {floor.kind === "lazy_721" && "Unminted — mints to you on purchase"}
                       {floor.kind === "resale_721" && `Seller ${floor.item.owner?.address?.slice(0, 8) ?? "unknown"}…`}
-                      {floor.kind === "primary_1155" && `Edition · ${floor.availableQuantity} of ${floor.item.totalSupply} left`}
                       {floor.kind === "resale_1155" &&
                         `Edition resale · ${floor.availableQuantity} available · buying 1`}
                     </div>
@@ -257,9 +259,7 @@ export function BuyFloorButton({ collection }: { collection: CollectionDetailVie
 
                 {error && <p className="text-xs text-danger mb-3">{error}</p>}
 
-                {floor.kind === "lazy_721" && <BuyLazyButton item={floor.item} />}
                 {floor.kind === "resale_721" && <BuyListedButton item={floor.item} />}
-                {floor.kind === "primary_1155" && <BuyEditionButton item={floor.item} />}
                 {floor.kind === "resale_1155" && (
                   <Button
                     size="lg"
