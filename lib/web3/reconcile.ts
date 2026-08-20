@@ -1,4 +1,4 @@
-import { createPublicClient, http, parseAbi, type Chain } from "viem";
+import { createPublicClient, fallback, http, parseAbi, type Chain } from "viem";
 import { mainnet, sepolia } from "viem/chains";
 import { Activity } from "@/lib/models/Activity";
 import { SyncState, reconcileKey } from "@/lib/models/SyncState";
@@ -60,13 +60,41 @@ export type ReconcileResult = {
   failed: { txHash: string; reason: string }[];
 };
 
+/**
+ * The client these scans run on.
+ *
+ * Reconciliation is bursty by nature — a pass walks thousands of blocks in
+ * chunks and then reads receipts — and the free drpc tier refuses partway
+ * through, which is why whole steps kept failing on rate limits while
+ * doing nothing wrong. Alchemy is tried first where a key exists, with
+ * drpc behind it: viem's fallback moves on when a transport errors, so
+ * either being down or throttled costs a retry rather than the pass.
+ *
+ * drpc stays the browser-side transport; this is only the server's
+ * scanning path.
+ */
 export function rpcClient(chainId: number) {
   const chain = CHAINS[chainId];
   if (!chain) return null;
-  const rpc =
+
+  const alchemyHost: Record<number, string> = {
+    1: "https://eth-mainnet.g.alchemy.com/v2/",
+    11155111: "https://eth-sepolia.g.alchemy.com/v2/",
+  };
+  const key = process.env.ALCHEMY_API_KEY;
+  const configured =
     process.env[`RPC_URL_${chainId}`] ??
     (chainId === 1 ? process.env.MAINNET_RPC_URL : undefined);
-  return createPublicClient({ chain, transport: rpc ? http(rpc, { timeout: 20_000 }) : http() });
+
+  const transports = [
+    key && alchemyHost[chainId] ? http(`${alchemyHost[chainId]}${key}`, { timeout: 20_000 }) : null,
+    configured ? http(configured, { timeout: 20_000 }) : null,
+  ].filter((t): t is NonNullable<typeof t> => t !== null);
+
+  return createPublicClient({
+    chain,
+    transport: transports.length > 0 ? fallback(transports) : http(),
+  });
 }
 
 /**
