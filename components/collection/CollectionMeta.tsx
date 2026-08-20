@@ -271,7 +271,11 @@ export function CollectionMeta({
           value={change === null ? "—" : `${change > 0 ? "+" : ""}${change.toFixed(1)}%`}
           tone={change === null || change === 0 ? undefined : change > 0 ? "up" : "down"}
         />
-        <Stat label="Top offer" value={collection.topOfferEth ? `${collection.topOfferEth} WETH` : "—"} />
+        {/* Denominated in ETH like every other figure here. Offers do settle
+            in WETH, but that is a mechanism, not a different price — and
+            labelling one stat WETH while the item page called the same
+            number ETH made them look like two different offers. */}
+        <Stat label="Top offer" value={collection.topOfferEth ? format(collection.topOfferEth) : "—"} />
         <Stat label="24h volume" value={format(collection.volume24hEth)} />
         <Stat label="Total volume" value={format(collection.totalVolumeEth)} />
         <Stat
