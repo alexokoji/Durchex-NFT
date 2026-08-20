@@ -160,7 +160,12 @@ export function CollectionMeta({
   const status = mintStatus(collection);
   const chain = CHAIN_META[collection.chainId];
   const supply = collection.maxSupply > 0 ? collection.maxSupply : collection.items;
-  const ownerPct = collection.items > 0 ? (collection.owners / collection.items) * 100 : 0;
+  // Unique owners as a share of the units that exist, not of the number of
+  // item rows. An ERC-1155 collection is often a single row holding
+  // hundreds of units, so dividing by rows gave 72 owners of 1 item =
+  // 7200%. Units minted is the real denominator.
+  const ownedUnits = collection.mintedSupply || collection.totalUnits || collection.items;
+  const ownerPct = ownedUnits > 0 ? Math.min(100, (collection.owners / ownedUnits) * 100) : 0;
   const change = collection.floorChange1dPct;
 
   async function copyContract() {

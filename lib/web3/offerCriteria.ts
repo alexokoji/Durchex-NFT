@@ -234,3 +234,23 @@ export const ERC20_ABI = [
     outputs: [],
   },
 ] as const;
+
+/**
+ * WETH's own entry point, beyond the ERC-20 surface.
+ *
+ * Offers must settle by pulling funds from the buyer at accept time, and
+ * native ETH cannot be pulled — only the owner can send it, and they are
+ * not present when the holder accepts. Wrapping is what makes an offer
+ * possible at all, so the buyer's ETH is wrapped for them as part of
+ * making one rather than being told to go and do it elsewhere.
+ */
+export const WETH_ABI = [
+  { type: "function", name: "deposit", stateMutability: "payable", inputs: [], outputs: [] },
+  {
+    type: "function",
+    name: "balanceOf",
+    stateMutability: "view",
+    inputs: [{ name: "account", type: "address" }],
+    outputs: [{ type: "uint256" }],
+  },
+] as const;

@@ -14,8 +14,10 @@ import {
   offersAddressFor,
   wethAddressFor,
   ERC20_ABI,
+  WETH_ABI,
 } from "@/lib/web3/offerCriteria";
 import { CollectionDetailView } from "@/lib/types";
+import { useCurrency } from "@/components/providers/CurrencyProvider";
 
 const EXPIRY_OPTIONS = [
   { label: "24 hours", seconds: 24 * 60 * 60 },
@@ -26,12 +28,13 @@ const EXPIRY_OPTIONS = [
 
 /**
  * A collection offer is a standing bid on *any eligible NFT* in the
- * collection, not on one specific item. It settles in WETH rather than
+ * collection, not on one specific item. It settles in wrapped ETH rather than
  * ETH: the seller is the one who submits the accepting transaction, so the
- * buyer isn't present to send value — the contract pulls pre-approved WETH
+ * buyer isn't present to send value — the contract pulls pre-approved funds
  * from them instead.
  */
 export function MakeCollectionOfferButton({ collection }: { collection: CollectionDetailView }) {
+  const { format } = useCurrency();
   const router = useRouter();
   const { address, chainId: connectedChainId } = useAccount();
   const { openConnectModal } = useConnectModal();
@@ -44,7 +47,9 @@ export function MakeCollectionOfferButton({ collection }: { collection: Collecti
   const { celebrate } = useTxSuccess();
   const [quantity, setQuantity] = useState("1");
   const [expirySeconds, setExpirySeconds] = useState(EXPIRY_OPTIONS[1].seconds);
-  const [phase, setPhase] = useState<"idle" | "switching" | "approving" | "signing" | "saving">("idle");
+  const [phase, setPhase] = useState<
+    "idle" | "switching" | "wrapping" | "approving" | "signing" | "saving"
+  >("idle");
   const [error, setError] = useState<string | null>(null);
 
   // Trait criteria: narrowing the eligible set is all a "criteria offer"
@@ -100,6 +105,17 @@ export function MakeCollectionOfferButton({ collection }: { collection: Collecti
   const totalWei = total > 0 ? parseEther(total.toString()) : BigInt(0);
   const needsApproval = allowance !== undefined && totalWei > 0 && (allowance as bigint) < totalWei;
 
+  const { data: wethBalance, refetch: refetchWeth } = useReadContract({
+    address: weth,
+    abi: ERC20_ABI,
+    functionName: "balanceOf",
+    args: address ? [address] : undefined,
+    chainId: collection.chainId,
+    query: { enabled: !!address && !!weth },
+  });
+  const shortOfWeth =
+    wethBalance !== undefined && totalWei > 0 && (wethBalance as bigint) < totalWei;
+
   // Offers can't be made until the settlement contract is live on this chain.
   if (!offersAddress || !weth) return null;
 
@@ -115,6 +131,24 @@ export function MakeCollectionOfferButton({ collection }: { collection: Collecti
       if (connectedChainId !== collection.chainId) {
         setPhase("switching");
         await switchChainAsync({ chainId: collection.chainId });
+      }
+
+      // Native ETH can't be pulled at accept time, so the offer has to be
+      // backed by wrapped ETH. Wrapping the shortfall here keeps the buyer
+      // in ETH throughout.
+      if (shortOfWeth) {
+        setPhase("wrapping");
+        const shortfall = totalWei - ((wethBalance as bigint) ?? BigInt(0));
+        await writeContractAsync({
+          address: weth!,
+          abi: WETH_ABI,
+          functionName: "deposit",
+          args: [],
+          value: shortfall,
+          chainId: collection.chainId,
+        });
+        await new Promise((r) => setTimeout(r, 2000));
+        await refetchWeth();
       }
 
       if (needsApproval) {
@@ -181,7 +215,7 @@ export function MakeCollectionOfferButton({ collection }: { collection: Collecti
         imageUrl: collection.logoUrl || null,
         seedKey: `logo-${collection.slug}`,
         subject: collection.name,
-        detail: `${qty} × ${price} WETH`,
+        detail: `${qty} × ${price} ETH`,
         secondary: { label: "View collection", href: `/collection/${collection.slug}` },
       });
       setPricePerItem("");
@@ -215,7 +249,7 @@ export function MakeCollectionOfferButton({ collection }: { collection: Collecti
 
             <div className="space-y-3">
               <div>
-                <label className="text-xs font-medium text-white/50 mb-1.5 block">Offer per NFT (WETH)</label>
+                <label className="text-xs font-medium text-white/50 mb-1.5 block">Offer per NFT (ETH)</label>
                 <input
                   type="number"
                   min="0"
@@ -314,7 +348,7 @@ export function MakeCollectionOfferButton({ collection }: { collection: Collecti
               <div className="rounded-lg border border-white/10 bg-white/[0.02] p-3 space-y-1.5">
                 <div className="flex items-center justify-between text-sm">
                   <span className="text-white/45 text-xs">Total maximum</span>
-                  <span className="text-white font-semibold tabular-nums">{total.toFixed(3)} WETH</span>
+                  <span className="text-white font-semibold tabular-nums">{format(total, { decimals: 3 })}</span>
                 </div>
                 {eligibleCount !== null && (
                   <div className="flex items-center justify-between text-[11px]">
@@ -330,8 +364,9 @@ export function MakeCollectionOfferButton({ collection }: { collection: Collecti
               <div className="flex items-start gap-2 text-[11px] text-white/45 bg-white/5 border border-white/10 rounded-lg p-3">
                 <Info className="w-3.5 h-3.5 shrink-0 mt-0.5 text-purple-300" />
                 <span>
-                  Paid in WETH, because the seller submits the accepting transaction and you won&rsquo;t be there to
-                  send ETH. You keep the WETH until someone accepts — only the amount actually filled is ever taken.
+                  Your ETH stays in your wallet until someone accepts, and only the amount actually
+                  filled is ever taken. It is wrapped first, because the seller submits the accepting
+                  transaction and you won&rsquo;t be there to send ETH at that moment.
                 </span>
               </div>
 
@@ -344,7 +379,8 @@ export function MakeCollectionOfferButton({ collection }: { collection: Collecti
                 icon={phase !== "idle" ? <Loader2 className="w-4 h-4 animate-spin" /> : undefined}
               >
                 {phase === "switching" && "Switch network…"}
-                {phase === "approving" && "Approve WETH in wallet…"}
+                {phase === "wrapping" && "Wrapping ETH…"}
+                {phase === "approving" && "Approve in wallet…"}
                 {phase === "signing" && "Sign offer in wallet…"}
                 {phase === "saving" && "Submitting…"}
                 {phase === "idle" && (needsApproval ? "Approve & Submit Offer" : "Submit Collection Offer")}

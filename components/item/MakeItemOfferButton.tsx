@@ -15,6 +15,7 @@ import { Loader2, Tag } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import {
   ERC20_ABI,
+  WETH_ABI,
   buildCollectionOfferTypedData,
   generateOfferNonce,
   leafOf,
@@ -36,8 +37,11 @@ const EXPIRY_SECONDS = 7 * 24 * 60 * 60;
  * same typed data the collection offer does rather than inventing a second
  * shape the accept path would have to learn.
  *
- * WETH, not ETH: the seller pulls payment when they accept, at which point
- * the buyer isn't present to send anything.
+ * Quoted and entered in ETH. Settlement pulls funds from the buyer when
+ * the holder accepts, and native ETH cannot be pulled — only its owner can
+ * send it, and they are not there at that moment. So the offer is backed
+ * by wrapped ETH, and the wrapping happens here as one extra step rather
+ * than being the buyer's homework.
  */
 export function MakeItemOfferButton({ item }: { item: ItemDetailView }) {
   const router = useRouter();
@@ -50,7 +54,9 @@ export function MakeItemOfferButton({ item }: { item: ItemDetailView }) {
   const [open, setOpen] = useState(false);
   const [amount, setAmount] = useState("");
   const [quantity, setQuantity] = useState("1");
-  const [phase, setPhase] = useState<"idle" | "switching" | "approving" | "signing" | "saving">("idle");
+  const [phase, setPhase] = useState<
+    "idle" | "switching" | "wrapping" | "approving" | "signing" | "saving"
+  >("idle");
   const [error, setError] = useState<string | null>(null);
 
   const offersAddress = offersAddressFor(item.chainId);
@@ -75,7 +81,7 @@ export function MakeItemOfferButton({ item }: { item: ItemDetailView }) {
   // just reverts on them. Checked here, where it is still the buyer's
   // problem to fix, rather than surfacing as a failed accept for someone
   // else.
-  const { data: wethBalance } = useReadContract({
+  const { data: wethBalance, refetch: refetchWeth } = useReadContract({
     address: weth,
     abi: ERC20_ABI,
     functionName: "balanceOf",
@@ -96,17 +102,30 @@ export function MakeItemOfferButton({ item }: { item: ItemDetailView }) {
     if (!address) return openConnectModal?.();
     const price = Number(amount);
     if (!Number.isFinite(price) || price <= 0) return setError("Enter a valid offer amount");
-    if (shortOfWeth) {
-      return setError(
-        `Offers are paid in WETH and your wallet doesn't hold ${total} WETH. Wrap some ETH first.`
-      );
-    }
 
     setError(null);
     try {
       if (connectedChainId !== item.chainId) {
         setPhase("switching");
         await switchChainAsync({ chainId: item.chainId });
+      }
+
+      // Native ETH can't be pulled from a wallet at accept time, so the
+      // offer has to be backed by wrapped ETH. Wrapping the shortfall here
+      // means the buyer offers in ETH and never has to know that.
+      if (shortOfWeth) {
+        setPhase("wrapping");
+        const shortfall = totalWei - ((wethBalance as bigint) ?? BigInt(0));
+        await writeContractAsync({
+          address: weth!,
+          abi: WETH_ABI,
+          functionName: "deposit",
+          args: [],
+          value: shortfall,
+          chainId: item.chainId,
+        });
+        await new Promise((r) => setTimeout(r, 2000));
+        await refetchWeth();
       }
 
       if (needsApproval) {
@@ -187,8 +206,8 @@ export function MakeItemOfferButton({ item }: { item: ItemDetailView }) {
         <Tag className="w-4 h-4 text-purple-300" /> Make an offer
       </div>
       <p className="text-xs text-white/45 mb-4">
-        On this NFT specifically. Paid in WETH when the holder accepts — your wallet keeps the funds
-        until then, and the offer expires in 7 days if nobody takes it.
+        On this NFT specifically. Your ETH stays in your wallet until the holder accepts, and the
+        offer expires in 7 days if nobody takes it.
       </p>
 
       <div className="flex flex-wrap gap-2 mb-3">
@@ -207,7 +226,7 @@ export function MakeItemOfferButton({ item }: { item: ItemDetailView }) {
         )}
         <div className="flex-1 min-w-40">
           <label className="text-[10px] uppercase tracking-wide text-white/40 block mb-1">
-            {item.standard === "ERC1155" ? "Offer per unit (WETH)" : "Offer (WETH)"}
+            {item.standard === "ERC1155" ? "Offer per unit (ETH)" : "Offer (ETH)"}
           </label>
           <input
             type="number"
@@ -224,25 +243,23 @@ export function MakeItemOfferButton({ item }: { item: ItemDetailView }) {
 
       {total > 0 && (
         <p
-          className={`text-[11px] mb-3 tabular-nums ${shortOfWeth ? "text-danger" : "text-white/40"}`}
+          className="text-[11px] mb-3 tabular-nums text-white/40"
         >
-          Total {total} WETH
-          {shortOfWeth
-            ? " · your wallet doesn't hold this much WETH"
-            : needsApproval
-              ? " · approval required first"
-              : ""}
+          Total {total} ETH
+          {shortOfWeth ? " · one extra step to wrap your ETH" : ""}
         </p>
       )}
 
       <div className="flex items-center gap-2">
-        <Button size="sm" onClick={submit} disabled={busy || shortOfWeth}>
+        <Button size="sm" onClick={submit} disabled={busy}>
           {busy ? (
             <>
               <Loader2 className="w-3.5 h-3.5 animate-spin" />
               {phase === "switching"
                 ? "Switching network…"
-                : phase === "approving"
+                : phase === "wrapping"
+                  ? "Wrapping ETH…"
+                  : phase === "approving"
                   ? "Approving WETH…"
                   : phase === "signing"
                     ? "Sign in your wallet…"
