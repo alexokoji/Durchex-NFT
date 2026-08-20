@@ -17,23 +17,27 @@ export function EditionPanel({ item }: { item: ItemDetailView }) {
 
   return (
     <div className="surface-card p-6">
-      <div className="flex items-center gap-2 text-[11px] text-white/40 mb-1">
-        <Layers className="w-3.5 h-3.5" /> {item.mintedSupply} / {item.totalSupply} minted
-      </div>
-      <div className="mb-5">
-        <div className="text-[11px] text-white/40 mb-1">Price per unit</div>
-        <div className="font-display text-3xl font-semibold text-white tabular-nums">
-          {format(item.priceEth, { decimals: 3 })}
-        </div>
-      </div>
+      {/* Everything about the primary sale — how many are minted, the mint
+          price, the sold-out notice — describes an event that is over once
+          the edition is fully minted. Keeping it on screen makes a
+          finished mint look like the main thing on offer, when the only
+          live market is resale. The supply is a fact about the token
+          rather than about the sale, so it moves to the card and the
+          stats strip. */}
+      {!soldOut && (
+        <>
+          <div className="flex items-center gap-2 text-[11px] text-white/40 mb-1">
+            <Layers className="w-3.5 h-3.5" /> {item.mintedSupply} / {item.totalSupply} minted
+          </div>
+          <div className="mb-5">
+            <div className="text-[11px] text-white/40 mb-1">Price per unit</div>
+            <div className="font-display text-3xl font-semibold text-white tabular-nums">
+              {format(item.priceEth, { decimals: 3 })}
+            </div>
+          </div>
 
-      {!soldOut ? (
-        <BuyEditionButton item={item} />
-      ) : (
-        <div className="rounded-xl bg-white/5 border border-white/10 p-4 text-center">
-          <p className="text-sm font-medium text-white/60">Primary sale sold out</p>
-          <p className="text-xs text-white/35 mt-1">Check the Listings tab for resale.</p>
-        </div>
+          <BuyEditionButton item={item} />
+        </>
       )}
 
       {/* Resale listings live in the Listings tab now — stacking every

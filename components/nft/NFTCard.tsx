@@ -32,7 +32,11 @@ export function NFTCard({ item }: { item: ItemView }) {
         {item.mediaUrl && !item.mediaType?.startsWith("audio/") ? item.mediaType?.startsWith("video/") ? <video src={item.mediaUrl} muted playsInline preload="metadata" className="w-full h-full object-cover transition-transform duration-500 ease-out group-hover:scale-110" /> : <img src={item.mediaUrl} alt={item.name} className="w-full h-full object-cover transition-transform duration-500 ease-out group-hover:scale-110" /> : <GeneratedArt seedKey={item.id} className="w-full h-full transition-transform duration-500 ease-out group-hover:scale-110" />}
 
         <div className="absolute top-2.5 left-2.5 flex flex-col gap-1.5">
-          {!item.isMinted && (
+          {item.isMinted ? (
+            <span className="px-2 py-1 rounded-md bg-black/55 backdrop-blur text-[10px] font-semibold text-white/70 border border-white/15">
+              On-chain
+            </span>
+          ) : (
             <span className="px-2 py-1 rounded-md bg-black/55 backdrop-blur text-[10px] font-semibold text-purple-200 border border-purple-400/30">
               ⚡ Unminted
             </span>
