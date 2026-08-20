@@ -6,6 +6,14 @@ import { CollectionOffer } from "@/lib/models/CollectionOffer";
 import { Item } from "@/lib/models/Item";
 import { recalculateCollectionFloor } from "@/lib/floorPrice";
 import { collectionMintProgress } from "@/lib/collectionSupply";
+import { Listing } from "@/lib/models/Listing";
+import { rpcClient } from "@/lib/web3/reconcile";
+import { marketplaceAddressFor } from "@/lib/web3/marketplaceAbi";
+import { formatEther, parseAbiItem } from "viem";
+
+const LISTING_FILLED = parseAbiItem(
+  "event Listing1155Filled(address indexed nft, uint256 indexed tokenId, address seller, address buyer, uint256 quantity, uint256 totalPrice)"
+);
 
 /**
  * Rebuilds derived figures from the records that actually happened.
@@ -118,6 +126,70 @@ export async function recomputeStats(): Promise<StatsRecomputeResult> {
   }
 
   return { collections: collections.length, itemsWithLastSale, details };
+}
+
+/**
+ * Rebuilds listing fill counts from the chain.
+ *
+ * A purchase can settle on-chain and still leave the listing showing every
+ * unit available — the sale is recorded but the fill is credited to the
+ * wrong listing, or to none. Rather than trusting the running count, this
+ * derives each listing's filled quantity from the Listing1155Filled events
+ * that actually happened, matched by seller and the unit price paid.
+ */
+export async function repairListingFills(chainId: number) {
+  const client = rpcClient(chainId);
+  const marketplace = marketplaceAddressFor(chainId);
+  if (!client || !marketplace) return { repaired: 0, unmatched: 0 };
+
+  const head = await client.getBlockNumber();
+  const from = head > BigInt(50_000) ? head - BigInt(50_000) : BigInt(0);
+  const logs = [];
+  for (let cursor = from; cursor <= head; cursor += BigInt(901)) {
+    const to = cursor + BigInt(900) > head ? head : cursor + BigInt(900);
+    logs.push(
+      ...(await client.getLogs({ address: marketplace, event: LISTING_FILLED, fromBlock: cursor, toBlock: to }))
+    );
+  }
+
+  // Filled counts are rebuilt from zero rather than incremented, so a fill
+  // that was credited twice is corrected rather than compounded.
+  const tally = new Map<string, number>();
+  for (const log of logs) {
+    const a = log.args as { seller?: string; quantity?: bigint; totalPrice?: bigint };
+    if (!a.seller || !a.quantity) continue;
+    const qty = Number(a.quantity);
+    const perUnit = Number(formatEther(a.totalPrice ?? BigInt(0))) / (qty || 1);
+    tally.set(`${a.seller.toLowerCase()}:${perUnit.toFixed(9)}`, (tally.get(`${a.seller.toLowerCase()}:${perUnit.toFixed(9)}`) ?? 0) + qty);
+  }
+
+  let repaired = 0;
+  let unmatched = 0;
+  const listings = await Listing.find({ status: { $in: ["active", "auction", "filled"] } })
+    .populate("seller", "address")
+    .lean();
+  for (const listing of listings) {
+    const address = (listing.seller as { address?: string } | null)?.address;
+    if (!address) continue;
+    const key = `${address.toLowerCase()}:${listing.pricePerUnitEth.toFixed(9)}`;
+    const filledOnChain = tally.get(key);
+    if (filledOnChain === undefined) continue;
+    const credited = Math.min(filledOnChain, listing.quantity);
+    if (credited === (listing.filledQuantity ?? 0)) continue;
+    await Listing.updateOne(
+      { _id: listing._id },
+      {
+        filledQuantity: credited,
+        ...(credited >= listing.quantity ? { status: "filled" } : {}),
+      }
+    );
+    // Each unit is spent once across listings sharing a seller and price.
+    tally.set(key, filledOnChain - credited);
+    repaired += 1;
+  }
+  void unmatched;
+
+  return { repaired, unmatched };
 }
 
 /**

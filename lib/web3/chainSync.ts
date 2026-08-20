@@ -267,7 +267,13 @@ export async function handleListing1155Filled(
       { $inc: { quantity: qty } },
       { upsert: true }
     ),
-    markListingFilled({ sellerId: sellerUser._id, itemId: item._id, nft, qty }),
+    markListingFilled({
+      sellerId: sellerUser._id,
+      itemId: item._id,
+      nft,
+      qty,
+      pricePerUnitEth: qty > 0 ? totalPriceEth / qty : totalPriceEth,
+    }),
     Collection.updateOne(
       { _id: collection._id },
       { $inc: { "stats.sales": 1, "stats.volume24hEth": totalPriceEth, "stats.totalVolumeEth": totalPriceEth } }
@@ -298,31 +304,42 @@ export async function handleListing1155Filled(
  * live listing, and offered a buy box whose only permitted quantity was
  * zero. A listing with nothing left is finished, and should say so.
  */
-async function markListingFilled({
+export async function markListingFilled({
   sellerId,
   itemId,
   nft,
   qty,
+  pricePerUnitEth,
 }: {
   sellerId: Types.ObjectId;
   itemId: Types.ObjectId;
   nft: string;
   qty: number;
+  /** Unit price the buyer actually paid, from the event. */
+  pricePerUnitEth?: number;
 }) {
-  const listing = await Listing.findOneAndUpdate(
-    {
-      seller: sellerId,
-      item: itemId,
-      nft: { $regex: `^${nft}$`, $options: "i" },
-      // Scoped to live listings so a fill can't be credited against one
-      // the seller already withdrew.
-      status: { $in: ["active", "auction"] },
-    },
-    { $inc: { filledQuantity: qty } },
-    { new: true }
-  );
-  if (listing && listing.filledQuantity >= listing.quantity) {
-    listing.status = "filled";
-    await listing.save();
-  }
+  // Matching on seller and item alone picks an arbitrary listing when a
+  // seller has several on the same token — and the nft filter was strict
+  // about an address whose casing varies between what the client signed
+  // and what the event reports, which is how a fill ended up crediting
+  // nothing at all. The price the buyer paid identifies which listing was
+  // bought; anything else is a guess.
+  const live = await Listing.find({
+    seller: sellerId,
+    item: itemId,
+    status: { $in: ["active", "auction"] },
+  }).sort({ pricePerUnitEth: 1 });
+
+  const withRoom = live.filter((l) => (l.filledQuantity ?? 0) < l.quantity);
+  const listing =
+    (pricePerUnitEth !== undefined
+      ? withRoom.find((l) => Math.abs(l.pricePerUnitEth - pricePerUnitEth) < 1e-9)
+      : undefined) ??
+    // No price match: the cheapest live one is what a floor purchase took.
+    withRoom[0];
+  if (!listing) return;
+
+  listing.filledQuantity = (listing.filledQuantity ?? 0) + qty;
+  if (listing.filledQuantity >= listing.quantity) listing.status = "filled";
+  await listing.save();
 }

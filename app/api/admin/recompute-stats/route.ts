@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { connectDB } from "@/lib/db";
 import { getCurrentAdmin } from "@/lib/auth/currentAdmin";
-import { expireLegacyOffers, recomputeStats } from "@/lib/recomputeStats";
+import { expireLegacyOffers, recomputeStats, repairListingFills } from "@/lib/recomputeStats";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -19,11 +19,17 @@ export async function POST(req: NextRequest) {
   const admin = await getCurrentAdmin(req);
   if (!admin) return NextResponse.json({ error: "Administrator access is required" }, { status: 403 });
 
+  const body = await req.json().catch(() => ({}));
+  const chainId = Number(body.chainId ?? 1);
+
   await connectDB();
   try {
     const expired = await expireLegacyOffers();
+    // Listing fills first: the floor recomputed below depends on which
+    // listings still have units left.
+    const listings = await repairListingFills(chainId);
     const stats = await recomputeStats();
-    return NextResponse.json({ expired, ...stats });
+    return NextResponse.json({ expired, listings, ...stats });
   } catch (err) {
     return NextResponse.json(
       { error: err instanceof Error ? err.message : "Recompute failed" },
