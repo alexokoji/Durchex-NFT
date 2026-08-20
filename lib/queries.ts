@@ -337,14 +337,17 @@ export async function getItemById(id: string): Promise<ItemDetailView | null> {
     // A collection-wide offer is a real bid on this token too, so leaving
     // it out made the item's "best offer" contradict the one the
     // collection page advertised on the very same NFT.
-    CollectionOffer.findOne({
+    // Comparing two fields needs $expr, which mongoose fails to cast
+    // against this schema and throws on — the same breakage the floor
+    // route documents. Partially-filled offers are filtered in code below.
+    CollectionOffer.find({
       collection: doc.collection,
       status: "active",
       $or: [{ deadline: null }, { deadline: { $gt: new Date() } }],
-      $expr: { $lt: ["$filledQuantity", "$quantity"] },
     })
       .sort({ pricePerItemEth: -1 })
-      .select("pricePerItemEth")
+      .select("pricePerItemEth filledQuantity quantity")
+      .limit(20)
       .lean(),
   ]);
   const liveAsks = itemListings
@@ -359,7 +362,10 @@ export async function getItemById(id: string): Promise<ItemDetailView | null> {
     ownersCount: doc.standard === "ERC1155" ? ownerIds.length : doc.owner ? 1 : 0,
     itemFloorEth: liveAsks.length > 0 ? Math.min(...liveAsks) : null,
     bestOfferEth:
-      Math.max(topBid?.amountEth ?? 0, topCollectionOffer?.pricePerItemEth ?? 0) || null,
+      Math.max(
+        topBid?.amountEth ?? 0,
+        topCollectionOffer.find((o) => (o.filledQuantity ?? 0) < o.quantity)?.pricePerItemEth ?? 0
+      ) || null,
   } as never);
 }
 
@@ -420,16 +426,34 @@ export async function getCollectionBySlug(slug: string): Promise<CollectionDetai
   // holder could accept right now without listing. Expired offers are
   // excluded even if a sweeper hasn't marked them yet.
   const now = new Date();
-  const topOffer = await CollectionOffer.findOne({
-    collection: doc._id,
-    status: "active",
-    $or: [{ deadline: null }, { deadline: { $gt: now } }],
-  })
-    .sort({ pricePerItemEth: -1 })
-    .select("pricePerItemEth")
-    .lean();
+  // The best bid anyone could accept anywhere in this collection. A
+  // collection-wide offer is made to every holder at once, and a per-item
+  // offer is made to one of them — both are standing bids on this
+  // collection's NFTs, so reading only the first made the collection
+  // advertise a lower top offer than its own item pages were showing. In a
+  // one-item collection the two figures are necessarily the same number.
+  const [topCollectionOffer, topItemBid] = await Promise.all([
+    CollectionOffer.findOne({
+      collection: doc._id,
+      status: "active",
+      $or: [{ deadline: null }, { deadline: { $gt: now } }],
+    })
+      .sort({ pricePerItemEth: -1 })
+      .select("pricePerItemEth")
+      .lean(),
+    Bid.findOne({
+      item: { $in: await Item.find({ collection: doc._id }).distinct("_id") },
+      type: "offer",
+      status: "active",
+    })
+      .sort({ amountEth: -1 })
+      .select("amountEth")
+      .lean(),
+  ]);
+  const topOfferEth =
+    Math.max(topCollectionOffer?.pricePerItemEth ?? 0, topItemBid?.amountEth ?? 0) || null;
 
-  return toCollectionDetailView({ ...doc, topOfferEth: topOffer?.pricePerItemEth ?? null, mintedSupply: mintedUnits, totalUnits, listingEnabled: doc.listingEnabled,
+  return toCollectionDetailView({ ...doc, topOfferEth, mintedSupply: mintedUnits, totalUnits, listingEnabled: doc.listingEnabled,
     ...phaseState(doc.mintPhases) } as never);
 }
 
@@ -667,6 +691,8 @@ export async function getItemOffers(itemId: string): Promise<BidView[]> {
 
   const collectionBids: BidView[] = collectionOffers
     .filter((o) => {
+      // A deleted buyer leaves a dangling ref; skipping is right, and a
+      // non-null assertion below would take the whole page down instead.
       if (!o.buyer) return false;
       // An offer with no explicit token list covers the whole collection;
       // one with a list only covers what it names.
