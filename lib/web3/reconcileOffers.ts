@@ -7,6 +7,7 @@ import { User } from "@/lib/models/User";
 import { leafOf } from "@/lib/web3/offerCriteria";
 import { offersEscrowAddressFor } from "@/lib/web3/offersEscrow";
 import { rpcClient } from "@/lib/web3/reconcile";
+import { verifyAndSyncOfferFill } from "@/lib/web3/verifyOfferFill";
 
 /**
  * Recovers escrowed offers the site never recorded.
@@ -25,6 +26,10 @@ import { rpcClient } from "@/lib/web3/reconcile";
  */
 const OFFER_MADE = parseAbiItem(
   "event OfferMade(uint256 indexed offerId, address indexed buyer, address indexed nft, bytes32 criteriaRoot, uint256 pricePerItem, uint256 quantity, uint256 deadline)"
+);
+
+const OFFER_FILLED = parseAbiItem(
+  "event OfferFilled(uint256 indexed offerId, uint256 indexed tokenId, address indexed seller, address buyer, uint256 quantity, uint256 totalPrice)"
 );
 
 const ESCROW_ABI = [
@@ -47,6 +52,9 @@ export type OfferReconcileResult = {
   alreadyRecorded: number;
   recovered: { offerId: string; itemId: string; priceEth: number }[];
   skipped: { offerId: string; reason: string }[];
+  /** Completed trades the site never recorded, replayed from their fill. */
+  fillsRepaired: { offerId: string; txHash: string }[];
+  fillsFailed: { txHash: string; reason: string }[];
 };
 
 export async function reconcileOffers({
@@ -156,11 +164,46 @@ export async function reconcileOffers({
     recovered.push({ offerId, itemId: String(match._id), priceEth });
   }
 
+  // A fill can go missing the same way an offer can: the trade settles
+  // on-chain and the write-back afterwards fails. The buyer already holds
+  // the NFT and the seller already has the ETH, so the only thing left
+  // wrong is our record — which is what leaves an accepted offer still
+  // showing "Accept".
+  const fillLogs = [];
+  for (let cursor = from; cursor <= head; cursor += CHUNK + BigInt(1)) {
+    const to = cursor + CHUNK > head ? head : cursor + CHUNK;
+    fillLogs.push(
+      ...(await client.getLogs({ address: escrow, event: OFFER_FILLED, fromBlock: cursor, toBlock: to }))
+    );
+  }
+
+  const fillsRepaired: OfferReconcileResult["fillsRepaired"] = [];
+  const fillsFailed: OfferReconcileResult["fillsFailed"] = [];
+  for (const log of fillLogs) {
+    const args = log.args as { offerId?: bigint; seller?: string };
+    if (!args.seller || args.offerId === undefined) continue;
+    // Replayed through exactly the path a browser would have used, so the
+    // ownership move, the sale record and the offer's status all land the
+    // same way they would have at the time.
+    const result = await verifyAndSyncOfferFill({
+      txHash: log.transactionHash,
+      chainId,
+      expectedSeller: args.seller,
+    });
+    if (result.ok) {
+      if (result.synced) fillsRepaired.push({ offerId: String(args.offerId), txHash: log.transactionHash });
+    } else {
+      fillsFailed.push({ txHash: log.transactionHash, reason: result.error });
+    }
+  }
+
   return {
     scanned: `${from}-${head}`,
     seen: logs.length,
     alreadyRecorded,
     recovered,
     skipped,
+    fillsRepaired,
+    fillsFailed,
   };
 }

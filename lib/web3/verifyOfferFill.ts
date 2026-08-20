@@ -17,6 +17,7 @@ import { recordActivity } from "@/lib/activity";
 import { recalculateCollectionFloor } from "@/lib/floorPrice";
 import { resolveOrCreateUser } from "@/lib/web3/chainSync";
 import { offersAddressFor } from "@/lib/web3/offerCriteria";
+import { offersEscrowAddressFor } from "@/lib/web3/offersEscrow";
 
 const CHAINS: Record<number, Chain> = Object.fromEntries(
   [mainnet, sepolia, hardhat].map((c) => [c.id, c])
@@ -24,6 +25,11 @@ const CHAINS: Record<number, Chain> = Object.fromEntries(
 
 const OFFERS_EVENTS_ABI = parseAbi([
   "event CollectionOfferFilled(address indexed nft, uint256 indexed tokenId, address indexed buyer, address seller, uint256 quantity, uint256 totalPrice, uint256 nonce)",
+  // The escrow contract's equivalent. Offers moved to escrowed ETH and
+  // this event was never taught to the confirm path, so a completed
+  // trade — NFT delivered, seller paid, escrow emptied — left the offer
+  // still showing "accept" and the buyer's holding unrecorded.
+  "event OfferFilled(uint256 indexed offerId, uint256 indexed tokenId, address indexed seller, address buyer, uint256 quantity, uint256 totalPrice)",
 ]);
 
 export async function verifyAndSyncOfferFill({
@@ -38,8 +44,13 @@ export async function verifyAndSyncOfferFill({
   const chain = CHAINS[chainId];
   if (!chain) return { ok: false as const, error: "Unsupported chain" };
 
+  // Either settlement contract is legitimate: the escrow one for new
+  // offers, the old one for anything signed before the move.
   const offersAddress = offersAddressFor(chainId);
-  if (!offersAddress) return { ok: false as const, error: "Offers contract not configured for this chain" };
+  const escrowAddress = offersEscrowAddressFor(chainId);
+  if (!offersAddress && !escrowAddress) {
+    return { ok: false as const, error: "Offers contract not configured for this chain" };
+  }
 
   const client = createPublicClient({
     chain,
@@ -53,15 +64,33 @@ export async function verifyAndSyncOfferFill({
     return { ok: false as const, error: "Transaction not found on-chain yet — try again shortly" };
   }
   if (receipt.status !== "success") return { ok: false as const, error: "Transaction did not succeed" };
-  if (!receipt.to || getAddress(receipt.to) !== getAddress(offersAddress)) {
-    return { ok: false as const, error: "Transaction wasn't sent to the offers contract" };
+  const sentTo = receipt.to ? getAddress(receipt.to) : null;
+  const settlementAddresses = [offersAddress, escrowAddress]
+    .filter(Boolean)
+    .map((a) => getAddress(a as string));
+  if (!sentTo || !settlementAddresses.includes(sentTo)) {
+    return { ok: false as const, error: "Transaction wasn't sent to an offers contract" };
   }
 
   const logs = parseEventLogs({ abi: OFFERS_EVENTS_ABI, logs: receipt.logs });
-  const log = logs.find((l) => l.eventName === "CollectionOfferFilled");
+  const log = logs.find(
+    (l) => l.eventName === "CollectionOfferFilled" || l.eventName === "OfferFilled"
+  );
   if (!log) return { ok: false as const, error: "No offer fill found in this transaction" };
 
-  const { tokenId, buyer, seller, quantity, totalPrice, nonce } = log.args;
+  // The two events carry the same facts in a different shape; the escrow
+  // one has an offer id where the signature-based one had a nonce.
+  const args = log.args as {
+    tokenId: bigint;
+    buyer: string;
+    seller: string;
+    quantity: bigint;
+    totalPrice: bigint;
+    nonce?: bigint;
+    offerId?: bigint;
+  };
+  const { tokenId, buyer, seller, quantity, totalPrice } = args;
+  const nonce = args.nonce ?? args.offerId ?? BigInt(0);
   if (seller.toLowerCase() !== expectedSeller.toLowerCase()) {
     return { ok: false as const, error: "This transaction wasn't made by you" };
   }
