@@ -10,6 +10,7 @@ import { ERC721_APPROVAL_ABI, marketplaceAddressFor } from "@/lib/web3/marketpla
 import { buildListing1155TypedData, generateListing1155Nonce } from "@/lib/web3/listing1155";
 import { ItemDetailView } from "@/lib/types";
 import { useCurrency } from "@/components/providers/CurrencyProvider";
+import { walletError } from "@/lib/web3/walletError";
 
 /** Lets a holder list part (or all) of their ERC-1155 balance for resale. */
 export function ListEditionForm({ item }: { item: ItemDetailView }) {
@@ -165,7 +166,7 @@ export function ListEditionForm({ item }: { item: ItemDetailView }) {
       setPriceEth("");
       router.refresh();
     } catch (err) {
-      setError(err instanceof Error ? err.message.split("\n")[0] : "Failed to list");
+      setError(walletError(err, "Couldn't list this item"));
       setPhase("idle");
     }
   }

@@ -15,6 +15,7 @@ import { Button } from "@/components/ui/Button";
 import { leafOf } from "@/lib/web3/offerCriteria";
 import { OFFERS_ESCROW_ABI, offersEscrowAddressFor } from "@/lib/web3/offersEscrow";
 import { ItemDetailView } from "@/lib/types";
+import { walletError } from "@/lib/web3/walletError";
 
 const EXPIRY_SECONDS = 7 * 24 * 60 * 60;
 
@@ -145,7 +146,7 @@ export function MakeItemOfferButton({ item }: { item: ItemDetailView }) {
       router.refresh();
     } catch (err) {
       setPhase("idle");
-      setError(err instanceof Error ? err.message : "Couldn't place the offer");
+      setError(walletError(err, "Couldn't place the offer"));
     }
   }
 

@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useAccount, usePublicClient, useSwitchChain, useWriteContract } from "wagmi";
 import { Loader2, Undo2 } from "lucide-react";
 import { OFFERS_ESCROW_ABI, offersEscrowAddressFor } from "@/lib/web3/offersEscrow";
+import { walletError } from "@/lib/web3/walletError";
 
 /**
  * Takes an escrowed offer back, returning the ETH to the buyer.

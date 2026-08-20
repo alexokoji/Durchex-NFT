@@ -18,6 +18,7 @@ import {
 } from "@/lib/web3/offerCriteria";
 import { CollectionDetailView } from "@/lib/types";
 import { useCurrency } from "@/components/providers/CurrencyProvider";
+import { walletError } from "@/lib/web3/walletError";
 
 const EXPIRY_OPTIONS = [
   { label: "24 hours", seconds: 24 * 60 * 60 },
@@ -222,7 +223,7 @@ export function MakeCollectionOfferButton({ collection }: { collection: Collecti
       setQuantity("1");
       router.refresh();
     } catch (err) {
-      setError(err instanceof Error ? err.message.split("\n")[0] : "Failed to submit offer");
+      setError(walletError(err, "Couldn't submit the offer"));
       setPhase("idle");
     }
   }

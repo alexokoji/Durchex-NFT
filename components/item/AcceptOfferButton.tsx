@@ -7,6 +7,7 @@ import { useAccount, useSwitchChain, useWriteContract, usePublicClient, useReadC
 import { useConnectModal } from "@rainbow-me/rainbowkit";
 import { ERC721_APPROVAL_ABI } from "@/lib/web3/marketplaceAbi";
 import { OFFERS_ESCROW_ABI, offersEscrowAddressFor } from "@/lib/web3/offersEscrow";
+import { walletError } from "@/lib/web3/walletError";
 import { useTxSuccess } from "@/components/tx/TxSuccess";
 
 /**
@@ -182,8 +183,10 @@ export function AcceptOfferButton({
  * "acceptCollectionOffer reverted" — which names our implementation rather
  * than telling them what went wrong or what to do about it.
  */
-function explainAcceptFailure(err: unknown): string {
+function explainAcceptFailure(err: unknown): string | null {
   const raw = err instanceof Error ? err.message : String(err ?? "");
+  // A deliberate cancel is not a failure to report back.
+  if (/user rejected|user denied|rejected the request|action_rejected/i.test(raw)) return null;
   const known: [RegExp, string][] = [
     [/cannot fill your own offer/i, "This is your own offer — someone else has to accept it."],
     [/token not eligible/i, "This offer doesn't cover this NFT."],
@@ -195,12 +198,10 @@ function explainAcceptFailure(err: unknown): string {
     [/offer withdrawn/i, "The buyer withdrew this offer."],
     [/caller is not token owner|insufficient balance for transfer/i, "You no longer hold this NFT."],
     [/not approved|caller is not approved/i, "Approve the offers contract to move this NFT, then try again."],
-    [/user rejected|denied/i, "You cancelled the transaction."],
   ];
   for (const [pattern, message] of known) if (pattern.test(raw)) return message;
 
-  // Unrecognised: show the contract's reason if there is one, never the
-  // function-name line.
+  // Unrecognised: the shared helper strips viem's dump to one line.
   const reason = raw.match(/reverted with the following reason:[\s]*(.+)/i)?.[1]?.trim();
   return reason || raw.split("\n")[0] || "Transaction failed";
 }

@@ -10,6 +10,7 @@ import { ERC721_APPROVAL_ABI, marketplaceAddressFor } from "@/lib/web3/marketpla
 import { buildListingTypedData, generateListingNonce } from "@/lib/web3/listing";
 import { ItemDetailView } from "@/lib/types";
 import { useCurrency } from "@/components/providers/CurrencyProvider";
+import { walletError } from "@/lib/web3/walletError";
 
 /**
  * Lists an already-minted, owned item for resale. Two on-chain-adjacent
@@ -134,7 +135,7 @@ export function ListForSaleForm({ item }: { item: ItemDetailView }) {
       });
       router.refresh();
     } catch (err) {
-      setError(err instanceof Error ? err.message.split("\n")[0] : "Failed to list");
+      setError(walletError(err, "Couldn't list this item"));
       setPhase("idle");
     }
   }
