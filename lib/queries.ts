@@ -325,7 +325,7 @@ export async function getItemById(id: string): Promise<ItemDetailView | null> {
   // collection's — an edition's holders are its own. The floor uses the
   // same fillability rule as the collection floor, so "item floor" and
   // "floor" can never disagree about what counts as buyable.
-  const [ownerIds, itemListings, topBid] = await Promise.all([
+  const [ownerIds, itemListings, topBid, topCollectionOffer] = await Promise.all([
     ItemBalance.distinct("owner", { item: doc._id, quantity: { $gt: 0 } }),
     Listing.find({ item: doc._id, status: "active" })
       .select("pricePerUnitEth quantity filledQuantity signature deadline status")
@@ -333,6 +333,18 @@ export async function getItemById(id: string): Promise<ItemDetailView | null> {
     Bid.findOne({ item: doc._id, type: "offer", status: "active" })
       .sort({ amountEth: -1 })
       .select("amountEth")
+      .lean(),
+    // A collection-wide offer is a real bid on this token too, so leaving
+    // it out made the item's "best offer" contradict the one the
+    // collection page advertised on the very same NFT.
+    CollectionOffer.findOne({
+      collection: doc.collection,
+      status: "active",
+      $or: [{ deadline: null }, { deadline: { $gt: new Date() } }],
+      $expr: { $lt: ["$filledQuantity", "$quantity"] },
+    })
+      .sort({ pricePerItemEth: -1 })
+      .select("pricePerItemEth")
       .lean(),
   ]);
   const liveAsks = itemListings
@@ -346,7 +358,8 @@ export async function getItemById(id: string): Promise<ItemDetailView | null> {
     collection: { ...doc.collection, resaleOpen: collectionGate.open },
     ownersCount: doc.standard === "ERC1155" ? ownerIds.length : doc.owner ? 1 : 0,
     itemFloorEth: liveAsks.length > 0 ? Math.min(...liveAsks) : null,
-    bestOfferEth: topBid?.amountEth ?? null,
+    bestOfferEth:
+      Math.max(topBid?.amountEth ?? 0, topCollectionOffer?.pricePerItemEth ?? 0) || null,
   } as never);
 }
 
@@ -606,28 +619,77 @@ export async function getRankedCollections(
   return docs.map((d) => toCollectionDetailView(d as never));
 }
 
+/**
+ * Every standing bid a holder of this token could accept.
+ *
+ * Two kinds, and both are real money: an offer on this specific token, and
+ * a collection-wide offer whose eligible set includes it. Listing only the
+ * first is why an item could show "no offers" — or a lower best offer —
+ * while the collection page advertised a higher standing bid on the very
+ * same token.
+ */
 export async function getItemOffers(itemId: string): Promise<BidView[]> {
   await connectDB();
-  const docs = await Bid.find({ item: itemId, status: { $ne: "cancelled" } })
-    .sort({ amountEth: -1, createdAt: -1 })
-    .populate("bidder")
-    .lean();
+  if (!Types.ObjectId.isValid(itemId)) return [];
 
-  return docs
+  const item = await Item.findById(itemId).select("collection tokenId").lean();
+  const now = new Date();
+
+  const [docs, collectionOffers] = await Promise.all([
+    Bid.find({ item: itemId, status: { $ne: "cancelled" } })
+      .sort({ amountEth: -1, createdAt: -1 })
+      .populate("bidder")
+      .lean(),
+    item
+      ? CollectionOffer.find({
+          collection: item.collection,
+          status: "active",
+          $or: [{ deadline: null }, { deadline: { $gt: now } }],
+        })
+          .sort({ pricePerItemEth: -1 })
+          .populate("buyer")
+          .lean()
+      : Promise.resolve([]),
+  ]);
+
+  const itemBids: BidView[] = docs
     .filter((d) => d.bidder)
     .map((d) => ({
       id: String(d._id),
-      type: d.type,
+      type: d.type as BidView["type"],
+      scope: "item",
       amountEth: d.amountEth,
-      status: d.status,
+      status: d.status as BidView["status"],
       bidder: toUserRef(d.bidder as never)!,
       createdAt: new Date(d.createdAt as Date).toISOString(),
       expiresAt: d.expiresAt ? new Date(d.expiresAt as Date).toISOString() : null,
     }));
+
+  const collectionBids: BidView[] = collectionOffers
+    .filter((o) => {
+      if (!o.buyer) return false;
+      // An offer with no explicit token list covers the whole collection;
+      // one with a list only covers what it names.
+      const ids = (o.eligibleTokenIds ?? []) as string[];
+      if (ids.length === 0) return true;
+      return !!item?.tokenId && ids.includes(String(item.tokenId));
+    })
+    .filter((o) => (o.filledQuantity ?? 0) < o.quantity)
+    .map((o) => ({
+      id: String(o._id),
+      type: "offer" as const,
+      scope: "collection" as const,
+      amountEth: o.pricePerItemEth,
+      status: "active" as const,
+      bidder: toUserRef(o.buyer as never)!,
+      createdAt: new Date(o.createdAt as Date).toISOString(),
+      expiresAt: o.deadline ? new Date(o.deadline as Date).toISOString() : null,
+    }));
+
+  return [...itemBids, ...collectionBids].sort((a, b) => b.amountEth - a.amountEth);
 }
 
 export type ActivityType = "sale" | "list" | "bid" | "offer" | "mint" | "transfer" | "cancel";
-
 export interface ActivityFilters {
   type?: ActivityType;
   itemId?: string;

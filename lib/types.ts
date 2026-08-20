@@ -223,6 +223,10 @@ export interface ActivityView {
 export interface BidView {
   id: string;
   type: "auction_bid" | "offer";
+  /** Whether this bid targets this token alone or any eligible token in
+   *  the collection. Both are acceptable by a holder, through different
+   *  endpoints, so the distinction has to survive to the UI. */
+  scope: "item" | "collection";
   amountEth: number;
   status: "active" | "accepted" | "rejected" | "cancelled" | "expired";
   bidder: UserRef;

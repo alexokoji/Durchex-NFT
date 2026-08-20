@@ -19,10 +19,12 @@ import { ItemDetailView } from "@/lib/types";
 export function SellToTopOffer({
   item,
   topOfferId,
+  topOfferScope,
 }: {
   item: ItemDetailView;
   /** Best standing offer, resolved by the page — which already loads them. */
   topOfferId: string | null;
+  topOfferScope: "item" | "collection";
 }) {
   const { user } = useSession();
   const [canSell, setCanSell] = useState(false);
@@ -44,7 +46,12 @@ export function SellToTopOffer({
   return (
     <div className="mt-1.5">
       <AcceptOfferButton
-        prepareUrl={`/api/bids/${topOfferId}/accept`}
+        prepareUrl={
+          topOfferScope === "collection"
+            ? `/api/collection-offers/${topOfferId}`
+            : `/api/bids/${topOfferId}/accept`
+        }
+        prepareBody={topOfferScope === "collection" ? { itemId: item.id } : undefined}
         nftContract={item.contractAddress}
         chainId={item.chainId}
         label="Sell now"

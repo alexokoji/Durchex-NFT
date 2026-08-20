@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { ArrowRight } from "lucide-react";
+import { useCurrency } from "@/components/providers/CurrencyProvider";
 
 /**
  * The parent collection's headline numbers, on the item page.
@@ -20,6 +21,7 @@ export function CollectionSummary({
     totalVolumeEth: number;
   };
 }) {
+  const { format } = useCurrency();
   return (
     <div className="surface-card p-5">
       <div className="flex items-center justify-between gap-3 mb-4">
@@ -32,12 +34,12 @@ export function CollectionSummary({
         </Link>
       </div>
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-        <Cell label="Floor" value={summary.floorEth > 0 ? `${summary.floorEth} ETH` : "—"} />
+        <Cell label="Floor" value={summary.floorEth > 0 ? format(summary.floorEth) : "—"} />
         <Cell label="Owners" value={summary.owners.toLocaleString()} />
         <Cell label="Minted" value={summary.mintedUnits.toLocaleString()} />
         <Cell
           label="Total volume"
-          value={summary.totalVolumeEth > 0 ? `${summary.totalVolumeEth.toFixed(3)} ETH` : "—"}
+          value={summary.totalVolumeEth > 0 ? format(summary.totalVolumeEth) : "—"}
         />
       </div>
     </div>

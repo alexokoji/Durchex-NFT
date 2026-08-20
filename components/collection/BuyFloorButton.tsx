@@ -14,6 +14,7 @@ import { BuyListedButton } from "@/components/item/BuyListedButton";
 import { BuyEditionButton } from "@/components/item/BuyEditionButton";
 import { MARKETPLACE_ABI, marketplaceAddressFor } from "@/lib/web3/marketplaceAbi";
 import { CollectionDetailView, ItemDetailView } from "@/lib/types";
+import { useCurrency } from "@/components/providers/CurrencyProvider";
 
 // Only resale shapes reach here. A mint is not a floor — see
 // lib/floorValidity.ts — so the primary kinds this once handled can no
@@ -52,6 +53,7 @@ const ZERO = "0x0000000000000000000000000000000000000000";
  * reverts; the buyer is never silently rolled onto a pricier NFT.
  */
 export function BuyFloorButton({ collection }: { collection: CollectionDetailView }) {
+  const { format } = useCurrency();
   const router = useRouter();
   const { address, chainId: connectedChainId } = useAccount();
   const { openConnectModal } = useConnectModal();
@@ -213,8 +215,8 @@ export function BuyFloorButton({ collection }: { collection: CollectionDetailVie
                 <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
                 <span>
                   The floor changed before your purchase went through — it was{" "}
-                  <strong>{changed.from.toFixed(3)} ETH</strong>, now{" "}
-                  <strong>{changed.to.toFixed(3)} ETH</strong>. Nothing was bought. Review the new
+                  <strong>{format(changed.from)}</strong>, now{" "}
+                  <strong>{format(changed.to)}</strong>. Nothing was bought. Review the new
                   listing below and confirm again if you still want it.
                 </span>
               </div>
@@ -249,9 +251,9 @@ export function BuyFloorButton({ collection }: { collection: CollectionDetailVie
                 </div>
 
                 <div className="rounded-lg border border-white/10 bg-white/[0.02] p-3 mb-4 space-y-1.5 text-xs">
-                  <Row label="Price" value={`${price.toFixed(3)} ETH`} strong />
+                  <Row label="Price" value={format(price)} strong />
                   <div className="pt-1.5 mt-1.5 border-t border-white/10 text-white/35">
-                    Of what you pay, roughly {royaltyEth.toFixed(4)} ETH goes to the creator as royalty
+                    Of what you pay, roughly {format(royaltyEth, { decimals: 4 })} goes to the creator as royalty
                     ({((collection.royaltyBps ?? 0) / 100).toFixed(1)}%) and a platform fee is taken; the
                     seller receives the rest. You pay exactly the price above — fees are not added on top.
                   </div>

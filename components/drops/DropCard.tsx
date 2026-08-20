@@ -10,8 +10,10 @@ import { CountdownTimer } from "@/components/nft/CountdownTimer";
 import { Button } from "@/components/ui/Button";
 import { useSession } from "@/hooks/useSession";
 import { DropView } from "@/lib/types";
+import { useCurrency } from "@/components/providers/CurrencyProvider";
 
 export function DropCard({ drop }: { drop: DropView }) {
+  const { format } = useCurrency();
   const { user } = useSession();
   const { openConnectModal } = useConnectModal();
   const [notifying, setNotifying] = useState(drop.isNotifying);
@@ -73,7 +75,7 @@ export function DropCard({ drop }: { drop: DropView }) {
           </h3>
         </Link>
         <p className="text-sm text-white/50 mb-4">
-          Floor {drop.floorEth > 0 ? `starts at ${drop.floorEth.toFixed(2)} ETH` : "TBA"} ·{" "}
+          Floor {drop.floorEth > 0 ? `starts at ${format(drop.floorEth)}` : "TBA"} ·{" "}
           {drop.items.toLocaleString()} items
         </p>
 

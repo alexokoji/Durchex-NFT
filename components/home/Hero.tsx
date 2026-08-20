@@ -1,7 +1,10 @@
+"use client";
+
 import { ArrowRight, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { GeneratedArt } from "@/components/nft/GeneratedArt";
 import { CollectionView } from "@/lib/types";
+import { useCurrency } from "@/components/providers/CurrencyProvider";
 
 export function Hero({
   stats,
@@ -97,6 +100,7 @@ function FloatingCard({
   className?: string;
   delay: string;
 }) {
+  const { format } = useCurrency();
   const image = collection?.logoUrl || collection?.bannerUrl || "";
   return (
     <div
@@ -109,7 +113,7 @@ function FloatingCard({
           <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/85 to-transparent px-3 pt-8 pb-2.5">
             <div className="text-xs font-medium text-white truncate">{collection!.name}</div>
             <div className="text-[10px] text-white/50 tabular-nums">
-              {collection!.floorEth > 0 ? `${collection!.floorEth} ETH floor` : "No floor yet"}
+              {collection!.floorEth > 0 ? `${format(collection!.floorEth)} floor` : "No floor yet"}
             </div>
           </div>
         </div>

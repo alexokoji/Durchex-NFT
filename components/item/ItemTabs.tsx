@@ -11,6 +11,7 @@ import { useSession } from "@/hooks/useSession";
 import { AcceptOfferButton } from "@/components/item/AcceptOfferButton";
 import { ActivityView, BidView, ItemDetailView } from "@/lib/types";
 import { UserAvatar } from "@/components/ui/UserAvatar";
+import { useCurrency } from "@/components/providers/CurrencyProvider";
 
 const TABS = ["Details", "Properties", "Listings", "Offers", "Activity"] as const;
 type Tab = (typeof TABS)[number];
@@ -24,6 +25,7 @@ export function ItemTabs({
   offers: BidView[];
   activity: ActivityView[];
 }) {
+  const { format } = useCurrency();
   const [tab, setTab] = useState<Tab>("Details");
   const { user } = useSession();
   // Who may accept an offer. For an ERC-721 that is the single owner; for
@@ -86,7 +88,7 @@ export function ItemTabs({
             <div className="text-sm text-white/85">
               Listed by {item.owner?.username ?? "the owner"}
             </div>
-            <div className="text-sm font-semibold text-white tabular-nums">{item.priceEth} ETH</div>
+            <div className="text-sm font-semibold text-white tabular-nums">{format(item.priceEth)}</div>
           </div>
         ) : (
           <EmptyState icon={Tag} text="Not listed for sale right now." />
@@ -135,6 +137,7 @@ function OfferRow({
   item: ItemDetailView;
   canAccept: boolean;
 }) {
+  const { format } = useCurrency();
   return (
     <div className="flex items-center justify-between gap-3 p-3 rounded-xl bg-white/5 border border-white/10">
       <div className="flex items-center gap-2.5 min-w-0">
@@ -148,20 +151,31 @@ function OfferRow({
               <Tag className="w-3 h-3 text-purple-400 shrink-0" />
             )}
           </div>
-          <div className="text-[11px] text-white/40">
+          <div className="flex items-center gap-1.5 text-[11px] text-white/40">
+            {offer.scope === "collection" && (
+              <span className="rounded-full border border-white/10 px-1.5 py-0.5 text-[9px] uppercase tracking-wide text-white/45">
+                Collection
+              </span>
+            )}
             {offer.status === "accepted" ? "Accepted" : new Date(offer.createdAt).toLocaleDateString()}
           </div>
         </div>
       </div>
       <div className="flex items-center gap-3 shrink-0">
-        <span className="text-sm font-semibold text-white tabular-nums">
-          {offer.amountEth.toFixed(2)} ETH
-        </span>
+        <span className="text-sm font-semibold text-white tabular-nums">{format(offer.amountEth)}</span>
         {/* Auction bids settle through the auction flow, not the offers
             contract, so only plain offers get an accept action here. */}
         {canAccept && offer.type === "offer" && (
+          // Both scopes settle through the same contract, but the payload
+          // is prepared by different endpoints — a collection offer also
+          // needs to be told which token it is being filled against.
           <AcceptOfferButton
-            prepareUrl={`/api/bids/${offer.id}/accept`}
+            prepareUrl={
+              offer.scope === "collection"
+                ? `/api/collection-offers/${offer.id}`
+                : `/api/bids/${offer.id}/accept`
+            }
+            prepareBody={offer.scope === "collection" ? { itemId: item.id } : undefined}
             nftContract={item.contractAddress}
             chainId={item.chainId}
           />

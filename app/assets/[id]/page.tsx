@@ -94,7 +94,13 @@ export default async function ItemDetailPage({ params }: PageProps) {
           <div className="mb-5">
             <ItemStatStrip
               item={item}
-              topOfferAction={<SellToTopOffer item={item} topOfferId={topOffer?.id ?? null} />}
+              topOfferAction={
+                <SellToTopOffer
+                  item={item}
+                  topOfferId={topOffer?.id ?? null}
+                  topOfferScope={topOffer?.scope ?? "item"}
+                />
+              }
             />
           </div>
 

@@ -11,6 +11,7 @@ import { useSession } from "@/hooks/useSession";
 import { MARKETPLACE_ABI, marketplaceAddressFor } from "@/lib/web3/marketplaceAbi";
 import { buildListing1155TypedData } from "@/lib/web3/listing1155";
 import { ItemDetailView } from "@/lib/types";
+import { useCurrency } from "@/components/providers/CurrencyProvider";
 
 type ResaleListing = {
   id: string;
@@ -36,6 +37,7 @@ type ResaleListing = {
  * can each be selling (or auctioning) part of their balance at different
  * prices simultaneously. */
 export function EditionListings({ item }: { item: ItemDetailView }) {
+  const { format } = useCurrency();
   const router = useRouter();
   const { user } = useSession();
   const { address, chainId: connectedChainId } = useAccount();
@@ -232,8 +234,8 @@ export function EditionListings({ item }: { item: ItemDetailView }) {
                     </div>
                     <div className="text-[11px] text-white/40 mt-0.5">
                       {l.highestBidEth > 0
-                        ? `Highest bid: ${l.highestBidEth.toFixed(3)} ETH (${l.highestBidder?.username ?? l.highestBidder?.address ?? "someone"})`
-                        : `Reserve: ${l.pricePerUnitEth.toFixed(3)} ETH/unit · ${(l.pricePerUnitEth * l.quantity).toFixed(3)} ETH total`}
+                        ? `Highest bid: ${format(l.highestBidEth)} (${l.highestBidder?.username ?? l.highestBidder?.address ?? "someone"})`
+                        : `Reserve: ${format(l.pricePerUnitEth)}/unit · ${format(l.pricePerUnitEth * l.quantity)} total`}
                     </div>
                   </div>
                   {!auctionEnded && l.auctionEndsAt && <CountdownTimer endsAt={l.auctionEndsAt} compact />}
@@ -290,7 +292,7 @@ export function EditionListings({ item }: { item: ItemDetailView }) {
                   )}
                 </div>
                 <div className="text-[11px] text-white/40">
-                  {l.remaining} of {l.quantity} left · {l.pricePerUnitEth} ETH each
+                  {l.remaining} of {l.quantity} left · {format(l.pricePerUnitEth)} each
                   {l.buyer && ` · reserved for ${l.buyer.slice(0, 6)}…`}
                 </div>
                 {isSeller && (

@@ -49,7 +49,7 @@ function Stat({
     raw || eth === null || eth === undefined || eth <= 0 || !rate
       ? null
       : currency === "USD"
-        ? `${eth} ETH`
+        ? `${Number(eth.toFixed(4))} ETH`
         : `$${(eth * rate).toLocaleString(undefined, { maximumFractionDigits: 2 })}`;
   return (
     <div>

@@ -6,6 +6,7 @@ import { ArrowUpRight, Gavel, Loader2, Send, ShoppingCart, Sparkles, Tag } from 
 import clsx from "clsx";
 import { VerifiedBadge } from "@/components/ui/VerifiedBadge";
 import { UserAvatar } from "@/components/ui/UserAvatar";
+import { useCurrency } from "@/components/providers/CurrencyProvider";
 import { ActivityView } from "@/lib/types";
 import type { VerificationTier } from "@/lib/verification";
 
@@ -65,6 +66,7 @@ export function OnChainActivity({
   activity: ActivityView[];
   chainId: number;
 }) {
+  const { format } = useCurrency();
   const [transfers, setTransfers] = useState<ChainTransfer[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<Filter>("All");
@@ -199,7 +201,7 @@ export function OnChainActivity({
                     </td>
                     <td className="py-3 pr-4 tabular-nums text-white/70">
                       {row.priceEth !== null && row.priceEth > 0
-                        ? `${row.priceEth} ETH`
+                        ? format(row.priceEth)
                         : row.priceEth === 0
                           ? "Free"
                           : "—"}
