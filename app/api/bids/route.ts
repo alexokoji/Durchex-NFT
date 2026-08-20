@@ -243,29 +243,42 @@ export async function POST(req: NextRequest) {
     ...offerSettlement,
   });
 
-  await recordActivity({
-    type: type === "auction_bid" ? "bid" : "offer",
-    item: item._id,
-    from: user._id,
-    priceEth: amountEth,
-  });
-
-  await createNotification({
-    user: item.owner,
-    type: type === "auction_bid" ? "bid" : "offer",
-    item: item._id,
-    fromUser: user._id,
-    amountEth,
-  });
-
-  if (previousTopBid && String(previousTopBid.bidder) !== String(user._id)) {
-    await createNotification({
-      user: previousTopBid.bidder,
-      type: "outbid",
+  // The offer itself is now saved, and for an escrowed offer the buyer's
+  // ETH is already locked in the contract. Nothing after this point is
+  // worth losing that over: an item with no owner recorded, or any other
+  // hiccup in the follow-up writes, used to throw and answer with an empty
+  // 500 — leaving a debited buyer looking at "Unexpected end of JSON
+  // input" and no offer.
+  try {
+    await recordActivity({
+      type: type === "auction_bid" ? "bid" : "offer",
       item: item._id,
-      fromUser: user._id,
-      amountEth,
+      from: user._id,
+      priceEth: amountEth,
     });
+
+    if (item.owner) {
+      await createNotification({
+        user: item.owner,
+        type: type === "auction_bid" ? "bid" : "offer",
+        item: item._id,
+        fromUser: user._id,
+        amountEth,
+      });
+    }
+
+    if (previousTopBid && String(previousTopBid.bidder) !== String(user._id)) {
+      await createNotification({
+        user: previousTopBid.bidder,
+        type: "outbid",
+        item: item._id,
+        fromUser: user._id,
+        amountEth,
+      });
+    }
+  } catch {
+    // Deliberately swallowed. The offer stands; a missing notification is
+    // not a reason to tell the buyer their funded offer failed.
   }
 
   return NextResponse.json({ id: String(bid._id) }, { status: 201 });

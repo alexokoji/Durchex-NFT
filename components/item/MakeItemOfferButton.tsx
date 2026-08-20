@@ -137,8 +137,18 @@ export function MakeItemOfferButton({ item }: { item: ItemDetailView }) {
           deadline: deadline.toString(),
         }),
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error ?? "Offer was funded but couldn't be recorded");
+      // The ETH is already escrowed by this point, so a failure here is
+      // not "the offer didn't happen" — it is "the offer happened and we
+      // failed to write it down". Read as text first: a crashed function
+      // answers with an empty body, and parsing that blind turns a
+      // recoverable state into "Unexpected end of JSON input".
+      const raw = await res.text();
+      if (!res.ok || !raw) {
+        throw new Error(
+          "Your offer is funded on-chain but we couldn't record it. It will appear shortly — your ETH is safe and withdrawable."
+        );
+      }
+      const data = JSON.parse(raw);
 
       setPhase("idle");
       setOpen(false);
