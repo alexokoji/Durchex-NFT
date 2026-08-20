@@ -54,8 +54,15 @@ export default async function ItemDetailPage({ params }: PageProps) {
         <span className="text-white/70 truncate">{item.name}</span>
       </div>
 
-      <div className="grid lg:grid-cols-2 gap-10">
-        <div>
+      {/* The artwork is the one thing that stays the same the whole way
+          down, so it holds still while the details, panels and tables
+          scroll past it. Narrower than the right column: everything that
+          needs reading — prices, listings, history — belongs on the side
+          that moves. `items-start` is what lets the sticky child work; a
+          stretched grid item is already full height and has nothing to
+          stick within. */}
+      <div className="grid lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)] gap-10 items-start">
+        <div className="lg:sticky lg:top-24">
           <MediaPanel seedKey={item.id} url={item.mediaUrl} type={item.mediaType} alt={item.name} />
         </div>
 
@@ -133,11 +140,10 @@ export default async function ItemDetailPage({ params }: PageProps) {
           )}
 
           <ReportButton targetId={item.id} />
+          <div className="mt-8">
+            <ItemTabs item={item} offers={offers} activity={activity} />
+          </div>
         </div>
-      </div>
-
-      <div className="mt-10">
-        <ItemTabs item={item} offers={offers} activity={activity} />
       </div>
 
       {related.length > 0 && (
