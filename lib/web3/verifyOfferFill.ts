@@ -39,7 +39,10 @@ export async function verifyAndSyncOfferFill({
 }: {
   txHash: `0x${string}`;
   chainId: number;
-  expectedSeller: string;
+  /** Null when the caller is trusted server-side — a webhook or a
+   *  reconciler reads the seller from the event itself, so there is no
+   *  client claim to guard against. */
+  expectedSeller: string | null;
 }) {
   const chain = CHAINS[chainId];
   if (!chain) return { ok: false as const, error: "Unsupported chain" };
@@ -91,7 +94,7 @@ export async function verifyAndSyncOfferFill({
   };
   const { tokenId, buyer, seller, quantity, totalPrice } = args;
   const nonce = args.nonce ?? args.offerId ?? BigInt(0);
-  if (seller.toLowerCase() !== expectedSeller.toLowerCase()) {
+  if (expectedSeller && seller.toLowerCase() !== expectedSeller.toLowerCase()) {
     return { ok: false as const, error: "This transaction wasn't made by you" };
   }
 

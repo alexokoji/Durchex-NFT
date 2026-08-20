@@ -1,17 +1,19 @@
 name: Reconcile chain state
 
 # Vercel's Hobby plan allows one cron run a day, which is why every missed
-# sale, offer and listing fill so far has needed a manual repair. GitHub
-# Actions runs this every fifteen minutes at no cost, so the database
-# catches up with the chain on its own.
+# sale, offer and listing fill so far has needed a manual repair. This runs
+# at GitHub's shortest allowed interval, five minutes, at no cost.
 #
-# Scheduled runs are best-effort — GitHub delays them under load, and
-# disables schedules on a repository with no activity for 60 days. Neither
-# matters much here: every pass is idempotent, so a late run repairs the
-# same things a punctual one would.
+# Five is a floor GitHub enforces, not a promise it keeps: scheduled runs
+# are queued and routinely delayed under load, so the real cadence is
+# closer to five-to-fifteen minutes and an occasional tick is skipped
+# outright. That is tolerable here only because every pass is idempotent —
+# a late run repairs exactly what a punctual one would. If a tighter and
+# firmer interval is ever needed, a Cloudflare Worker cron trigger goes
+# down to one minute on its free tier and actually holds to it.
 on:
   schedule:
-    - cron: "*/15 * * * *"
+    - cron: "*/5 * * * *"
   # So it can be run on demand from the Actions tab without waiting.
   workflow_dispatch:
 

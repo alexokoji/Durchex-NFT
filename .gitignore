@@ -45,3 +45,6 @@ yarn-error.log*
 next-env.d.ts
 
 .vercel
+
+# Local copy of the Actions cron secret - never commit.
+CRON_SECRET.txt
