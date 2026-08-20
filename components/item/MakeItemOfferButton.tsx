@@ -70,6 +70,22 @@ export function MakeItemOfferButton({ item }: { item: ItemDetailView }) {
   });
   const needsApproval = allowance !== undefined && totalWei > 0 && (allowance as bigint) < totalWei;
 
+  // An offer is settled by pulling WETH from the buyer at accept time, so
+  // an offer backed by plain ETH is one the holder can never fill — it
+  // just reverts on them. Checked here, where it is still the buyer's
+  // problem to fix, rather than surfacing as a failed accept for someone
+  // else.
+  const { data: wethBalance } = useReadContract({
+    address: weth,
+    abi: ERC20_ABI,
+    functionName: "balanceOf",
+    args: address ? [address] : undefined,
+    chainId: item.chainId,
+    query: { enabled: !!address && !!weth },
+  });
+  const shortOfWeth =
+    wethBalance !== undefined && totalWei > 0 && (wethBalance as bigint) < totalWei;
+
   // Nothing to offer against until the token exists on-chain, and nothing
   // to settle through until the offers contract is deployed here.
   if (!offersAddress || !weth || !item.isMinted || !item.tokenId) return null;
@@ -80,6 +96,11 @@ export function MakeItemOfferButton({ item }: { item: ItemDetailView }) {
     if (!address) return openConnectModal?.();
     const price = Number(amount);
     if (!Number.isFinite(price) || price <= 0) return setError("Enter a valid offer amount");
+    if (shortOfWeth) {
+      return setError(
+        `Offers are paid in WETH and your wallet doesn't hold ${total} WETH. Wrap some ETH first.`
+      );
+    }
 
     setError(null);
     try {
@@ -202,13 +223,20 @@ export function MakeItemOfferButton({ item }: { item: ItemDetailView }) {
       </div>
 
       {total > 0 && (
-        <p className="text-[11px] text-white/40 mb-3 tabular-nums">
-          Total {total} WETH{needsApproval && " · approval required first"}
+        <p
+          className={`text-[11px] mb-3 tabular-nums ${shortOfWeth ? "text-danger" : "text-white/40"}`}
+        >
+          Total {total} WETH
+          {shortOfWeth
+            ? " · your wallet doesn't hold this much WETH"
+            : needsApproval
+              ? " · approval required first"
+              : ""}
         </p>
       )}
 
       <div className="flex items-center gap-2">
-        <Button size="sm" onClick={submit} disabled={busy}>
+        <Button size="sm" onClick={submit} disabled={busy || shortOfWeth}>
           {busy ? (
             <>
               <Loader2 className="w-3.5 h-3.5 animate-spin" />
