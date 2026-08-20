@@ -9,6 +9,7 @@ import { useTxSuccess } from "@/components/tx/TxSuccess";
 import { ERC721_APPROVAL_ABI, marketplaceAddressFor } from "@/lib/web3/marketplaceAbi";
 import { buildListingTypedData, generateListingNonce } from "@/lib/web3/listing";
 import { ItemDetailView } from "@/lib/types";
+import { useCurrency } from "@/components/providers/CurrencyProvider";
 
 /**
  * Lists an already-minted, owned item for resale. Two on-chain-adjacent
@@ -19,6 +20,7 @@ import { ItemDetailView } from "@/lib/types";
  * buyer calls BuyListedButton.
  */
 export function ListForSaleForm({ item }: { item: ItemDetailView }) {
+  const { rate } = useCurrency();
   const router = useRouter();
   const { address, chainId: connectedChainId } = useAccount();
   const { switchChainAsync } = useSwitchChain();
@@ -164,6 +166,9 @@ export function ListForSaleForm({ item }: { item: ItemDetailView }) {
           {phase === "idle" && "List"}
         </Button>
       </div>
+
+      <UsdHint eth={Number(priceEth)} rate={rate} />
+
       {!isApproved && (
         <p className="text-[11px] text-white/35 mt-2">
           First listing needs a one-time on-chain approval so the marketplace can transfer this item when it sells.
@@ -171,5 +176,24 @@ export function ListForSaleForm({ item }: { item: ItemDetailView }) {
       )}
       {error && <p className="text-xs text-danger mt-2">{error}</p>}
     </div>
+  );
+}
+
+/**
+ * The dollar value of what the seller just typed.
+ *
+ * The input stays in ETH deliberately — that is the number the signature
+ * commits to, and letting someone enter a figure they believe is dollars
+ * while signing it as ETH is not a mistake worth risking. This only
+ * reports what the ETH amount is worth, so a seller pricing in their head
+ * in dollars can check themselves before signing.
+ */
+function UsdHint({ eth, rate }: { eth: number; rate: number | null }) {
+  if (!rate || !Number.isFinite(eth) || eth <= 0) return null;
+  const usd = eth * rate;
+  return (
+    <p className="text-[11px] text-white/40 tabular-nums mt-2">
+      {usd < 0.01 ? "<$0.01" : `$${usd.toLocaleString(undefined, { maximumFractionDigits: 2 })}`}
+    </p>
   );
 }

@@ -9,9 +9,11 @@ import { useTxSuccess } from "@/components/tx/TxSuccess";
 import { ERC721_APPROVAL_ABI, marketplaceAddressFor } from "@/lib/web3/marketplaceAbi";
 import { buildListing1155TypedData, generateListing1155Nonce } from "@/lib/web3/listing1155";
 import { ItemDetailView } from "@/lib/types";
+import { useCurrency } from "@/components/providers/CurrencyProvider";
 
 /** Lets a holder list part (or all) of their ERC-1155 balance for resale. */
 export function ListEditionForm({ item }: { item: ItemDetailView }) {
+  const { rate } = useCurrency();
   const router = useRouter();
   const { address, chainId: connectedChainId } = useAccount();
   const { switchChainAsync } = useSwitchChain();
@@ -220,6 +222,9 @@ export function ListEditionForm({ item }: { item: ItemDetailView }) {
           />
         )}
       </div>
+
+      <UsdHint eth={Number(priceEth)} quantity={Math.max(1, Number(quantity) || 1)} rate={rate} />
+
       <Button
         onClick={submit}
         disabled={phase !== "idle"}
@@ -238,5 +243,35 @@ export function ListEditionForm({ item }: { item: ItemDetailView }) {
       )}
       {error && <p className="text-xs text-danger mt-2">{error}</p>}
     </div>
+  );
+}
+
+/**
+ * The dollar value of what the seller just typed.
+ *
+ * The input stays in ETH deliberately — that is the number the signature
+ * commits to, and letting someone enter a figure they believe is dollars
+ * while signing it as ETH is not a mistake worth risking. This only
+ * reports what the ETH amount is worth, so a seller pricing in their head
+ * in dollars can check themselves before signing.
+ */
+function UsdHint({
+  eth,
+  quantity = 1,
+  rate,
+}: {
+  eth: number;
+  quantity?: number;
+  rate: number | null;
+}) {
+  if (!rate || !Number.isFinite(eth) || eth <= 0) return null;
+  const each = eth * rate;
+  const total = each * quantity;
+  const money = (n: number) =>
+    n < 0.01 ? "<$0.01" : `$${n.toLocaleString(undefined, { maximumFractionDigits: 2 })}`;
+  return (
+    <p className="text-[11px] text-white/40 tabular-nums mt-2">
+      {quantity > 1 ? `${money(each)} each · ${money(total)} total` : money(each)}
+    </p>
   );
 }
