@@ -199,12 +199,6 @@ function explainAcceptFailure(err: unknown): string {
   ];
   for (const [pattern, message] of known) if (pattern.test(raw)) return message;
 
-  // A revert carrying no reason at all is almost always WETH, which uses
-  // bare requires — saying "reverted" would leave the seller with nothing.
-  if (/reverted\.?[\s]*$/i.test(raw.split("\n")[0] ?? "")) {
-    return "The buyer's wrapped ETH is no longer available, so this offer can't be filled.";
-  }
-
   // Unrecognised: show the contract's reason if there is one, never the
   // function-name line.
   const reason = raw.match(/reverted with the following reason:[\s]*(.+)/i)?.[1]?.trim();

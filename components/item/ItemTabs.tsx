@@ -9,6 +9,7 @@ import { OnChainActivity } from "@/components/item/OnChainActivity";
 import { EditionListings } from "@/components/item/EditionListings";
 import { useSession } from "@/hooks/useSession";
 import { AcceptOfferButton } from "@/components/item/AcceptOfferButton";
+import { WithdrawOfferButton } from "@/components/item/WithdrawOfferButton";
 import { ActivityView, BidView, ItemDetailView } from "@/lib/types";
 import { UserAvatar } from "@/components/ui/UserAvatar";
 import { useCurrency } from "@/components/providers/CurrencyProvider";
@@ -98,7 +99,13 @@ export function ItemTabs({
         (offers.length > 0 ? (
           <div className="space-y-2.5">
             {offers.map((o) => (
-              <OfferRow key={o.id} offer={o} item={item} canAccept={isOwner && o.status === "active"} />
+              <OfferRow
+                key={o.id}
+                offer={o}
+                item={item}
+                canAccept={isOwner && o.status === "active"}
+                isOwnOffer={!!user && user.address.toLowerCase() === o.bidder.address.toLowerCase()}
+              />
             ))}
           </div>
         ) : (
@@ -132,10 +139,12 @@ function OfferRow({
   offer,
   item,
   canAccept,
+  isOwnOffer,
 }: {
   offer: BidView;
   item: ItemDetailView;
   canAccept: boolean;
+  isOwnOffer: boolean;
 }) {
   const { format } = useCurrency();
   return (
@@ -179,6 +188,11 @@ function OfferRow({
             nftContract={item.contractAddress}
             chainId={item.chainId}
           />
+        )}
+        {/* The buyer's own offer is the one thing they can act on here,
+            and their ETH is sitting in escrow behind it. */}
+        {isOwnOffer && offer.escrowOfferId && offer.status === "active" && (
+          <WithdrawOfferButton escrowOfferId={offer.escrowOfferId} chainId={item.chainId} />
         )}
         {offer.status === "accepted" && (
           <span className="text-xs text-success font-medium">Accepted</span>

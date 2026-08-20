@@ -227,6 +227,9 @@ export interface BidView {
    *  the collection. Both are acceptable by a holder, through different
    *  endpoints, so the distinction has to survive to the UI. */
   scope: "item" | "collection";
+  /** On-chain escrow id, when the offer is funded in ETH. Null on the
+   *  legacy WETH offers, which have nothing to withdraw. */
+  escrowOfferId: string | null;
   amountEth: number;
   status: "active" | "accepted" | "rejected" | "cancelled" | "expired";
   bidder: UserRef;
