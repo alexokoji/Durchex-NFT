@@ -8,6 +8,7 @@ import { recalculateCollectionFloor } from "@/lib/floorPrice";
 import { collectionMintProgress } from "@/lib/collectionSupply";
 import { Listing } from "@/lib/models/Listing";
 import { rpcClient } from "@/lib/web3/reconcile";
+import { offersEscrowAddressFor } from "@/lib/web3/offersEscrow";
 import { marketplaceAddressFor } from "@/lib/web3/marketplaceAbi";
 import { formatEther, parseAbiItem } from "viem";
 
@@ -202,6 +203,41 @@ export async function repairListingFills(chainId: number) {
  *
  * Expired rather than deleted, so the record of what was offered survives.
  */
+export async function closeSpentEscrowOffers(chainId: number) {
+  const client = rpcClient(chainId);
+  const escrow = offersEscrowAddressFor(chainId);
+  if (!client || !escrow) return { closed: 0 };
+
+  // The contract's escrow balance is the only honest answer to "is this
+  // offer still live". A fill or a withdrawal empties it, and either way
+  // there is nothing left for a holder to accept.
+  const open = await Bid.find({ type: "offer", status: "active", escrowOfferId: { $ne: null } })
+    .select("_id escrowOfferId")
+    .lean();
+
+  let closed = 0;
+  for (const bid of open) {
+    const remaining = (await client.readContract({
+      address: escrow,
+      abi: [
+        {
+          type: "function",
+          name: "escrowOf",
+          stateMutability: "view",
+          inputs: [{ name: "offerId", type: "uint256" }],
+          outputs: [{ type: "uint256" }],
+        },
+      ] as const,
+      functionName: "escrowOf",
+      args: [BigInt(String(bid.escrowOfferId))],
+    })) as bigint;
+    if (remaining > BigInt(0)) continue;
+    await Bid.updateOne({ _id: bid._id }, { status: "accepted" });
+    closed += 1;
+  }
+  return { closed };
+}
+
 export async function expireLegacyOffers() {
   const [bids, collectionOffers] = await Promise.all([
     Bid.updateMany(

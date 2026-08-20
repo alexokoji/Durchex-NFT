@@ -1,7 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { connectDB } from "@/lib/db";
 import { getCurrentAdmin } from "@/lib/auth/currentAdmin";
-import { expireLegacyOffers, recomputeStats, repairListingFills } from "@/lib/recomputeStats";
+import {
+  closeSpentEscrowOffers,
+  expireLegacyOffers,
+  recomputeStats,
+  repairListingFills,
+} from "@/lib/recomputeStats";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -25,11 +30,12 @@ export async function POST(req: NextRequest) {
   await connectDB();
   try {
     const expired = await expireLegacyOffers();
+    const spent = await closeSpentEscrowOffers(chainId);
     // Listing fills first: the floor recomputed below depends on which
     // listings still have units left.
     const listings = await repairListingFills(chainId);
     const stats = await recomputeStats();
-    return NextResponse.json({ expired, listings, ...stats });
+    return NextResponse.json({ expired, spent, listings, ...stats });
   } catch (err) {
     return NextResponse.json(
       { error: err instanceof Error ? err.message : "Recompute failed" },

@@ -112,12 +112,20 @@ export async function verifyAndSyncOfferFill({
   const qty = Number(quantity);
   const priceEth = Number(formatEther(totalPrice));
 
-  // Which kind of offer was this? A Bid carrying this nonce means it was a
-  // per-item NFT offer; otherwise it's a collection-wide one.
-  const bid = await Bid.findOne({ nonce: nonce.toString(), buyerAddress: buyer.toLowerCase(), type: "offer" });
+  // Which offer was this? An escrowed offer is identified by the id in its
+  // fill event; a legacy signature offer by the nonce it was signed with.
+  // Matching only on nonce meant an escrowed fill found nothing and the
+  // offer was never closed — so a sold offer kept showing "Accept" to the
+  // next holder who looked at it.
+  const escrowOfferId = args.offerId !== undefined ? String(args.offerId) : null;
+  const bid = escrowOfferId
+    ? await Bid.findOne({ escrowOfferId, type: "offer" })
+    : await Bid.findOne({ nonce: nonce.toString(), buyerAddress: buyer.toLowerCase(), type: "offer" });
   const collectionOffer = bid
     ? null
-    : await CollectionOffer.findOne({ nonce: nonce.toString(), buyerAddress: buyer.toLowerCase() });
+    : escrowOfferId
+      ? await CollectionOffer.findOne({ escrowOfferId })
+      : await CollectionOffer.findOne({ nonce: nonce.toString(), buyerAddress: buyer.toLowerCase() });
   const saleType = bid ? "NFT_OFFER" : "COLLECTION_OFFER";
 
   if (item.standard === "ERC1155") {

@@ -660,7 +660,11 @@ export async function getItemOffers(itemId: string): Promise<BidView[]> {
   const now = new Date();
 
   const [docs, collectionOffers] = await Promise.all([
-    Bid.find({ item: itemId, status: { $ne: "cancelled" } })
+    // Only offers someone could actually act on, plus accepted ones so the
+    // row can show what happened. Excluding by "not cancelled" let expired
+    // offers through — which is how retired WETH offers stayed on the list
+    // advertising a price nobody could get.
+    Bid.find({ item: itemId, status: { $in: ["active", "accepted"] } })
       .sort({ amountEth: -1, createdAt: -1 })
       .populate("bidder")
       .lean(),

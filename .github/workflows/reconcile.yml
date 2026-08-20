@@ -1,0 +1,56 @@
+name: Reconcile chain state
+
+# Vercel's Hobby plan allows one cron run a day, which is why every missed
+# sale, offer and listing fill so far has needed a manual repair. GitHub
+# Actions runs this every fifteen minutes at no cost, so the database
+# catches up with the chain on its own.
+#
+# Scheduled runs are best-effort — GitHub delays them under load, and
+# disables schedules on a repository with no activity for 60 days. Neither
+# matters much here: every pass is idempotent, so a late run repairs the
+# same things a punctual one would.
+on:
+  schedule:
+    - cron: "*/15 * * * *"
+  # So it can be run on demand from the Actions tab without waiting.
+  workflow_dispatch:
+
+# A long run must never overlap the next tick and race it.
+concurrency:
+  group: reconcile
+  cancel-in-progress: false
+
+jobs:
+  reconcile:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Reconcile Ethereum mainnet
+        env:
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          if [ -z "$CRON_SECRET" ]; then
+            echo "CRON_SECRET is not set on this repository — add it under Settings › Secrets and variables › Actions."
+            exit 1
+          fi
+
+          response=$(curl -sS --max-time 120 -w '\n%{http_code}' \
+            -H "Authorization: Bearer $CRON_SECRET" \
+            "https://www.durchex.com/api/cron/reconcile-all?chainId=1")
+
+          body=$(printf '%s' "$response" | sed '$d')
+          status=$(printf '%s' "$response" | tail -n1)
+
+          echo "$body"
+
+          # A non-200, or a run where some step failed, should turn the
+          # workflow red — a silent failure here is how drift accumulated
+          # in the first place.
+          if [ "$status" != "200" ]; then
+            echo "Reconcile returned HTTP $status"
+            exit 1
+          fi
+          if printf '%s' "$body" | grep -q '"ok":false'; then
+            echo "At least one reconcile step failed"
+            exit 1
+          fi
