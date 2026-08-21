@@ -40,7 +40,7 @@ export default async function ItemDetailPage({ params }: PageProps) {
   const topOffer = offers.find((o) => o.type === "offer" && o.status === "active") ?? null;
 
   return (
-    <div className="max-w-7xl mx-auto px-6 py-10">
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6 sm:py-10">
       <LiveRefresh />
       <div className="flex items-center gap-1.5 text-sm text-white/40 mb-6">
         <Link href="/explore" className="hover:text-white transition">
@@ -61,13 +61,20 @@ export default async function ItemDetailPage({ params }: PageProps) {
           that moves. `items-start` is what lets the sticky child work; a
           stretched grid item is already full height and has nothing to
           stick within. */}
-      <div className="grid lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)] gap-10 items-start">
-        <div className="lg:sticky lg:top-24">
+      <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)] gap-8 lg:gap-10 items-start">
+        <div className="min-w-0 lg:sticky lg:top-24">
           <MediaPanel seedKey={item.id} url={item.mediaUrl} type={item.mediaType} alt={item.name} />
         </div>
 
-        <div>
-          <h1 className="font-display text-3xl font-semibold text-white mb-2">{item.name}</h1>
+        {/* min-w-0 is load-bearing. A grid item refuses to shrink below its
+            content's min-content width, and the activity table inside sets
+            a 38rem minimum — so the column stayed 568px wide inside a 327px
+            grid and pushed the whole page sideways on a phone. Every
+            breakpoint fix before this was invisible for that reason. */}
+        <div className="min-w-0">
+          <h1 className="font-display text-2xl sm:text-3xl font-semibold text-white mb-2 break-words">
+            {item.name}
+          </h1>
 
           <div className="flex items-center gap-2 mb-3">
             <Link
