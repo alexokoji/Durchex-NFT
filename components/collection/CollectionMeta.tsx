@@ -106,12 +106,12 @@ function Countdown({ target }: { target: Date }) {
   ];
 
   return (
-    <div className="mt-6 flex items-center gap-3 sm:gap-4">
+    <div className="mt-6 flex flex-wrap items-center gap-2 sm:gap-4">
       <span className="font-mono text-[11px] uppercase tracking-wide text-white/40 max-w-[4.5rem] leading-tight">
         Minting in
       </span>
       {parts.map((part) => (
-        <div key={part.label} className="surface-card px-3 sm:px-4 py-2.5 text-center min-w-[4.25rem]">
+        <div key={part.label} className="surface-card px-2.5 sm:px-4 py-2 sm:py-2.5 text-center min-w-[3.5rem] sm:min-w-[4.25rem]">
           <div className="font-mono text-xl sm:text-2xl font-semibold text-white tabular-nums">{part.value}</div>
           <div className="font-mono text-[10px] tracking-wide text-white/35">{part.label}</div>
         </div>

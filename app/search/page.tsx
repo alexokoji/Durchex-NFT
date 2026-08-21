@@ -44,7 +44,7 @@ export default async function SearchPage({ searchParams }: PageProps) {
       {results.collections.length > 0 && (
         <section className="mb-12">
           <h2 className="text-lg font-semibold text-white mb-4">Collections</h2>
-          <div className="flex gap-5 overflow-x-auto pb-2 -mx-1 px-1">
+          <div className="flex gap-5 overflow-x-auto pb-2 px-1">
             {results.collections.map((c) => (
               <CollectionCard key={c.id} collection={c} />
             ))}

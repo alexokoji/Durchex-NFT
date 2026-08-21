@@ -151,3 +151,13 @@ body {
   backdrop-filter: blur(20px) saturate(140%);
   -webkit-backdrop-filter: blur(20px) saturate(140%);
 }
+
+/* One stray wide element shouldn't let the whole page slide sideways on a
+   phone. `clip` rather than `hidden`: hidden makes the body a scroll
+   container, which silently breaks every position:sticky inside it — the
+   header and the item page's image column both depend on that. */
+html,
+body {
+  overflow-x: clip;
+  max-width: 100%;
+}

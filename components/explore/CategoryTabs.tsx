@@ -24,7 +24,7 @@ export function CategoryTabs({
   const categories = Object.keys(CATEGORY_LABELS) as CategoryKey[];
 
   return (
-    <div className="flex gap-2 overflow-x-auto pb-1 -mx-1 px-1">
+    <div className="flex gap-2 overflow-x-auto pb-1 px-1">
       <Link
         href={buildHref(base, undefined)}
         className={clsx(

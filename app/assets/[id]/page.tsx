@@ -151,7 +151,7 @@ export default async function ItemDetailPage({ params }: PageProps) {
           <h2 className="font-display text-2xl font-semibold text-white mb-6">
             More from {item.collectionName}
           </h2>
-          <div className="flex gap-5 overflow-x-auto pb-4 -mx-1 px-1">
+          <div className="flex gap-5 overflow-x-auto pb-4 px-1">
             {related.map((r) => (
               <div key={r.id} className="w-56 shrink-0">
                 <NFTCard item={r} />
