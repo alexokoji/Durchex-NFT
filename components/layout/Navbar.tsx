@@ -12,11 +12,15 @@ import { NotificationBell } from "@/components/notifications/NotificationBell";
 import { SearchBox } from "@/components/layout/SearchBox";
 import { LogoMark } from "@/components/layout/Logo";
 
+// Wallet Checker is deliberately absent: it only matters while an
+// allowlist is being run, and a permanent link to it the rest of the time
+// is a dead end for almost everyone. The page itself is untouched at
+// /wallet-checker, and admins still reach it from Admin › Wallet Checker,
+// so putting it back is a one-line change rather than a rebuild.
 const NAV_LINKS = [
   { href: "/explore", label: "Explore" },
   { href: "/rankings", label: "Rankings" },
   { href: "/drops", label: "Drops" },
-  { href: "/wallet-checker", label: "Wallet Checker" },
   { href: "/stats", label: "Stats" },
   { href: "/creator", label: "Creator Studio" },
 ];
