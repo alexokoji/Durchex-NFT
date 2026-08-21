@@ -2,7 +2,6 @@ import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
 import { Navbar } from "@/components/layout/Navbar";
-import { Footer } from "@/components/layout/Footer";
 import { StatusBar } from "@/components/layout/StatusBar";
 import { Web3Providers } from "@/components/providers/Web3Providers";
 import { CurrencyProvider } from "@/components/providers/CurrencyProvider";
@@ -39,7 +38,6 @@ export default function RootLayout({
           <AutoAuthGate />
           <Navbar />
           <main className="flex-1">{children}</main>
-          <Footer />
           <StatusBar />
           </CurrencyProvider>
         </Web3Providers>

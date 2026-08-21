@@ -95,16 +95,28 @@ export function NFTCard({ item }: { item: ItemView }) {
         <div className="flex items-end justify-between">
           <div>
             <div className="text-[10px] text-white/40 mb-0.5">
-              {isAuction ? "Highest bid" : isListed ? "Price" : hasSaleHistory ? "Last sale" : "Not listed"}
+              {/* What you could pay now beats what someone else paid
+                  before: the floor is the decision in front of a browser,
+                  last sale is history. It only falls back to history when
+                  there is nothing to buy. */}
+              {isAuction
+                ? "Highest bid"
+                : isListed
+                  ? "Price"
+                  : item.floorEth
+                    ? "Floor"
+                    : hasSaleHistory
+                      ? "Last sale"
+                      : "Not listed"}
             </div>
-            {isListed || hasSaleHistory ? (
+            {isListed || item.floorEth || hasSaleHistory ? (
               <div className="text-sm font-bold text-white tabular-nums">
                 {format(
                   isAuction
                     ? item.highestBidEth ?? item.priceEth
                     : isListed
                       ? item.priceEth
-                      : item.lastSalePriceEth
+                      : (item.floorEth ?? item.lastSalePriceEth)
                 )}
               </div>
             ) : (

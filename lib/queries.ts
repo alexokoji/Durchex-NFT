@@ -181,7 +181,7 @@ export async function getPlatformStats() {
   // contributes what it actually traded.
   const [saleAgg] = await Activity.aggregate([
     { $match: { type: "sale", priceEth: { $gt: 0 } } },
-    { $group: { _id: null, volume: { $sum: { $multiply: ["$priceEth", { $ifNull: ["$quantity", 1] }] } } } },
+    { $group: { _id: null, volume: { $sum: "$priceEth" } } },
   ]);
 
   return {
@@ -202,6 +202,43 @@ export interface ExploreFilters {
   traits?: Record<string, string[]>; // trait_type -> selected values, collection pages only
   page?: number;
   pageSize?: number;
+}
+
+/**
+ * Cheapest live listing per item, for a batch of items.
+ *
+ * A card showing "last sale" tells a browser what someone else paid,
+ * which is history; the floor tells them what they could pay now, which
+ * is the decision in front of them. Resolved in one query for the whole
+ * grid rather than per card.
+ */
+async function floorByItem(itemIds: Types.ObjectId[]): Promise<Map<string, number>> {
+  const out = new Map<string, number>();
+  if (itemIds.length === 0) return out;
+
+  const listings = await Listing.find({ item: { $in: itemIds }, status: "active" })
+    .select("item pricePerUnitEth quantity filledQuantity signature deadline status")
+    .lean();
+  for (const l of listings) {
+    const ask = fillableListingAsk(l as never);
+    if (ask === null) continue;
+    const key = String(l.item);
+    const current = out.get(key);
+    if (current === undefined || ask < current) out.set(key, ask);
+  }
+
+  // An ERC-721's own ask lives on the Item rather than in Listing.
+  const items = await Item.find({ _id: { $in: itemIds }, status: "fixed_price" })
+    .select("standard status isMinted priceEth voucher listing editionVoucher totalSupply mintedSupply")
+    .lean();
+  for (const item of items) {
+    const ask = fillableItemAsk(item as never);
+    if (ask === null) continue;
+    const key = String(item._id);
+    const current = out.get(key);
+    if (current === undefined || ask < current) out.set(key, ask);
+  }
+  return out;
 }
 
 export async function getExploreItems(filters: ExploreFilters) {
@@ -266,8 +303,11 @@ export async function getExploreItems(filters: ExploreFilters) {
     Item.countDocuments(visibleMatch),
   ]);
 
+  const visible = visibleItems(docs);
+  const floors = await floorByItem(visible.map((d) => d._id as Types.ObjectId));
+
   return {
-    items: docs.filter((d) => d.collection).map((d) => toItemView(d as never)),
+    items: visible.map((d) => toItemView({ ...d, floorEth: floors.get(String(d._id)) ?? null } as never)),
     total,
     page,
     pageSize,
@@ -922,7 +962,8 @@ export async function getVolumeSeries(days = 14): Promise<{ date: string; volume
     {
       $group: {
         _id: { $dateToString: { format: "%Y-%m-%d", date: "$createdAt" } },
-        volumeEth: { $sum: { $multiply: ["$priceEth", { $ifNull: ["$quantity", 1] }] } },
+        // Already a lot total; see lib/recomputeStats.ts.
+        volumeEth: { $sum: "$priceEth" },
         sales: { $sum: 1 },
       },
     },

@@ -15,6 +15,21 @@ const VOLUME_LABEL: Record<RankingsTimeframe, string> = {
   all: "All-time volume",
 };
 
+/**
+ * A day-on-day change, written so it can be read at a glance.
+ *
+ * Percentages stop being legible somewhere past a few hundred: a
+ * collection that traded almost nothing yesterday and a lot today
+ * genuinely is up eleven thousand percent, and printing that reads as a
+ * bug rather than a number. Past 1000% it becomes a multiple, which is
+ * how anyone would say it out loud.
+ */
+function changeLabel(pct: number): string {
+  const abs = Math.abs(pct);
+  if (abs >= 1000) return `${(abs / 100).toFixed(abs >= 10000 ? 0 : 1)}×`;
+  return `${abs.toFixed(1)}%`;
+}
+
 function volumeFor(c: CollectionDetailView, timeframe: RankingsTimeframe) {
   return timeframe === "24h" ? c.volume24hEth : timeframe === "7d" ? c.volume7dEth : c.totalVolumeEth;
 }
@@ -118,8 +133,8 @@ export function RankingsTable({
                     </span>
                     {c.volumeChangePct !== 0 && (
                       <span className={up ? "text-success" : "text-danger"}>
-                        {up ? "+" : ""}
-                        {c.volumeChangePct.toFixed(1)}%
+                        {up ? "+" : "−"}
+                        {changeLabel(c.volumeChangePct)}
                       </span>
                     )}
                   </span>
@@ -147,7 +162,7 @@ export function RankingsTable({
                     ) : (
                       <TrendingDown className="w-3.5 h-3.5" />
                     )}
-                    {Math.abs(c.volumeChangePct).toFixed(1)}%
+                    {changeLabel(c.volumeChangePct)}
                   </>
                 )}
               </span>

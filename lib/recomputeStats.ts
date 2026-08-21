@@ -69,7 +69,12 @@ export async function recomputeStats(): Promise<StatsRecomputeResult> {
         {
           $group: {
             _id: null,
-            volume: { $sum: { $multiply: ["$priceEth", { $ifNull: ["$quantity", 1] }] } },
+            // priceEth on a sale is already the total paid for the lot —
+            // an ERC-1155 row stores the lot total with the unit count
+            // beside it — so multiplying by quantity counts a bulk
+            // purchase once per unit. That inflated total volume roughly
+            // tenfold.
+            volume: { $sum: "$priceEth" },
             sales: { $sum: 1 },
           },
         },
@@ -94,7 +99,7 @@ export async function recomputeStats(): Promise<StatsRecomputeResult> {
         {
           $group: {
             _id: null,
-            volume: { $sum: { $multiply: ["$priceEth", { $ifNull: ["$quantity", 1] }] } },
+            volume: { $sum: "$priceEth" },
           },
         },
       ]);

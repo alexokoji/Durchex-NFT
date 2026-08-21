@@ -19,6 +19,9 @@ export interface ItemView {
   // What this item last actually sold for, distinct from priceEth (the
   // current listing ask, 0 when not listed). Null until a sale settles.
   lastSalePriceEth: number | null;
+  /** Cheapest live listing of this token, or null when nothing is listed.
+   *  Distinct from priceEth, which is only this item's own ask. */
+  floorEth: number | null;
   isMinted: boolean;
   status: "fixed_price" | "auction" | "sold" | "not_listed";
   standard: "ERC721" | "ERC1155";

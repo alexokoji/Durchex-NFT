@@ -39,6 +39,7 @@ interface ItemLike {
   standard?: string;
   priceEth: number;
   lastSalePriceEth?: number | null;
+  floorEth?: number | null;
   highestBidEth: number;
   auctionEndsAt: Date | string | null;
   favoriteCount: number;
@@ -230,6 +231,7 @@ export function toItemView(item: ItemLike): ItemView {
     priceEth: item.priceEth,
     priceUsd: item.priceEth * ETH_USD,
     lastSalePriceEth: item.lastSalePriceEth ?? null,
+    floorEth: item.floorEth ?? null,
     isMinted: item.isMinted,
     status: item.status as ItemView["status"],
     standard: (item.standard as ItemView["standard"]) ?? "ERC721",
