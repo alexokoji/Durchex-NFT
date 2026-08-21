@@ -52,7 +52,15 @@ export function StatusBar() {
   }, [open]);
 
   return (
-    <div className="fixed bottom-0 inset-x-0 z-40 chrome-panel border-t border-white/8">
+    <>
+      {/* Content scrolls underneath a fixed bar and collides with its edge.
+          Padding at the end of the document doesn't help mid-scroll; a
+          short fade above the bar is what separates the two. */}
+      <div
+        aria-hidden
+        className="fixed bottom-10 inset-x-0 z-40 h-6 pointer-events-none bg-gradient-to-t from-void to-transparent"
+      />
+      <div className="fixed bottom-0 inset-x-0 z-40 chrome-panel border-t border-white/8">
       <div className="max-w-7xl mx-auto px-3 sm:px-6 h-10 flex items-center justify-between gap-3 text-[11px] text-white/45">
         <div className="flex items-center gap-3 sm:gap-4 min-w-0">
           <span className="flex items-center gap-1.5 shrink-0">
@@ -127,7 +135,8 @@ export function StatusBar() {
           ))}
           <CurrencyToggle />
         </div>
+        </div>
       </div>
-    </div>
+    </>
   );
 }
