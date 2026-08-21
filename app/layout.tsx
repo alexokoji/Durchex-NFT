@@ -32,7 +32,7 @@ export default function RootLayout({
           rel="stylesheet"
         />
       </head>
-      <body className="min-h-full flex flex-col bg-void text-white pb-10">
+      <body className="min-h-full flex flex-col bg-void text-white pb-16 sm:pb-20">
         <Web3Providers>
           <CurrencyProvider>
           <AutoAuthGate />

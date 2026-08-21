@@ -18,9 +18,10 @@ export function Hero({
   // generated art when the marketplace doesn't have three yet. Decorative
   // only: no links, no alt text worth reading, aria-hidden.
   const cards = [0, 1, 2].map((i) => collections[i] ?? null);
+  const { format } = useCurrency();
   return (
     <section className="relative overflow-hidden bg-mesh border-b border-white/5">
-      <div className="max-w-7xl mx-auto px-6 pt-16 pb-20 sm:pt-24 sm:pb-28 grid lg:grid-cols-2 gap-12 items-center">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 pt-12 pb-14 sm:pt-24 sm:pb-28 grid lg:grid-cols-2 gap-10 lg:gap-12 items-center">
         <div>
           <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/5 border border-purple-500/30 text-xs font-medium text-purple-200 mb-6">
             <Sparkles className="w-3.5 h-3.5" />
@@ -45,7 +46,10 @@ export function Hero({
           </div>
 
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-6 max-w-lg">
-            <StatMini label="Total Volume" value={`${stats.totalVolumeEth.toFixed(0)}`} suffix="ETH" />
+            {/* Formatted, not rounded to whole ETH: a marketplace trading
+                fractions showed "0 ETH" and looked broken rather than
+                small. */}
+            <StatMini label="Total Volume" value={format(stats.totalVolumeEth, { decimals: 3 })} />
             <StatMini label="Items" value={stats.totalItems.toLocaleString()} />
             <StatMini label="Collections" value={stats.collections.toString()} />
             <StatMini label="Owners" value={stats.totalOwners.toLocaleString()} />
