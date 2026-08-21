@@ -1,6 +1,7 @@
 "use client";
 
 import { createContext, useContext, useEffect, useMemo, useState } from "react";
+import { formatEthAmount } from "@/lib/formatEth";
 
 export type Currency = "ETH" | "USD";
 
@@ -15,27 +16,6 @@ type CurrencyContext = {
 
 const Ctx = createContext<CurrencyContext | null>(null);
 
-/**
- * ETH to a fixed number of decimals — two by default, the way prices read
- * everywhere before the currency toggle existed.
- *
- * With one exception, because rounding is not allowed to lie: a real price
- * that would render as "0.00" gets just enough precision to show a
- * non-zero figure. A mint at 0.000001 displaying as 0.00 ETH reads as
- * free, which is how a Buy Floor dialog ended up quoting "0.000 ETH".
- */
-function formatEthAmount(eth: number, decimals: number): string {
-  if (eth === 0) return "0";
-  const fixed = eth.toFixed(decimals);
-  if (Number(fixed) !== 0) return String(Number(fixed));
-  // Enough places to reach the first significant digit, then Number()
-  // trims the trailing zeros that padding leaves behind — 0.00080 is not
-  // how anyone writes eight ten-thousandths. toFixed rather than
-  // toPrecision because the latter returns exponent form on small
-  // numbers, which nobody reads as a price.
-  const places = Math.min(18, Math.max(decimals, -Math.floor(Math.log10(Math.abs(eth))) + 1));
-  return String(Number(eth.toFixed(places)));
-}
 const STORAGE_KEY = "durchex:currency";
 
 /**

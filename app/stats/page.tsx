@@ -4,6 +4,7 @@ import { StatWidget } from "@/components/nft/StatWidget";
 import { CategoryBreakdown } from "@/components/stats/CategoryBreakdown";
 import { RankingsTable } from "@/components/rankings/RankingsTable";
 import { Button } from "@/components/ui/Button";
+import { formatEthAmount } from "@/lib/formatEth";
 
 // Live marketplace data — never prerender a stale snapshot at build time.
 export const dynamic = "force-dynamic";
@@ -25,7 +26,7 @@ export default async function StatsPage() {
       <div className="surface-card p-6 grid grid-cols-2 sm:grid-cols-4 gap-6 mb-8">
         <StatWidget
           label="Total Volume"
-          value={stats.totalVolumeEth.toFixed(0)}
+          value={formatEthAmount(stats.totalVolumeEth, 3)}
           suffix="ETH"
           icon={<Coins className="w-4 h-4" />}
         />

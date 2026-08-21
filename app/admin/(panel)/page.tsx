@@ -4,6 +4,7 @@ import { User } from "@/lib/models/User";
 import { Collection } from "@/lib/models/Collection";
 import { Item } from "@/lib/models/Item";
 import { Report } from "@/lib/models/Report";
+import { formatEth } from "@/lib/formatEth";
 
 export const dynamic = "force-dynamic";
 
@@ -35,7 +36,7 @@ export default async function AdminOverviewPage() {
     { label: "Items", value: stats.itemCount, icon: Package },
     { label: "Open reports", value: stats.openReportCount, icon: ShieldAlert, alert: stats.openReportCount > 0 },
     { label: "Banned users", value: stats.bannedUserCount, icon: Ban },
-    { label: "Total volume", value: `${stats.totalVolumeEth.toFixed(2)} ETH`, icon: TrendingUp },
+    { label: "Total volume", value: formatEth(stats.totalVolumeEth, 3), icon: TrendingUp },
   ];
 
   return (

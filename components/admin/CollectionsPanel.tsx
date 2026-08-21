@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { Search, Loader2, Trash2 } from "lucide-react";
+import { formatEth } from "@/lib/formatEth";
 
 type Row = {
   _id: string;
@@ -129,7 +130,7 @@ export function CollectionsPanel() {
                   </td>
                   <td className="px-4 py-3 text-white/60">{row.stats?.items ?? 0}</td>
                   <td className="px-4 py-3 text-white/60">{row.stats?.owners ?? 0}</td>
-                  <td className="px-4 py-3 text-white/60">{(row.stats?.totalVolumeEth ?? 0).toFixed(2)} ETH</td>
+                  <td className="px-4 py-3 text-white/60">{formatEth(row.stats?.totalVolumeEth ?? 0, 3)}</td>
                   <td className="px-4 py-3">
                     <input
                       type="number"
