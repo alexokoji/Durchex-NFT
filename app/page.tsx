@@ -1,5 +1,6 @@
 import { Hero } from "@/components/home/Hero";
 import { TrendingCollections } from "@/components/home/TrendingCollections";
+import { VolumeChart } from "@/components/home/VolumeChart";
 import { LiveAuctions } from "@/components/home/LiveAuctions";
 import { TopCreators } from "@/components/home/TopCreators";
 import { FeaturedDrops } from "@/components/home/FeaturedDrops";
@@ -14,6 +15,7 @@ import {
   getPlatformStats,
   getCategoryCounts,
   getDrops,
+  getVolumeSeries,
 } from "@/lib/queries";
 import { getCurrentUserFromCookies } from "@/lib/auth/currentUser";
 import { LiveRefresh } from "@/components/providers/LiveRefresh";
@@ -25,19 +27,21 @@ export const dynamic = "force-dynamic";
 
 export default async function Home() {
   const user = await getCurrentUserFromCookies();
-  const [collections, auctions, creators, stats, categoryCounts, drops] = await Promise.all([
+  const [collections, auctions, creators, stats, categoryCounts, drops, volumeSeries] = await Promise.all([
     getTrendingCollections(),
     getLiveAuctions(),
     getTopCreators(),
     getPlatformStats(),
     getCategoryCounts(),
     getDrops(user ? String(user._id) : undefined),
+    getVolumeSeries(14),
   ]);
 
   return (
     <div>
       <LiveRefresh />
       <Hero stats={stats} collections={collections} />
+      <VolumeChart series={volumeSeries} />
       <TrendingCollections collections={collections} />
       <LiveAuctions items={auctions} />
       <TopCreators creators={creators} />

@@ -77,6 +77,30 @@ export async function recomputeStats(): Promise<StatsRecomputeResult> {
       return { volume: row?.volume ?? 0, sales: row?.sales ?? 0 };
     };
 
+    // The previous 24h, so "change" can be a real comparison. It was
+    // never computed at all — the field defaulted to zero and every
+    // collection reported a flat 0.0% forever, which reads as a measured
+    // result rather than a missing one.
+    const prevDay = await (async () => {
+      const [row] = await Activity.aggregate([
+        {
+          $match: {
+            item: { $in: itemIds },
+            type: "sale",
+            priceEth: { $gt: 0 },
+            createdAt: { $gte: new Date(now - 48 * 60 * 60 * 1000), $lt: since24h },
+          },
+        },
+        {
+          $group: {
+            _id: null,
+            volume: { $sum: { $multiply: ["$priceEth", { $ifNull: ["$quantity", 1] }] } },
+          },
+        },
+      ]);
+      return row?.volume ?? 0;
+    })();
+
     const [all, day, week, progress] = await Promise.all([
       volumeOf(),
       volumeOf(since24h),
@@ -92,6 +116,9 @@ export async function recomputeStats(): Promise<StatsRecomputeResult> {
         "stats.volume7dEth": week.volume,
         "stats.sales": all.sales,
         "stats.items": itemIds.length,
+        // No trade yesterday means there is no baseline to move from, so
+        // the change is zero rather than an infinite jump.
+        "stats.volumeChangePct": prevDay > 0 ? ((day.volume - prevDay) / prevDay) * 100 : 0,
       }
     );
     // The old single-value baseline was captured under a different

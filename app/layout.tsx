@@ -3,6 +3,7 @@ import { Inter } from "next/font/google";
 import "./globals.css";
 import { Navbar } from "@/components/layout/Navbar";
 import { Footer } from "@/components/layout/Footer";
+import { StatusBar } from "@/components/layout/StatusBar";
 import { Web3Providers } from "@/components/providers/Web3Providers";
 import { CurrencyProvider } from "@/components/providers/CurrencyProvider";
 import { AutoAuthGate } from "@/components/wallet/AutoAuthGate";
@@ -32,13 +33,14 @@ export default function RootLayout({
           rel="stylesheet"
         />
       </head>
-      <body className="min-h-full flex flex-col bg-void text-white">
+      <body className="min-h-full flex flex-col bg-void text-white pb-10">
         <Web3Providers>
           <CurrencyProvider>
           <AutoAuthGate />
           <Navbar />
           <main className="flex-1">{children}</main>
           <Footer />
+          <StatusBar />
           </CurrencyProvider>
         </Web3Providers>
       </body>

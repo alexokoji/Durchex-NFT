@@ -47,7 +47,7 @@ export function Navbar() {
           New drop: <span className="font-semibold text-white">{liveDrop.name}</span> mints live now — real lazy-minted, zero gas to list.
         </Link>
       )}
-      <nav className="glass-panel border-b border-white/5">
+      <nav className="chrome-panel border-b border-white/8">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between gap-4">
           <Link href="/" className="flex items-center gap-2 shrink-0">
             <LogoMark className="w-8 h-8" />

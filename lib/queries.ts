@@ -902,3 +902,39 @@ export async function getCollectionSummary(collectionId: string): Promise<{
     totalVolumeEth: doc.stats?.totalVolumeEth ?? 0,
   };
 }
+
+/**
+ * Daily traded volume across the marketplace, for the home page chart.
+ *
+ * Built from settled sales rather than a stored series, so it reflects
+ * every sale a reconciler recovered as well as the ones recorded live.
+ * Days with no trades are included as zero — leaving them out would let a
+ * quiet week render as a straight line between two distant points and
+ * look like steady activity.
+ */
+export async function getVolumeSeries(days = 14): Promise<{ date: string; volumeEth: number; sales: number }[]> {
+  await connectDB();
+  const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+  since.setHours(0, 0, 0, 0);
+
+  const rows = await Activity.aggregate([
+    { $match: { type: "sale", priceEth: { $gt: 0 }, createdAt: { $gte: since } } },
+    {
+      $group: {
+        _id: { $dateToString: { format: "%Y-%m-%d", date: "$createdAt" } },
+        volumeEth: { $sum: { $multiply: ["$priceEth", { $ifNull: ["$quantity", 1] }] } },
+        sales: { $sum: 1 },
+      },
+    },
+  ]);
+  const byDate = new Map(rows.map((r) => [r._id as string, r]));
+
+  const series: { date: string; volumeEth: number; sales: number }[] = [];
+  for (let i = days - 1; i >= 0; i -= 1) {
+    const d = new Date(Date.now() - i * 24 * 60 * 60 * 1000);
+    const key = d.toISOString().slice(0, 10);
+    const row = byDate.get(key);
+    series.push({ date: key, volumeEth: row?.volumeEth ?? 0, sales: row?.sales ?? 0 });
+  }
+  return series;
+}

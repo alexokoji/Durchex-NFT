@@ -1,8 +1,6 @@
 import Link from "next/link";
 import { LogoMark } from "@/components/layout/Logo";
 
-import { CurrencyToggle } from "@/components/ui/CurrencyToggle";
-
 const SOCIALS = [
   { label: "Durchex on X", href: "https://x.com/DurchExc", Icon: XIcon },
   { label: "Durchex on Discord", href: "https://discord.gg/VbRVnUS5wn", Icon: DiscordIcon },
@@ -95,15 +93,6 @@ export function Footer() {
             </ul>
           </div>
         ))}
-      </div>
-      <div className="border-t border-white/5">
-        <div className="max-w-7xl mx-auto px-6 py-5 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-white/40">
-          <span>© {new Date().getFullYear()} Durchex. All rights reserved.</span>
-          <div className="flex items-center gap-2">
-            <span className="text-white/30">Show prices in</span>
-            <CurrencyToggle />
-          </div>
-        </div>
       </div>
     </footer>
   );
