@@ -85,6 +85,10 @@ const ItemSchema = new Schema(
       deadline: String,
       nonce: String,
       signature: String,
+      // Which marketplace this signature authorizes — see the same field on
+      // Listing. A listing signed against a superseded marketplace cannot
+      // be filled, and null means it predates this field.
+      marketplace: String,
     },
   },
   { timestamps: true, suppressReservedKeysWarning: true }

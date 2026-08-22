@@ -7,6 +7,7 @@ import { ItemBalance } from "@/lib/models/ItemBalance";
 import { Listing } from "@/lib/models/Listing";
 import { getCurrentUser } from "@/lib/auth/currentUser";
 import { recalculateCollectionFloor } from "@/lib/floorPrice";
+import { marketplaceAddressFor } from "@/lib/web3/marketplaceAbi";
 
 // ERC-1155 resale listings live in their own collection (not embedded on
 // Item, unlike ERC-721) because several holders can each list part of
@@ -146,6 +147,9 @@ export async function POST(req: NextRequest, context: { params: Promise<{ id: st
     deadline: listingData.deadline && Number(listingData.deadline) > 0 ? new Date(Number(listingData.deadline) * 1000) : null,
     nonce: String(listingData.nonce),
     signature: body.signature,
+    // See the same field on the ERC-721 path: EIP-712 binds the signature
+    // to one marketplace, so record which.
+    marketplace: marketplaceAddressFor(collection?.chainId) ?? null,
     status: "active",
   });
 

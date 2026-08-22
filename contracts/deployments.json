@@ -21,15 +21,17 @@
     "chainId": 1,
     "DurchexNFT": "0x35A25Cd37b62F7896263cf1bA27727b90bd0a3a1",
     "DurchexNFT1155": "0xe353063FA269752F9487AF3E4af7800122a0b0a0",
-    "DurchexMarketplace": "0x42C971DAab6942f80c531675BB4Bf1cF57d30d05",
+    "DurchexMarketplace": "0x2Cd081112d1e2f5eE033D7D3Ee313D9Ff5ADdF56",
     "feeRecipient": "0xf1b1f1410D82Bb5e4bc775a6DdFba895E396314d",
-    "deployedAt": "2026-08-18T10:57:39.627Z",
+    "deployedAt": "2026-08-22T11:37:01.195Z",
     "DurchexOffers": "0x6c25bdD92906eb97601410198D398526bA792468",
     "paymentToken": "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2",
     "DurchexCollectionFactory": "0xc4cbC3A2f1ef10F5A4eD6651314812C3c7f09f76",
     "DurchexCollectionImplementation": "0x60AcD2CF1700490bA19645721f588420c2F4d0a0",
     "DurchexCollection1155Factory": "0x8Ca02Cda6E7AED9152c822a0A0Df1a91220768b2",
     "DurchexCollection1155Implementation": "0x9E1845f1da9D7F918539Bc72cC56d4Bb5EA3f38a",
-    "DurchexOffersEscrow": "0xA3fe086985201dea514D7E4656519Bed605A9d7E"
+    "DurchexOffersEscrow": "0xf0cC2e562FaF58B52ab6cd3650B3B4fA06230ef2",
+    "previousDurchexMarketplace": "0x42C971DAab6942f80c531675BB4Bf1cF57d30d05",
+    "previousDurchexOffersEscrow": "0xA3fe086985201dea514D7E4656519Bed605A9d7E"
   }
 }

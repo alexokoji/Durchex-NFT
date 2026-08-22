@@ -5,6 +5,7 @@ import { reconcileOffers } from "@/lib/web3/reconcileOffers";
 import {
   closeSpentEscrowOffers,
   expireLegacyOffers,
+  expireSupersededListings,
   recomputeStats,
   repairListingFills,
 } from "@/lib/recomputeStats";
@@ -84,6 +85,9 @@ export async function GET(req: NextRequest) {
   );
 
   steps.push(await step("legacyOffers", () => expireLegacyOffers()));
+  // Before listingFills and stats: a listing signed against a replaced
+  // marketplace cannot be filled, so it must stop counting as the floor.
+  steps.push(await step("supersededListings", () => expireSupersededListings(chainId)));
   steps.push(await step("spentOffers", () => closeSpentEscrowOffers(chainId)));
   steps.push(await step("listingFills", () => repairListingFills(chainId)));
 

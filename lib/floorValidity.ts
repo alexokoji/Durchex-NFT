@@ -1,3 +1,6 @@
+import { marketplaceAddressFor } from "@/lib/web3/marketplaceAbi";
+import { DEFAULT_NFT_CHAIN_ID } from "@/lib/web3/deployedContract";
+
 /**
  * What counts as a listing that can actually be filled right now.
  *
@@ -21,7 +24,8 @@ export type FloorItemLike = {
   mintedSupply?: number | null;
   voucher?: { signature?: string | null; deadline?: string | null } | null;
   editionVoucher?: { signature?: string | null; deadline?: string | null } | null;
-  listing?: { signature?: string | null; deadline?: string | null } | null;
+  listing?: { signature?: string | null; deadline?: string | null; marketplace?: string | null } | null;
+  chainId?: number;
 };
 
 export type FloorListingLike = {
@@ -31,7 +35,33 @@ export type FloorListingLike = {
   signature?: string | null;
   deadline?: Date | string | null;
   status?: string;
+  marketplace?: string | null;
+  chainId?: number;
 };
+
+/**
+ * Whether a listing's signature still authorizes the marketplace in use.
+ *
+ * EIP-712 binds a signature to one verifyingContract, so after a
+ * marketplace redeploy every listing signed against the old one recovers
+ * to the wrong signer and reverts. Those listings are not merely stale,
+ * they are unfillable, and counting one as the floor advertises a price no
+ * buyer can get — the exact failure this file exists to prevent.
+ *
+ * A null marketplace means the listing predates the field, which in
+ * practice means it was signed against the superseded contract.
+ */
+export function signedForCurrentMarketplace(
+  marketplace: string | null | undefined,
+  chainId?: number
+): boolean {
+  // Items carry no chain of their own — their collection does — so an
+  // absent one means the default chain rather than "unknown". Resolving it
+  // to undefined here would silently disable the whole check.
+  const current = marketplaceAddressFor(chainId ?? DEFAULT_NFT_CHAIN_ID);
+  if (!current) return true; // no marketplace configured; nothing to compare against
+  return !!marketplace && marketplace.toLowerCase() === current.toLowerCase();
+}
 
 /** Deadlines are unix seconds as strings; 0 means "no expiry". */
 function unexpired(deadline?: string | null): boolean {
@@ -66,7 +96,9 @@ export function fillableItemAsk(item: FloorItemLike): number | null {
   if (!item.isMinted) return null;
 
   const l = item.listing;
-  return l?.signature && unexpired(l.deadline) ? price : null;
+  if (!l?.signature || !unexpired(l.deadline)) return null;
+  if (!signedForCurrentMarketplace(l.marketplace, item.chainId)) return null;
+  return price;
 }
 
 /** Whether an ERC-1155 resale listing still has units anyone can buy. */
@@ -75,5 +107,6 @@ export function fillableListingAsk(listing: FloorListingLike): number | null {
   if (price <= 0 || listing.status !== "active" || !listing.signature) return null;
   if ((listing.filledQuantity ?? 0) >= (listing.quantity ?? 0)) return null;
   if (listing.deadline && new Date(listing.deadline) <= new Date()) return null;
+  if (!signedForCurrentMarketplace(listing.marketplace, listing.chainId)) return null;
   return price;
 }

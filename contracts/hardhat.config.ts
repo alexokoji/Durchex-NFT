@@ -63,6 +63,11 @@ const config: HardhatUserConfig = {
       url: MAINNET_RPC_URL,
       accounts: DEPLOYER_PRIVATE_KEY ? [DEPLOYER_PRIVATE_KEY] : [],
       chainId: 1,
+      // A contract deploy takes long enough that the default timeout can
+      // fire while the transaction is already mining. That is the worst
+      // possible failure — the script aborts believing nothing happened,
+      // while the deploy in fact succeeded and the gas is spent.
+      timeout: 180_000,
     },
   },
   etherscan: {

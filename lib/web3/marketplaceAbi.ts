@@ -144,7 +144,12 @@ export const ERC721_APPROVAL_ABI = [
 // calldata to a Sepolia item (and make server-side purchase verification
 // reject perfectly valid purchases on the other chain).
 export const MARKETPLACE_ADDRESSES: Record<number, `0x${string}`> = {
-  1: "0x42C971DAab6942f80c531675BB4Bf1cF57d30d05", // Ethereum mainnet
+  // Ethereum mainnet. Replaced 0x42C971DA… on 2026-08-22 to carry the
+  // per-token royalty override — GENESIS DURX's ERC-2981 receiver is a
+  // compromised wallet that cannot be changed on the NFT contract.
+  // Listing signatures are bound to this address, so every listing signed
+  // against the old one is dead and has to be re-signed.
+  1: "0x2Cd081112d1e2f5eE033D7D3Ee313D9Ff5ADdF56",
   11155111: "0x3f1Ef15a97BB939D4132339becD9305e3D7e011F", // Sepolia
 };
 

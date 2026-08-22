@@ -313,6 +313,43 @@ export async function closeSpentEscrowOffers(chainId: number) {
   return { closed };
 }
 
+/**
+ * Retires listings whose signature no longer authorizes anything.
+ *
+ * A listing is EIP-712-signed against one marketplace address. When the
+ * marketplace is replaced — as it was on 2026-08-22, to redirect a royalty
+ * away from a compromised receiver — every signature made against the old
+ * one recovers to the wrong signer and reverts. The listing is still in
+ * the database looking perfectly live, still setting the collection floor,
+ * and the only way a buyer finds out is a failed transaction.
+ *
+ * Runs from the reconciler rather than as a one-off migration so it heals
+ * whenever it needs to, including the next time a marketplace changes.
+ * A null marketplace means the listing predates the field, so it belongs
+ * to the old contract by definition.
+ */
+export async function expireSupersededListings(chainId: number) {
+  const current = marketplaceAddressFor(chainId);
+  if (!current) return { listings: 0, items: 0 };
+
+  const stale = { $nin: [current, current.toLowerCase(), current.toUpperCase()] };
+
+  const listings = await Listing.updateMany(
+    { status: { $in: ["active", "auction"] }, "marketplace": stale },
+    { status: "expired" }
+  );
+
+  // The ERC-721 equivalent lives embedded on the item, and clearing it has
+  // to take the derived display fields with it or the item keeps showing a
+  // price with nothing behind it.
+  const items = await Item.updateMany(
+    { status: "fixed_price", "listing.signature": { $ne: null }, "listing.marketplace": stale },
+    { $unset: { listing: 1 }, $set: { status: "not_for_sale", priceEth: 0 } }
+  );
+
+  return { listings: listings.modifiedCount, items: items.modifiedCount };
+}
+
 export async function expireLegacyOffers() {
   const [bids, collectionOffers] = await Promise.all([
     Bid.updateMany(

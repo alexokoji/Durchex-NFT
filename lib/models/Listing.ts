@@ -31,6 +31,13 @@ const ListingSchema = new Schema(
     // until the winner (and therefore the final price) is known. Filled in
     // by the settle step, which is what actually unlocks the on-chain buy.
     signature: { type: String, default: null },
+    // The marketplace this signature authorizes. EIP-712 binds a listing to
+    // one verifyingContract, so a listing signed against a superseded
+    // marketplace cannot be filled at all — the signature simply will not
+    // recover. Recorded so that is detectable instead of only showing up as
+    // a buyer's failed transaction. null means it predates this field,
+    // which in practice means the old contract.
+    marketplace: { type: String, default: null },
     status: {
       type: String,
       enum: ["active", "auction", "cancelled", "filled", "expired"],

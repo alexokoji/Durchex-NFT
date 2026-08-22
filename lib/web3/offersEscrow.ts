@@ -12,7 +12,11 @@
  * typed data to keep in step between contract and client.
  */
 export const OFFERS_ESCROW_ADDRESSES: Record<number, `0x${string}`> = {
-  1: "0xA3fe086985201dea514D7E4656519Bed605A9d7E", // Ethereum mainnet
+  // Ethereum mainnet. Replaced 0xA3fe0869… on 2026-08-22 alongside the
+  // marketplace, so an offer settles the royalty the same way a listing
+  // does. The old escrow held no deposits at the time, so nobody's ETH was
+  // stranded by the move; withdrawOffer on it stays available regardless.
+  1: "0xf0cC2e562FaF58B52ab6cd3650B3B4fA06230ef2",
 };
 
 export function offersEscrowAddressFor(chainId: number | undefined): `0x${string}` | undefined {

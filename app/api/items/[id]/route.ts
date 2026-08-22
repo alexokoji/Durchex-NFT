@@ -6,6 +6,7 @@ import { getCurrentUser } from "@/lib/auth/currentUser";
 import { recordActivity } from "@/lib/activity";
 import { recalculateCollectionFloor } from "@/lib/floorPrice";
 import { resaleClosedReason, resaleGateFor } from "@/lib/resaleGate";
+import { marketplaceAddressFor } from "@/lib/web3/marketplaceAbi";
 
 // Lists, relists, or cancels a listing. Lazy (unminted) items get their
 // initial listing price set at creation via the voucher, but their creator
@@ -85,6 +86,10 @@ export async function PATCH(req: NextRequest, context: { params: Promise<{ id: s
       deadline: String(listing.deadline),
       nonce: String(listing.nonce),
       signature: body.signature,
+      // Bound to the marketplace the seller signed against, so a later
+      // marketplace change makes this listing detectably unfillable
+      // rather than silently failing in the buyer's wallet.
+      marketplace: marketplaceAddressFor(collection?.chainId) ?? null,
     };
   }
   await item.save();
