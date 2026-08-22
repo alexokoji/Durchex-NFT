@@ -383,11 +383,13 @@ export async function expireSupersededListings(chainId: number) {
       continue;
     }
 
-    // Already expired and it does not verify: correctly expired, leave it.
-    if (listing.status === "expired") continue;
-
-    await Listing.updateOne({ _id: listing._id }, { status: "expired" });
-    expired += 1;
+    // Expire it unless that already happened. Either way the seller still
+    // needs telling: the listings expired before this notice existed are
+    // exactly the ones whose owners have no idea they need to re-list.
+    if (listing.status !== "expired") {
+      await Listing.updateOne({ _id: listing._id }, { status: "expired" });
+      expired += 1;
+    }
 
     // One notification per seller per item, not per listing — a holder with
     // four listings on the same token does not need telling four times.
