@@ -361,6 +361,7 @@ export async function expireSupersededListings(chainId: number) {
   let expired = 0;
   let healed = 0;
   let revived = 0;
+  let notified = 0;
   const told = new Set<string>();
 
   for (const listing of candidates) {
@@ -405,6 +406,7 @@ export async function expireSupersededListings(chainId: number) {
     });
     if (!already) {
       await createNotification({ user: sellerId as string, type: "listing_expired", item: listing.item });
+      notified += 1;
     }
   }
 
@@ -416,7 +418,7 @@ export async function expireSupersededListings(chainId: number) {
     { $unset: { listing: 1 }, $set: { status: "not_for_sale", priceEth: 0 } }
   );
 
-  return { expired, healed, revived, items: items.modifiedCount };
+  return { expired, healed, revived, notified, items: items.modifiedCount };
 }
 
 export async function expireLegacyOffers() {
