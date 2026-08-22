@@ -200,7 +200,7 @@ export interface SearchResults {
 
 export interface NotificationView {
   id: string;
-  type: "offer" | "bid" | "outbid" | "offer_accepted" | "sale" | "follow";
+  type: "offer" | "bid" | "outbid" | "offer_accepted" | "sale" | "follow" | "listing_expired";
   itemId: string | null;
   itemName: string | null;
   collectionSlug: string | null;

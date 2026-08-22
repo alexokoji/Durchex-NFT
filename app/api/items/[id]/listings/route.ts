@@ -8,6 +8,7 @@ import { Listing } from "@/lib/models/Listing";
 import { getCurrentUser } from "@/lib/auth/currentUser";
 import { recalculateCollectionFloor } from "@/lib/floorPrice";
 import { marketplaceAddressFor } from "@/lib/web3/marketplaceAbi";
+import { DEFAULT_NFT_CHAIN_ID } from "@/lib/web3/deployedContract";
 
 // ERC-1155 resale listings live in their own collection (not embedded on
 // Item, unlike ERC-721) because several holders can each list part of
@@ -72,7 +73,7 @@ export async function POST(req: NextRequest, context: { params: Promise<{ id: st
   }
 
   const collection = await Collection.findById(item.collection)
-    .select("contractAddress maxSupply listingEnabled mintPhases")
+    .select("contractAddress chainId maxSupply listingEnabled mintPhases")
     .lean();
   if (!collection) return NextResponse.json({ error: "Collection not found" }, { status: 404 });
 
@@ -149,7 +150,11 @@ export async function POST(req: NextRequest, context: { params: Promise<{ id: st
     signature: body.signature,
     // See the same field on the ERC-721 path: EIP-712 binds the signature
     // to one marketplace, so record which.
-    marketplace: marketplaceAddressFor(collection?.chainId) ?? null,
+    // Never resolved from an absent chain: marketplaceAddressFor(undefined)
+    // returns undefined, which would store the listing as belonging to no
+    // marketplace — and every fillability check reads that as superseded,
+    // so the listing would be invisible the moment it was created.
+    marketplace: marketplaceAddressFor(collection?.chainId ?? DEFAULT_NFT_CHAIN_ID) ?? null,
     status: "active",
   });
 

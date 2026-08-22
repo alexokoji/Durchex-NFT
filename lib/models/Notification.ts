@@ -5,7 +5,7 @@ const NotificationSchema = new Schema(
     user: { type: Schema.Types.ObjectId, ref: "User", required: true, index: true },
     type: {
       type: String,
-      enum: ["offer", "bid", "outbid", "offer_accepted", "sale", "follow"],
+      enum: ["offer", "bid", "outbid", "offer_accepted", "sale", "follow", "listing_expired"],
       required: true,
     },
     item: { type: Schema.Types.ObjectId, ref: "Item" },

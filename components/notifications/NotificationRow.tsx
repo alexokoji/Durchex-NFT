@@ -1,9 +1,10 @@
 import Link from "next/link";
 import clsx from "clsx";
-import { Gavel, Tag, TrendingDown, CheckCircle2, ShoppingBag, UserPlus } from "lucide-react";
+import { Gavel, Tag, TrendingDown, CheckCircle2, ShoppingBag, UserPlus, RefreshCw } from "lucide-react";
 import { GeneratedArt } from "@/components/nft/GeneratedArt";
 import { NotificationView } from "@/lib/types";
 import { UserAvatar } from "@/components/ui/UserAvatar";
+import { formatEthAmount } from "@/lib/formatEth";
 
 const TYPE_META: Record<
   NotificationView["type"],
@@ -12,32 +13,41 @@ const TYPE_META: Record<
   bid: {
     icon: Gavel,
     color: "text-purple-300",
-    message: (n) => `${n.fromUser?.username ?? "Someone"} bid ${n.amountEth?.toFixed(2)} ETH on ${n.itemName}`,
+    message: (n) => `${n.fromUser?.username ?? "Someone"} bid ${formatEthAmount(n.amountEth ?? 0)} ETH on ${n.itemName}`,
   },
   offer: {
     icon: Tag,
     color: "text-purple-300",
-    message: (n) => `${n.fromUser?.username ?? "Someone"} offered ${n.amountEth?.toFixed(2)} ETH for ${n.itemName}`,
+    message: (n) => `${n.fromUser?.username ?? "Someone"} offered ${formatEthAmount(n.amountEth ?? 0)} ETH for ${n.itemName}`,
   },
   outbid: {
     icon: TrendingDown,
     color: "text-danger",
-    message: (n) => `You were outbid on ${n.itemName} — new bid ${n.amountEth?.toFixed(2)} ETH`,
+    message: (n) => `You were outbid on ${n.itemName} — new bid ${formatEthAmount(n.amountEth ?? 0)} ETH`,
   },
   offer_accepted: {
     icon: CheckCircle2,
     color: "text-success",
-    message: (n) => `${n.fromUser?.username ?? "The owner"} accepted your offer of ${n.amountEth?.toFixed(2)} ETH on ${n.itemName}`,
+    message: (n) => `${n.fromUser?.username ?? "The owner"} accepted your offer of ${formatEthAmount(n.amountEth ?? 0)} ETH on ${n.itemName}`,
   },
   sale: {
     icon: ShoppingBag,
     color: "text-success",
-    message: (n) => `${n.itemName} sold for ${n.amountEth?.toFixed(2)} ETH`,
+    message: (n) => `${n.itemName} sold for ${formatEthAmount(n.amountEth ?? 0)} ETH`,
   },
   follow: {
     icon: UserPlus,
     color: "text-pink-purple",
     message: (n) => `${n.fromUser?.username ?? "Someone"} started following you`,
+  },
+  listing_expired: {
+    icon: RefreshCw,
+    color: "text-amber-400",
+    // Says what to do, not just what happened: the listing is gone from
+    // the seller's point of view and the only useful next step is to make
+    // a new one, which costs them a signature and nothing else.
+    message: (n) =>
+      `Your listing for ${n.itemName ?? "an item"} needs to be created again — Durchex moved to a new marketplace contract, so the old signature no longer works. Listing again is free.`,
   },
 };
 

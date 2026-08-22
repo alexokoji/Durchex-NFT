@@ -7,6 +7,9 @@ import { Item } from "@/lib/models/Item";
 import { recalculateCollectionFloor } from "@/lib/floorPrice";
 import { collectionMintProgress } from "@/lib/collectionSupply";
 import { Listing } from "@/lib/models/Listing";
+import { Notification } from "@/lib/models/Notification";
+import { createNotification } from "@/lib/notifications";
+import { listingAuthorizes } from "@/lib/web3/listingSignature";
 import { rpcClient } from "@/lib/web3/reconcile";
 import { offersEscrowAddressFor } from "@/lib/web3/offersEscrow";
 import { marketplaceAddressFor } from "@/lib/web3/marketplaceAbi";
@@ -334,10 +337,54 @@ export async function expireSupersededListings(chainId: number) {
 
   const stale = { $nin: [current, current.toLowerCase(), current.toUpperCase()] };
 
-  const listings = await Listing.updateMany(
-    { status: { $in: ["active", "auction"] }, "marketplace": stale },
-    { status: "expired" }
-  );
+  // Candidates by bookkeeping, but never expired on bookkeeping alone. The
+  // recorded marketplace was briefly written as null for every new listing
+  // (the creation route did not select the collection's chainId), so a
+  // blind sweep would have destroyed perfectly valid listings minutes after
+  // they were made. The signature is the authority: if it recovers to the
+  // seller under the current marketplace's domain, the contract will fill
+  // it, whatever the field says — so stamp the field and keep the listing.
+  const candidates = await Listing.find({ status: { $in: ["active", "auction"] }, marketplace: stale })
+    .populate("seller", "address")
+    .lean();
+
+  let expired = 0;
+  let healed = 0;
+  const told = new Set<string>();
+
+  for (const listing of candidates) {
+    const address = (listing.seller as { address?: string } | null)?.address;
+    const sellerId = (listing.seller as { _id?: unknown })?._id ?? listing.seller;
+
+    // An auction has no signature until it settles, so there is nothing to
+    // verify and nothing yet bound to a marketplace — leave it alone.
+    if (listing.status === "auction" && !listing.signature) continue;
+
+    if (address && (await listingAuthorizes(listing, address, chainId, current))) {
+      await Listing.updateOne({ _id: listing._id }, { marketplace: current });
+      healed += 1;
+      continue;
+    }
+
+    await Listing.updateOne({ _id: listing._id }, { status: "expired" });
+    expired += 1;
+
+    // One notification per seller per item, not per listing — a holder with
+    // four listings on the same token does not need telling four times.
+    const key = `${sellerId}:${listing.item}`;
+    if (told.has(key)) continue;
+    told.add(key);
+    // Idempotent: the reconciler runs every few minutes and must not
+    // re-notify the same person about the same item on every pass.
+    const already = await Notification.exists({
+      user: sellerId,
+      type: "listing_expired",
+      item: listing.item,
+    });
+    if (!already) {
+      await createNotification({ user: sellerId as string, type: "listing_expired", item: listing.item });
+    }
+  }
 
   // The ERC-721 equivalent lives embedded on the item, and clearing it has
   // to take the derived display fields with it or the item keeps showing a
@@ -347,7 +394,7 @@ export async function expireSupersededListings(chainId: number) {
     { $unset: { listing: 1 }, $set: { status: "not_for_sale", priceEth: 0 } }
   );
 
-  return { listings: listings.modifiedCount, items: items.modifiedCount };
+  return { expired, healed, items: items.modifiedCount };
 }
 
 export async function expireLegacyOffers() {

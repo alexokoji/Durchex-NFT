@@ -3,7 +3,7 @@ import { Notification } from "@/lib/models/Notification";
 
 export async function createNotification(params: {
   user: string | Types.ObjectId;
-  type: "offer" | "bid" | "outbid" | "offer_accepted" | "sale" | "follow";
+  type: "offer" | "bid" | "outbid" | "offer_accepted" | "sale" | "follow" | "listing_expired";
   item?: string | Types.ObjectId | null;
   fromUser?: string | Types.ObjectId | null;
   amountEth?: number | null;

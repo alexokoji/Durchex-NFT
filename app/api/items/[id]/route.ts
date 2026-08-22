@@ -7,6 +7,7 @@ import { recordActivity } from "@/lib/activity";
 import { recalculateCollectionFloor } from "@/lib/floorPrice";
 import { resaleClosedReason, resaleGateFor } from "@/lib/resaleGate";
 import { marketplaceAddressFor } from "@/lib/web3/marketplaceAbi";
+import { DEFAULT_NFT_CHAIN_ID } from "@/lib/web3/deployedContract";
 
 // Lists, relists, or cancels a listing. Lazy (unminted) items get their
 // initial listing price set at creation via the voucher, but their creator
@@ -39,7 +40,7 @@ export async function PATCH(req: NextRequest, context: { params: Promise<{ id: s
       return NextResponse.json({ error: "Unminted items list automatically when created" }, { status: 400 });
     }
     const collection = await Collection.findById(item.collection)
-      .select("contractAddress maxSupply listingEnabled mintPhases")
+      .select("contractAddress chainId maxSupply listingEnabled mintPhases")
       .lean();
     if (!collection) return NextResponse.json({ error: "Collection not found" }, { status: 404 });
     // One gate, shared with the collection page and the 1155 route — see
@@ -89,7 +90,9 @@ export async function PATCH(req: NextRequest, context: { params: Promise<{ id: s
       // Bound to the marketplace the seller signed against, so a later
       // marketplace change makes this listing detectably unfillable
       // rather than silently failing in the buyer's wallet.
-      marketplace: marketplaceAddressFor(collection?.chainId) ?? null,
+      // See the ERC-1155 path: an absent chain must not resolve to null,
+      // or the listing is treated as superseded the instant it is saved.
+      marketplace: marketplaceAddressFor(collection?.chainId ?? DEFAULT_NFT_CHAIN_ID) ?? null,
     };
   }
   await item.save();
