@@ -43,6 +43,7 @@ contract DurchexNFT is ERC721URIStorage, ERC2981, EIP712, Ownable {
 
     event MarketplaceUpdated(address indexed marketplace);
     event VoucherCancelled(address indexed creator, uint256 nonce);
+    event TokenRoyaltyReceiverUpdated(uint256 indexed tokenId, address indexed receiver);
 
     constructor() ERC721("Durchex", "DRX") EIP712("Durchex", "1") Ownable(msg.sender) {}
 
@@ -56,6 +57,19 @@ contract DurchexNFT is ERC721URIStorage, ERC2981, EIP712, Ownable {
     /// Ownership can still be transferred.
     function renounceOwnership() public view override onlyOwner {
         revert("DurchexNFT: renounce disabled");
+    }
+
+    /// @notice Point an existing token's royalty at a different address,
+    /// leaving the rate untouched. See DurchexNFT1155's copy for why this
+    /// exists — a creator key that is lost or compromised otherwise keeps
+    /// collecting royalties forever, because the receiver is fixed at mint
+    /// and nothing here could change it.
+    function setTokenRoyaltyReceiver(uint256 tokenId, address receiver) external onlyOwner {
+        require(receiver != address(0), "DurchexNFT: zero receiver");
+        require(minted[tokenId], "DurchexNFT: token not minted");
+        (, uint256 currentBps) = royaltyInfo(tokenId, 10000);
+        _setTokenRoyalty(tokenId, receiver, uint96(currentBps));
+        emit TokenRoyaltyReceiverUpdated(tokenId, receiver);
     }
 
     function hashVoucher(NFTVoucher calldata v) public view returns (bytes32) {

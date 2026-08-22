@@ -104,6 +104,21 @@ contract DurchexOffersEscrow is ReentrancyGuard, Pausable, Ownable {
         emit FeeRecipientUpdated(recipient);
     }
 
+    /// @notice Where a token's royalty is actually sent, when the address
+    /// ERC-2981 reports must not be paid — a lost or compromised receiver
+    /// key, which the NFT contracts give no way to change because the
+    /// receiver is stamped in at mint. Mirrors the marketplace's override
+    /// so both settlement routes agree; set both or neither.
+    /// address(0) clears it and restores the ERC-2981 answer.
+    mapping(address nft => mapping(uint256 tokenId => address)) public royaltyReceiverOverride;
+
+    event RoyaltyReceiverOverridden(address indexed nft, uint256 indexed tokenId, address indexed receiver);
+
+    function setRoyaltyReceiverOverride(address nft, uint256 tokenId, address receiver) external onlyOwner {
+        royaltyReceiverOverride[nft][tokenId] = receiver;
+        emit RoyaltyReceiverOverridden(nft, tokenId, receiver);
+    }
+
     function pause() external onlyOwner {
         _pause();
     }
@@ -235,6 +250,12 @@ contract DurchexOffersEscrow is ReentrancyGuard, Pausable, Ownable {
             // Not every NFT implements ERC-2981; treat that as no royalty
             // rather than blocking the sale.
         }
+        // An owner-set override wins over what the token reports. Offers
+        // are a second route to the same payout, so without this a token
+        // whose royalty was redirected on the marketplace would still pay
+        // the old receiver whenever a sale happened through an offer.
+        address overridden = royaltyReceiverOverride[nft][tokenId];
+        if (overridden != address(0)) royaltyReceiver = overridden;
         // Clamp so a misbehaving royalty can never exceed what is left
         // after the fee, which would underflow and brick the token.
         if (fee + royalty > amount) {

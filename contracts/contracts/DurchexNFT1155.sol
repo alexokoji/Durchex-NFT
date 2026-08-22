@@ -46,6 +46,7 @@ contract DurchexNFT1155 is ERC1155URIStorage, ERC2981, EIP712, Ownable {
 
     event MarketplaceUpdated(address indexed marketplace);
     event EditionCancelled(address indexed creator, uint256 indexed tokenId);
+    event TokenRoyaltyReceiverUpdated(uint256 indexed tokenId, address indexed receiver);
 
     constructor() ERC1155("") EIP712("DurchexNFT1155", "1") Ownable(msg.sender) {}
 
@@ -57,6 +58,33 @@ contract DurchexNFT1155 is ERC1155URIStorage, ERC2981, EIP712, Ownable {
     /// @dev Disabled for the same reason as DurchexNFT.renounceOwnership.
     function renounceOwnership() public view override onlyOwner {
         revert("DurchexNFT1155: renounce disabled");
+    }
+
+    /// @notice Point an existing token's royalty at a different address,
+    /// leaving the rate untouched.
+    ///
+    /// The receiver is otherwise fixed at first redemption, taken from the
+    /// voucher's creator, and that is the right default — a buyer can read
+    /// who gets paid and know it will not move. But it also means a
+    /// creator who loses control of that key has no recovery at all, and
+    /// the royalty keeps paying whoever holds it. That happened on this
+    /// deployment: a creator wallet was delegated (EIP-7702) to a sweeper
+    /// and its royalties became the attacker's, permanently, because no
+    /// version of this contract had this function.
+    ///
+    /// Owner-only and receiver-only: the platform can redirect payment for
+    /// a compromised key, but cannot raise, lower, or waive what a creator
+    /// is owed. Unlike a marketplace-level override this also reaches
+    /// venues that read ERC-2981 directly.
+    function setTokenRoyaltyReceiver(uint256 tokenId, address receiver) external onlyOwner {
+        require(receiver != address(0), "DurchexNFT1155: zero receiver");
+        require(initialized[tokenId], "DurchexNFT1155: token not minted");
+        // royaltyInfo on a 10000-wei sale returns the fee in bps directly,
+        // which is how the current rate is carried over unchanged — there
+        // is no public getter for the stored bps.
+        (, uint256 currentBps) = royaltyInfo(tokenId, 10000);
+        _setTokenRoyalty(tokenId, receiver, uint96(currentBps));
+        emit TokenRoyaltyReceiverUpdated(tokenId, receiver);
     }
 
     function hashVoucher(EditionVoucher calldata v) public view returns (bytes32) {

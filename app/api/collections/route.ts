@@ -13,6 +13,7 @@ import {
 } from "@/lib/web3/deployedContract";
 import { collectionSalt, factoryFor, predictCloneAddress } from "@/lib/web3/collectionFactory";
 import { checkCreationAllowed } from "@/lib/creationGate";
+import { checkDelegation, delegationWarning } from "@/lib/web3/delegatedWallet";
 
 const CATEGORIES: CategoryKey[] = [
   "art",
@@ -121,6 +122,18 @@ export async function POST(req: NextRequest) {
   }
   if ((mintPhases.whitelist.enabled && mintPhases.whitelist.allowlist.length === 0) || (mintPhases.og.enabled && mintPhases.og.allowlist.length === 0)) {
     return NextResponse.json({ error: "Whitelist and OG phases need at least one valid wallet address." }, { status: 400 });
+  }
+  // Split recipients are payout addresses in exactly the sense the creator
+  // address is, so they get the same EIP-7702 screening — a delegated
+  // wallet among the splits would quietly forward its share to a sweeper.
+  for (const recipient of payoutRecipients as { address: string }[]) {
+    const delegation = await checkDelegation(recipient.address, DEFAULT_NFT_CHAIN_ID);
+    if (delegation.delegated) {
+      return NextResponse.json(
+        { error: `Payout wallet ${recipient.address} can't be used. ${delegationWarning(delegation.target)}` },
+        { status: 400 }
+      );
+    }
   }
 
   await connectDB();

@@ -31,7 +31,14 @@ const config: HardhatUserConfig = {
     },
   },
   networks: {
-    hardhat: {},
+    // FORK=1 points the in-process chain at a copy of mainnet, so a change
+    // can be rehearsed against the real deployed contracts and real token
+    // state before any of it is signed for real. Off by default — the unit
+    // suite must not depend on an RPC being reachable.
+    hardhat:
+      process.env.FORK === "1" && MAINNET_RPC_URL
+        ? { forking: { url: MAINNET_RPC_URL }, chainId: 1 }
+        : {},
     // Polygon Amoy testnet — see docs/Durchex-NFT-Marketplace-Full-Specification.pdf
     // section 18 (Deployment & Infrastructure).
     amoy: {

@@ -67,6 +67,24 @@ contract DurchexMarketplace is ReentrancyGuard, Pausable, Ownable, EIP712 {
     mapping(address seller => mapping(uint256 nonce => uint256 filled)) public listing1155Filled;
     mapping(address seller => mapping(uint256 nonce => bool cancelled)) public listing1155Cancelled;
 
+    /// @notice Where a token's royalty is actually sent, when the address
+    /// ERC-2981 reports must not be paid.
+    ///
+    /// ERC-2981 stamps the royalty receiver into the token at mint and the
+    /// NFT contracts expose no way to change it, which is correct for a
+    /// creator's own guarantee but leaves no recourse when the receiving
+    /// key is lost or compromised. That is not hypothetical: a creator
+    /// wallet here was delegated (EIP-7702) to a sweeper, so every royalty
+    /// the marketplace paid it was forwarded to an attacker in the same
+    /// transaction, permanently, for a collection that had already minted
+    /// out.
+    ///
+    /// An override is owner-only and per token, so it is a targeted repair
+    /// rather than a switch that could redirect royalties in general. It
+    /// cannot change how much royalty is owed — only who receives it — and
+    /// setting it back to address(0) restores the ERC-2981 answer.
+    mapping(address nft => mapping(uint256 tokenId => address)) public royaltyReceiverOverride;
+
     bytes32 private constant LISTING_TYPEHASH =
         keccak256(
             "Listing(address nft,uint256 tokenId,address seller,address buyer,uint256 price,uint256 deadline,uint256 nonce)"
@@ -103,6 +121,7 @@ contract DurchexMarketplace is ReentrancyGuard, Pausable, Ownable, EIP712 {
     event Listing1155Cancelled(address indexed seller, uint256 nonce);
     event PlatformFeeUpdated(uint96 bps);
     event FeeRecipientUpdated(address indexed feeRecipient);
+    event RoyaltyReceiverOverridden(address indexed nft, uint256 indexed tokenId, address indexed receiver);
 
     constructor(address _feeRecipient) EIP712("DurchexMarketplace", "1") Ownable(msg.sender) {
         require(_feeRecipient != address(0), "DurchexMarketplace: zero fee recipient");
@@ -123,6 +142,23 @@ contract DurchexMarketplace is ReentrancyGuard, Pausable, Ownable, EIP712 {
         require(_feeRecipient != address(0), "DurchexMarketplace: zero fee recipient");
         feeRecipient = _feeRecipient;
         emit FeeRecipientUpdated(_feeRecipient);
+    }
+
+    /// @notice Redirect one token's royalty away from the address ERC-2981
+    /// names. Pass address(0) to clear the override and go back to it.
+    ///
+    /// Deliberately not restricted to the current receiver: the case this
+    /// exists for is a receiver nobody controls any more, where requiring
+    /// its signature would make the repair impossible.
+    function setRoyaltyReceiverOverride(address nft, uint256 tokenId, address receiver) external onlyOwner {
+        royaltyReceiverOverride[nft][tokenId] = receiver;
+        emit RoyaltyReceiverOverridden(nft, tokenId, receiver);
+    }
+
+    /// @dev The address a token's royalty should actually be paid to.
+    function _royaltyReceiverFor(address nft, uint256 tokenId, address reported) internal view returns (address) {
+        address overridden = royaltyReceiverOverride[nft][tokenId];
+        return overridden == address(0) ? reported : overridden;
     }
 
     /// @notice Emergency stop for all purchase paths. Cancellations stay
@@ -233,8 +269,9 @@ contract DurchexMarketplace is ReentrancyGuard, Pausable, Ownable, EIP712 {
         usedListingNonce[listing.seller][listing.nonce] = true;
         nft.safeTransferFrom(listing.seller, msg.sender, listing.tokenId);
 
-        (address royaltyReceiver, uint256 royaltyAmt) = ERC2981(listing.nft).royaltyInfo(listing.tokenId, listing.price);
+        (address reported, uint256 royaltyAmt) = ERC2981(listing.nft).royaltyInfo(listing.tokenId, listing.price);
         uint96 royaltyBps = listing.price == 0 ? 0 : uint96((royaltyAmt * 10000) / listing.price);
+        address royaltyReceiver = _royaltyReceiverFor(listing.nft, listing.tokenId, reported);
         _settle(listing.seller, royaltyReceiver, royaltyBps, listing.price);
         _refundExcess(listing.price);
 
@@ -292,8 +329,9 @@ contract DurchexMarketplace is ReentrancyGuard, Pausable, Ownable, EIP712 {
         listing1155Filled[listing.seller][listing.nonce] += quantity;
         nft.safeTransferFrom(listing.seller, msg.sender, listing.tokenId, quantity, "");
 
-        (address royaltyReceiver, uint256 royaltyAmt) = ERC2981(listing.nft).royaltyInfo(listing.tokenId, totalPrice);
+        (address reported, uint256 royaltyAmt) = ERC2981(listing.nft).royaltyInfo(listing.tokenId, totalPrice);
         uint96 royaltyBps = totalPrice == 0 ? 0 : uint96((royaltyAmt * 10000) / totalPrice);
+        address royaltyReceiver = _royaltyReceiverFor(listing.nft, listing.tokenId, reported);
         _settle(listing.seller, royaltyReceiver, royaltyBps, totalPrice);
         _refundExcess(totalPrice);
 
