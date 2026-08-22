@@ -161,3 +161,8 @@ body {
   overflow-x: clip;
   max-width: 100%;
 }
+
+/* Tab strips scroll sideways on narrow screens, but a visible scrollbar
+   drawn across them reads as a rendering fault rather than an affordance. */
+.no-scrollbar::-webkit-scrollbar { display: none; }
+.no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
