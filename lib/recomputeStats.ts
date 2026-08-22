@@ -344,12 +344,23 @@ export async function expireSupersededListings(chainId: number) {
   // they were made. The signature is the authority: if it recovers to the
   // seller under the current marketplace's domain, the contract will fill
   // it, whatever the field says — so stamp the field and keep the listing.
-  const candidates = await Listing.find({ status: { $in: ["active", "auction"] }, marketplace: stale })
+  //
+  // "expired" is in scope as well as "active", because the first version of
+  // this swept blindly on the field and expired valid listings that had
+  // only been mis-stamped. Reviving one is safe precisely because the
+  // signature is what decides: a listing killed in error verifies and comes
+  // back, while one that was genuinely superseded or genuinely timed out
+  // does not, and stays exactly where it is.
+  const candidates = await Listing.find({
+    status: { $in: ["active", "auction", "expired"] },
+    marketplace: stale,
+  })
     .populate("seller", "address")
     .lean();
 
   let expired = 0;
   let healed = 0;
+  let revived = 0;
   const told = new Set<string>();
 
   for (const listing of candidates) {
@@ -360,11 +371,20 @@ export async function expireSupersededListings(chainId: number) {
     // verify and nothing yet bound to a marketplace — leave it alone.
     if (listing.status === "auction" && !listing.signature) continue;
 
+    // Never revive something that has run its own course.
+    const soldOut = (listing.filledQuantity ?? 0) >= (listing.quantity ?? 0);
+    const timedOut = listing.deadline ? new Date(listing.deadline) <= new Date() : false;
+    if (listing.status === "expired" && (soldOut || timedOut)) continue;
+
     if (address && (await listingAuthorizes(listing, address, chainId, current))) {
-      await Listing.updateOne({ _id: listing._id }, { marketplace: current });
-      healed += 1;
+      await Listing.updateOne({ _id: listing._id }, { marketplace: current, status: "active" });
+      if (listing.status === "expired") revived += 1;
+      else healed += 1;
       continue;
     }
+
+    // Already expired and it does not verify: correctly expired, leave it.
+    if (listing.status === "expired") continue;
 
     await Listing.updateOne({ _id: listing._id }, { status: "expired" });
     expired += 1;
@@ -394,7 +414,7 @@ export async function expireSupersededListings(chainId: number) {
     { $unset: { listing: 1 }, $set: { status: "not_for_sale", priceEth: 0 } }
   );
 
-  return { expired, healed, items: items.modifiedCount };
+  return { expired, healed, revived, items: items.modifiedCount };
 }
 
 export async function expireLegacyOffers() {
