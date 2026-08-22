@@ -129,7 +129,15 @@ export async function reconcileRange({
   if (!client || !marketplace) return { error: "Unsupported chain" };
 
   const startedAt = Date.now();
-  const head = await client.getBlockNumber();
+  // Held a few blocks back from the true head. The transport is a fallback
+  // list, so the node that answers getBlockNumber is not necessarily the
+  // one that answers getLogs, and a peer a block or two behind rejects the
+  // range outright with "block range extends beyond current head block" —
+  // failing the whole sales pass rather than returning what it does have.
+  // A short lag also keeps the scan clear of blocks still liable to reorg.
+  const CONFIRMATIONS = BigInt(5);
+  const rawHead = await client.getBlockNumber();
+  const head = rawHead > CONFIRMATIONS ? rawHead - CONFIRMATIONS : BigInt(0);
   const floor = earliestBlock(chainId);
   const start = fromBlock < floor ? floor : fromBlock;
   const ceiling = start + maxBlocks > head ? head : start + maxBlocks;
