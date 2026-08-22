@@ -101,6 +101,19 @@ export function fillableItemAsk(item: FloorItemLike): number | null {
   return price;
 }
 
+/**
+ * Every field fillableListingAsk reads. Project with this rather than
+ * listing the fields by hand.
+ *
+ * A hand-written projection that misses one is indistinguishable from a
+ * listing that genuinely lacks it, and the function answers "not
+ * fillable" either way — so forgetting `marketplace` here silently hid
+ * every live listing on the site and emptied the floor. Naming the set
+ * once is what stops the next projection drifting from the check.
+ */
+export const FILLABLE_LISTING_FIELDS =
+  "pricePerUnitEth quantity filledQuantity signature deadline status marketplace";
+
 /** Whether an ERC-1155 resale listing still has units anyone can buy. */
 export function fillableListingAsk(listing: FloorListingLike): number | null {
   const price = listing.pricePerUnitEth ?? 0;

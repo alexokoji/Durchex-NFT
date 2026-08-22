@@ -2,7 +2,7 @@ import { Types } from "mongoose";
 import { Collection } from "@/lib/models/Collection";
 import { Item } from "@/lib/models/Item";
 import { Listing } from "@/lib/models/Listing";
-import { fillableItemAsk, fillableListingAsk } from "@/lib/floorValidity";
+import { fillableItemAsk, fillableListingAsk, FILLABLE_LISTING_FIELDS } from "@/lib/floorValidity";
 
 /**
  * Floor price is derived data, never a creator-set value: the lowest
@@ -32,7 +32,7 @@ export async function recalculateCollectionFloor(collectionId: Types.ObjectId | 
       .select("standard status isMinted priceEth totalSupply mintedSupply voucher editionVoucher listing")
       .lean(),
     Listing.find({ collection: id, status: "active", pricePerUnitEth: { $gt: 0 } })
-      .select("pricePerUnitEth quantity filledQuantity signature deadline status")
+      .select(FILLABLE_LISTING_FIELDS)
       .lean(),
   ]);
 

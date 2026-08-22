@@ -5,7 +5,7 @@ import { Item } from "@/lib/models/Item";
 import { ItemBalance } from "@/lib/models/ItemBalance";
 import { Listing } from "@/lib/models/Listing";
 import { collectionMintProgress } from "@/lib/collectionSupply";
-import { fillableItemAsk, fillableListingAsk } from "@/lib/floorValidity";
+import { fillableItemAsk, fillableListingAsk, FILLABLE_LISTING_FIELDS } from "@/lib/floorValidity";
 import { phaseState, resaleGateFor } from "@/lib/resaleGate";
 import { getOnChainOwnerCount } from "@/lib/web3/collectionChainStats";
 import { readMintedSupply } from "@/lib/web3/onChainSupply";
@@ -217,7 +217,7 @@ async function floorByItem(itemIds: Types.ObjectId[]): Promise<Map<string, numbe
   if (itemIds.length === 0) return out;
 
   const listings = await Listing.find({ item: { $in: itemIds }, status: "active" })
-    .select("item pricePerUnitEth quantity filledQuantity signature deadline status")
+    .select(`item ${FILLABLE_LISTING_FIELDS}`)
     .lean();
   for (const l of listings) {
     const ask = fillableListingAsk(l as never);
@@ -368,7 +368,7 @@ export async function getItemById(id: string): Promise<ItemDetailView | null> {
   const [ownerIds, itemListings, topBid, topCollectionOffer] = await Promise.all([
     ItemBalance.distinct("owner", { item: doc._id, quantity: { $gt: 0 } }),
     Listing.find({ item: doc._id, status: "active" })
-      .select("pricePerUnitEth quantity filledQuantity signature deadline status")
+      .select(FILLABLE_LISTING_FIELDS)
       .lean(),
     Bid.findOne({ item: doc._id, type: "offer", status: "active" })
       .sort({ amountEth: -1 })
