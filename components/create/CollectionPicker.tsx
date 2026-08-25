@@ -8,6 +8,7 @@ import { CategoryIcon, CATEGORY_LABELS, CategoryKey } from "@/components/ui/Cate
 import { GeneratedArt } from "@/components/nft/GeneratedArt";
 import { AssetUploader, UploadedAsset } from "@/components/create/AssetUploader";
 import { PHASE_LABELS, PHASE_KEYS, PhaseKey } from "@/lib/mintPhases";
+import { CHAIN_META } from "@/lib/web3/config";
 
 type CreatePhaseForm = {
   enabled: boolean;
@@ -44,19 +45,37 @@ export function CollectionPicker({
   const [collections, setCollections] = useState<CollectionOption[] | null>(null);
   const [creating, setCreating] = useState(false);
   const emptyPhase: CreatePhaseForm = { enabled: false, priceEth: 0, allocation: 0, walletLimit: 0, allowlist: "", startsAt: "", endsAt: "" };
-  const [form, setForm] = useState({ name: "", category: "art" as CategoryKey, standard: "ERC721" as "ERC721" | "ERC1155", royaltyBps: 500, maxSupply: 0, payoutAddress: "", logo: null as UploadedAsset | null, banner: null as UploadedAsset | null, mintPhases: {
+  const [form, setForm] = useState({ name: "", category: "art" as CategoryKey, standard: "ERC721" as "ERC721" | "ERC1155", chainId: 1, royaltyBps: 500, maxSupply: 0, payoutAddress: "", logo: null as UploadedAsset | null, banner: null as UploadedAsset | null, mintPhases: {
     whitelist: { ...emptyPhase },
     og: { ...emptyPhase },
     public: { ...emptyPhase },
   } as Record<PhaseKey, CreatePhaseForm> });
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Which networks are actually live, per standard. The server derives this
+  // from deployed contracts, so a chain appears the moment its deploy lands
+  // and never before — the UI does not get to guess.
+  const [availableChains, setAvailableChains] = useState<Record<string, number[]>>({});
 
   useEffect(() => {
     fetch("/api/collections?mine=1")
       .then((r) => r.ok ? r.json() : { collections: [] })
       .then((data) => setCollections(data.collections ?? []));
+    fetch("/api/creation-status")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => data?.chains && setAvailableChains(data.chains))
+      .catch(() => {});
   }, []);
+
+  const chainOptions = availableChains[form.standard] ?? [];
+  // Switching standard can strip the chosen chain from under the selection
+  // (the two standards are deployed independently), so fall back rather
+  // than submit a chain this standard has no contract on.
+  useEffect(() => {
+    if (chainOptions.length > 0 && !chainOptions.includes(form.chainId)) {
+      setForm((f) => ({ ...f, chainId: chainOptions[0] }));
+    }
+  }, [chainOptions, form.chainId]);
 
   async function createCollection() {
     if (form.name.trim().length < 2) {
@@ -182,6 +201,49 @@ export function CollectionPicker({
               </button>
             </div>
           </div>
+
+          {/* Only rendered when there is a real choice to make. One live
+              network is the normal state early on, and a picker with a
+              single option is just a control that cannot be used. */}
+          {chainOptions.length > 1 && (
+            <div>
+              <label className="text-xs font-medium text-white/50 mb-1.5 block">Network</label>
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                {chainOptions.map((id) => {
+                  const meta = CHAIN_META[id];
+                  const selected = form.chainId === id;
+                  return (
+                    <button
+                      key={id}
+                      type="button"
+                      onClick={() => setForm((f) => ({ ...f, chainId: id }))}
+                      className={clsx(
+                        "flex items-center gap-2 rounded-lg border px-3 py-2.5 text-left text-xs min-w-0",
+                        selected
+                          ? "border-purple-500/60 bg-purple-700/15 text-white"
+                          : "border-white/10 text-white/50 hover:border-white/20"
+                      )}
+                    >
+                      <span
+                        className="w-2 h-2 rounded-full shrink-0"
+                        style={{ background: meta?.accent ?? "#6B6478" }}
+                      />
+                      <span className="min-w-0">
+                        <span className="block font-medium truncate">{meta?.label ?? `Chain ${id}`}</span>
+                        <span className="block text-white/40">{meta?.symbol ?? "ETH"} gas</span>
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+              {/* A collection cannot be moved afterwards: its vouchers,
+                  listing signatures and royalties are all bound to one
+                  chain, so this is worth saying before they commit. */}
+              <p className="text-[11px] text-white/35 mt-1.5">
+                Collections stay on the network they launch on — this can&apos;t be changed later.
+              </p>
+            </div>
+          )}
 
           <div className="grid sm:grid-cols-2 gap-4">
             <div>

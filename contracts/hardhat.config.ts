@@ -69,6 +69,23 @@ const config: HardhatUserConfig = {
       // while the deploy in fact succeeded and the gas is spent.
       timeout: 180_000,
     },
+    // Robinhood Chain — Arbitrum Orbit (Nitro), ETH for gas, settles to
+    // Ethereum via blobs. Its own docs call the public RPC rate-limited and
+    // unfit for production, so set ROBINHOOD_RPC_URL to an Alchemy endpoint
+    // (robinhood-mainnet.g.alchemy.com) before deploying.
+    robinhood: {
+      url: process.env.ROBINHOOD_RPC_URL || "https://rpc.mainnet.chain.robinhood.com",
+      accounts: DEPLOYER_PRIVATE_KEY ? [DEPLOYER_PRIVATE_KEY] : [],
+      chainId: 4663,
+      timeout: 180_000,
+    },
+    // Ink — Kraken's OP Stack L2, ETH for gas.
+    ink: {
+      url: process.env.INK_RPC_URL || "https://rpc-gel.inkonchain.com",
+      accounts: DEPLOYER_PRIVATE_KEY ? [DEPLOYER_PRIVATE_KEY] : [],
+      chainId: 57073,
+      timeout: 180_000,
+    },
   },
   etherscan: {
     apiKey: ETHERSCAN_API_KEY,

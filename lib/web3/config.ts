@@ -13,6 +13,7 @@ import {
   hyperliquid,
   hardhat,
 } from "wagmi/chains";
+import { ink, robinhood } from "@/lib/web3/chains";
 import { SUPPORTED_EVM_CHAIN_IDS } from "@/lib/web3/supportedChains";
 import { walletGroups } from "@/lib/web3/wallets";
 
@@ -55,12 +56,16 @@ const rpcUrls: Record<number, string | undefined> = {
   [polygon.id]: process.env.NEXT_PUBLIC_RPC_URL_137,
   [arbitrum.id]: process.env.NEXT_PUBLIC_RPC_URL_42161,
   [optimism.id]: process.env.NEXT_PUBLIC_RPC_URL_10,
+  // Robinhood's public endpoint is documented as rate-limited and not
+  // for production, so this one really wants an Alchemy URL.
+  [robinhood.id]: process.env.NEXT_PUBLIC_RPC_URL_4663,
+  [ink.id]: process.env.NEXT_PUBLIC_RPC_URL_57073,
 };
 
 // Chains with no configured URL fall through to wagmi's default transport,
 // so adding a key for one network never breaks the others.
 const transports = Object.fromEntries(
-  [mainnet, base, polygon, arbitrum, optimism, avalanche, bsc, hyperliquid, polygonAmoy, sepolia, hardhat].map(
+  [mainnet, base, polygon, arbitrum, optimism, avalanche, bsc, hyperliquid, robinhood, ink, polygonAmoy, sepolia, hardhat].map(
     (chain) => [chain.id, rpcUrls[chain.id] ? http(rpcUrls[chain.id]) : http()]
   )
 );
@@ -75,7 +80,7 @@ export const wagmiConfig = getDefaultConfig({
   // Explicit list (see lib/web3/wallets.ts) instead of RainbowKit's default
   // one, which leads with a bare "WalletConnect" entry.
   wallets: walletGroups(WALLETCONNECT_PROJECT_ID),
-  chains: [mainnet, base, polygon, arbitrum, optimism, avalanche, bsc, hyperliquid, polygonAmoy, sepolia, hardhat],
+  chains: [mainnet, base, polygon, arbitrum, optimism, avalanche, bsc, hyperliquid, robinhood, ink, polygonAmoy, sepolia, hardhat],
   ssr: true,
 });
 
@@ -88,6 +93,8 @@ export const CHAIN_META: Record<number, { label: string; symbol: string; accent:
   [avalanche.id]: { label: "Avalanche", symbol: "AVAX", accent: "#E84142" },
   [bsc.id]: { label: "BNB Chain", symbol: "BNB", accent: "#F0B90B" },
   [hyperliquid.id]: { label: "Hyperliquid", symbol: "HYPE", accent: "#97FCE4" },
+  [robinhood.id]: { label: "Robinhood Chain", symbol: "ETH", accent: "#CCFF00" },
+  [ink.id]: { label: "Ink", symbol: "ETH", accent: "#7132F5" },
   [polygonAmoy.id]: { label: "Polygon Amoy", symbol: "POL", accent: "#8247E5" },
   [sepolia.id]: { label: "Ethereum Sepolia", symbol: "ETH", accent: "#627EEA" },
   [hardhat.id]: { label: "Localhost", symbol: "ETH", accent: "#6B6478" },

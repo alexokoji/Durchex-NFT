@@ -8,6 +8,8 @@ const EXPLORERS: Record<number, string> = {
   10: "https://optimistic.etherscan.io",
   43114: "https://snowtrace.io",
   56: "https://bscscan.com",
+  4663: "https://robinhoodchain.blockscout.com",
+  57073: "https://explorer.inkonchain.com",
 };
 
 export function explorerTxUrl(chainId: number, txHash: string) {

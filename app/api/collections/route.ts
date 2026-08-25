@@ -10,6 +10,9 @@ import {
   DEFAULT_NFT_CHAIN_ID,
   DEFAULT_NFT1155_ADDRESS,
   DEFAULT_NFT1155_CHAIN_ID,
+  canCreateOn,
+  chainsAvailableForCreation,
+  nftAddressFor,
 } from "@/lib/web3/deployedContract";
 import { collectionSalt, factoryFor, predictCloneAddress } from "@/lib/web3/collectionFactory";
 import { checkCreationAllowed } from "@/lib/creationGate";
@@ -154,7 +157,23 @@ export async function POST(req: NextRequest) {
   // collections too. A chain with no factory recorded falls back to the
   // shared contract, exactly as every collection behaved before this.
   const _id = new Types.ObjectId();
-  const targetChainId = standard === "ERC1155" ? DEFAULT_NFT1155_CHAIN_ID : DEFAULT_NFT_CHAIN_ID;
+  // A collection lives on exactly one chain, chosen at creation and fixed
+  // afterwards — every voucher, listing signature and royalty is bound to
+  // it. Validated against what is deployed rather than merely against a
+  // list of chain ids, so a creator can never land on a chain whose
+  // contracts do not exist: that collection would look fine right up until
+  // the first mint reverted.
+  const targetChainId = Number(
+    body.chainId ?? (standard === "ERC1155" ? DEFAULT_NFT1155_CHAIN_ID : DEFAULT_NFT_CHAIN_ID)
+  );
+  if (!canCreateOn(standard, targetChainId)) {
+    return NextResponse.json(
+      {
+        error: `Durchex isn't live on that network yet. Available: ${chainsAvailableForCreation(standard).join(", ")}.`,
+      },
+      { status: 400 }
+    );
+  }
   const deployTarget = factoryFor(standard, targetChainId);
   const clonedContractAddress = deployTarget
     ? predictCloneAddress({
@@ -175,8 +194,11 @@ export async function POST(req: NextRequest) {
     creator: user._id,
     royaltyBps,
     standard,
-    contractAddress: clonedContractAddress ?? (standard === "ERC1155" ? DEFAULT_NFT1155_ADDRESS : DEFAULT_NFT_ADDRESS),
-    chainId: standard === "ERC1155" ? DEFAULT_NFT1155_CHAIN_ID : DEFAULT_NFT_CHAIN_ID,
+    contractAddress:
+      clonedContractAddress ??
+      nftAddressFor(standard, targetChainId) ??
+      (standard === "ERC1155" ? DEFAULT_NFT1155_ADDRESS : DEFAULT_NFT_ADDRESS),
+    chainId: targetChainId,
     contractType: "lazy",
     maxSupply,
     payoutRecipients,

@@ -1,5 +1,6 @@
 import { createPublicClient, fallback, http, parseAbi, type Chain } from "viem";
 import { mainnet, sepolia } from "viem/chains";
+import { ink, robinhood } from "@/lib/web3/chains";
 import { Activity } from "@/lib/models/Activity";
 import { SyncState, reconcileKey } from "@/lib/models/SyncState";
 import { verifyAndSyncPurchase } from "@/lib/web3/verifyPurchase";
@@ -22,7 +23,7 @@ import { marketplaceAddressFor } from "@/lib/web3/marketplaceAbi";
  * you like — which is what makes a full historical backfill possible with
  * the same code path as the nightly job.
  */
-export const CHAINS: Record<number, Chain> = { 1: mainnet, 11155111: sepolia };
+export const CHAINS: Record<number, Chain> = { 1: mainnet, 4663: robinhood, 57073: ink, 11155111: sepolia };
 
 const SALE_EVENTS = parseAbi([
   "event VoucherRedeemed(address indexed nft, uint256 indexed tokenId, address buyer, uint256 price)",
@@ -41,6 +42,12 @@ const CHUNK = BigInt(1000);
 // and guaranteed to time out. Scans are clamped to start here.
 const DEPLOY_BLOCK: Record<number, bigint> = {
   1: BigInt(25_780_000), // Ethereum, shortly before the 2026-08-18 deploy
+  // Set to the deploying block when contracts land on these chains. Left at
+  // 0 they are harmless (nothing is deployed, so there is nothing to scan)
+  // but a scan from genesis on a busy L2 would time out, so do not leave
+  // them at 0 once a marketplace exists.
+  4663: BigInt(0), // Robinhood Chain — no deployment yet
+  57073: BigInt(0), // Ink — no deployment yet
   11155111: BigInt(0), // Sepolia: no floor worth pinning for a testnet
 };
 
@@ -79,6 +86,9 @@ export function rpcClient(chainId: number) {
 
   const alchemyHost: Record<number, string> = {
     1: "https://eth-mainnet.g.alchemy.com/v2/",
+    // Alchemy serves both new chains, so the existing key covers them.
+    4663: "https://robinhood-mainnet.g.alchemy.com/v2/",
+    57073: "https://ink-mainnet.g.alchemy.com/v2/",
     11155111: "https://eth-sepolia.g.alchemy.com/v2/",
   };
   const key = process.env.ALCHEMY_API_KEY;

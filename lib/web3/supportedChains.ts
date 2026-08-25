@@ -3,4 +3,6 @@
 // 11155111 (Ethereum Sepolia) is included because it's currently the only
 // network with real deployed contracts (contracts/deployments.json) — remove
 // it here once mainnet has a real deployment and Sepolia is dev-only again.
-export const SUPPORTED_EVM_CHAIN_IDS = [1, 8453, 137, 42161, 10, 43114, 56, 999, 11155111] as const;
+// 4663 Robinhood Chain (Arbitrum Orbit) and 57073 Ink (OP Stack) both use
+// ETH for gas and run plain EVM, so the contracts deploy unmodified.
+export const SUPPORTED_EVM_CHAIN_IDS = [1, 8453, 137, 42161, 10, 43114, 56, 999, 4663, 57073, 11155111] as const;
