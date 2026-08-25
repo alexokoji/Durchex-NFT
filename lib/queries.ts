@@ -37,6 +37,7 @@ import {
   ProfileView,
   SearchResults,
 } from "@/lib/types";
+import { VerificationTier } from "@/lib/verification";
 
 function escapeRegExp(s: string) {
   return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -660,6 +661,145 @@ export async function getCreatorAnalytics(userId: string): Promise<CreatorAnalyt
       sales: c.stats?.sales ?? 0,
     })),
   };
+}
+
+/**
+ * The home page leaderboard: what is actually trading, right now.
+ *
+ * Deliberately not built on Collection.stats. Those fields only exist for
+ * 24h, 7d and all-time, and the point of this board is the short windows —
+ * fifteen minutes tells you something a daily total cannot. So volume is
+ * summed straight from settled sales in the window, the same source
+ * recomputeStats itself reads.
+ *
+ * Collections that did not trade are still listed, showing a real zero,
+ * rather than the board rendering empty. A quiet fifteen minutes is a true
+ * fact about the marketplace and worth showing; an empty panel just looks
+ * broken. Nothing is invented either way.
+ */
+export type LeaderboardWindow = "15m" | "1h" | "3h" | "1d" | "7d";
+export type LeaderboardMode = "top" | "trending";
+
+export const LEADERBOARD_MINUTES: Record<LeaderboardWindow, number> = {
+  "15m": 15,
+  "1h": 60,
+  "3h": 180,
+  "1d": 60 * 24,
+  "7d": 60 * 24 * 7,
+};
+
+export interface LeaderboardRow {
+  id: string;
+  slug: string;
+  name: string;
+  logoUrl?: string;
+  verified: boolean;
+  creatorTier: VerificationTier;
+  floorEth: number;
+  volumeEth: number;
+  /** Against the window immediately before this one; null with no baseline. */
+  changePct: number | null;
+  sales: number;
+}
+
+export async function getLeaderboard(
+  window: LeaderboardWindow = "1d",
+  mode: LeaderboardMode = "top",
+  limit = 10
+): Promise<LeaderboardRow[]> {
+  await connectDB();
+  const minutes = LEADERBOARD_MINUTES[window];
+  const now = Date.now();
+  const from = new Date(now - minutes * 60_000);
+  const prevFrom = new Date(now - minutes * 2 * 60_000);
+
+  const collections = await Collection.find(VISIBLE_COLLECTION)
+    .populate("creator", "verificationTier")
+    .lean();
+  if (collections.length === 0) return [];
+
+  const itemsByCollection = new Map<string, Types.ObjectId[]>();
+  const items = await Item.find({ collection: { $in: collections.map((c) => c._id) } })
+    .select("_id collection")
+    .lean();
+  for (const item of items) {
+    const key = String(item.collection);
+    if (!itemsByCollection.has(key)) itemsByCollection.set(key, []);
+    itemsByCollection.get(key)!.push(item._id as Types.ObjectId);
+  }
+
+  // One aggregation covering both windows rather than two per collection:
+  // each sale is tagged current or previous, grouped by item, then folded
+  // back to collections in code.
+  const sales = await Activity.aggregate([
+    { $match: { type: "sale", priceEth: { $gt: 0 }, createdAt: { $gte: prevFrom } } },
+    {
+      $group: {
+        _id: { item: "$item", recent: { $gte: ["$createdAt", from] } },
+        // priceEth on a sale row is already the total paid for the lot, so
+        // it is summed as-is — multiplying by quantity is what once
+        // inflated total volume tenfold.
+        volume: { $sum: "$priceEth" },
+        count: { $sum: 1 },
+      },
+    },
+  ]);
+
+  const byItem = new Map<string, { now: number; prev: number; sales: number }>();
+  for (const row of sales) {
+    const key = String(row._id.item);
+    const entry = byItem.get(key) ?? { now: 0, prev: 0, sales: 0 };
+    if (row._id.recent) {
+      entry.now += row.volume;
+      entry.sales += row.count;
+    } else {
+      entry.prev += row.volume;
+    }
+    byItem.set(key, entry);
+  }
+
+  const rows: LeaderboardRow[] = collections.map((c) => {
+    let volumeEth = 0;
+    let prev = 0;
+    let salesCount = 0;
+    for (const itemId of itemsByCollection.get(String(c._id)) ?? []) {
+      const entry = byItem.get(String(itemId));
+      if (!entry) continue;
+      volumeEth += entry.now;
+      prev += entry.prev;
+      salesCount += entry.sales;
+    }
+    return {
+      id: String(c._id),
+      slug: c.slug,
+      name: c.name,
+      logoUrl: c.logoUrl,
+      verified: !!c.verified,
+      creatorTier: ((c.creator as { verificationTier?: VerificationTier } | null)?.verificationTier ??
+        "none") as VerificationTier,
+      floorEth: c.stats?.floorEth ?? 0,
+      volumeEth,
+      // No baseline means no measurable change — reporting a jump up from
+      // nothing is a number invented by dividing by zero.
+      changePct: prev > 0 ? ((volumeEth - prev) / prev) * 100 : null,
+      sales: salesCount,
+    };
+  });
+
+  if (mode === "trending") {
+    // Momentum rather than size: what is moving relative to how it had
+    // been moving. Something with no baseline still counts if it traded at
+    // all, ranked among its peers by volume — a real first sale, not an
+    // infinite percentage.
+    return rows
+      .filter((r) => r.volumeEth > 0)
+      .sort((a, b) => (b.changePct ?? Infinity) - (a.changePct ?? Infinity) || b.volumeEth - a.volumeEth)
+      .slice(0, limit);
+  }
+
+  return rows
+    .sort((a, b) => b.volumeEth - a.volumeEth || b.floorEth - a.floorEth || a.name.localeCompare(b.name))
+    .slice(0, limit);
 }
 
 export type RankingsTimeframe = "24h" | "7d" | "all";

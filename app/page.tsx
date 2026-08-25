@@ -1,6 +1,6 @@
 import { Hero } from "@/components/home/Hero";
 import { TrendingCollections } from "@/components/home/TrendingCollections";
-import { VolumeChart } from "@/components/home/VolumeChart";
+import { DataTracking } from "@/components/home/DataTracking";
 import { LiveAuctions } from "@/components/home/LiveAuctions";
 import { TopCreators } from "@/components/home/TopCreators";
 import { FeaturedDrops } from "@/components/home/FeaturedDrops";
@@ -15,7 +15,7 @@ import {
   getPlatformStats,
   getCategoryCounts,
   getDrops,
-  getVolumeSeries,
+  getLeaderboard,
 } from "@/lib/queries";
 import { getCurrentUserFromCookies } from "@/lib/auth/currentUser";
 import { LiveRefresh } from "@/components/providers/LiveRefresh";
@@ -27,21 +27,24 @@ export const dynamic = "force-dynamic";
 
 export default async function Home() {
   const user = await getCurrentUserFromCookies();
-  const [collections, auctions, creators, stats, categoryCounts, drops, volumeSeries] = await Promise.all([
+  const [collections, auctions, creators, stats, categoryCounts, drops, leaderboard] = await Promise.all([
     getTrendingCollections(),
     getLiveAuctions(),
     getTopCreators(),
     getPlatformStats(),
     getCategoryCounts(),
     getDrops(user ? String(user._id) : undefined),
-    getVolumeSeries(14),
+    // The default view (top / 1d) is rendered server-side so the board is
+    // populated on first paint; changing tab or window fetches from
+    // /api/leaderboard.
+    getLeaderboard("1d", "top", 10),
   ]);
 
   return (
     <div>
       <LiveRefresh />
       <Hero stats={stats} collections={collections} />
-      <VolumeChart series={volumeSeries} />
+      <DataTracking initialRows={leaderboard} />
       <TrendingCollections collections={collections} />
       <LiveAuctions items={auctions} />
       <TopCreators creators={creators} />
