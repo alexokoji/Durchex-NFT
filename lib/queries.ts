@@ -697,9 +697,12 @@ export interface LeaderboardRow {
   creatorTier: VerificationTier;
   floorEth: number;
   volumeEth: number;
-  /** Against the window immediately before this one; null with no baseline. */
+  /**
+   * Against the window immediately before this one; null with no baseline.
+   * Not displayed — the board shows floor and volume only — but it is what
+   * Trending sorts on, so it is still computed.
+   */
   changePct: number | null;
-  sales: number;
 }
 
 export async function getLeaderboard(
@@ -745,29 +748,23 @@ export async function getLeaderboard(
     },
   ]);
 
-  const byItem = new Map<string, { now: number; prev: number; sales: number }>();
+  const byItem = new Map<string, { now: number; prev: number }>();
   for (const row of sales) {
     const key = String(row._id.item);
-    const entry = byItem.get(key) ?? { now: 0, prev: 0, sales: 0 };
-    if (row._id.recent) {
-      entry.now += row.volume;
-      entry.sales += row.count;
-    } else {
-      entry.prev += row.volume;
-    }
+    const entry = byItem.get(key) ?? { now: 0, prev: 0 };
+    if (row._id.recent) entry.now += row.volume;
+    else entry.prev += row.volume;
     byItem.set(key, entry);
   }
 
   const rows: LeaderboardRow[] = collections.map((c) => {
     let volumeEth = 0;
     let prev = 0;
-    let salesCount = 0;
     for (const itemId of itemsByCollection.get(String(c._id)) ?? []) {
       const entry = byItem.get(String(itemId));
       if (!entry) continue;
       volumeEth += entry.now;
       prev += entry.prev;
-      salesCount += entry.sales;
     }
     return {
       id: String(c._id),
@@ -782,7 +779,6 @@ export async function getLeaderboard(
       // No baseline means no measurable change — reporting a jump up from
       // nothing is a number invented by dividing by zero.
       changePct: prev > 0 ? ((volumeEth - prev) / prev) * 100 : null,
-      sales: salesCount,
     };
   });
 

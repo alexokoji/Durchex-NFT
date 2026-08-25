@@ -174,7 +174,6 @@ function Row({
   rank: number;
   format: (eth: number | null | undefined, opts?: { compact?: boolean; decimals?: number }) => string;
 }) {
-  const up = (row.changePct ?? 0) >= 0;
   return (
     <Link
       href={`/collection/${row.slug}`}
@@ -218,18 +217,8 @@ function Row({
         {row.floorEth > 0 ? format(row.floorEth, { decimals: 4 }) : "—"}
       </span>
 
-      <span className="text-right tabular-nums">
-        <span className="block text-sm font-semibold text-white">
-          {format(row.volumeEth, { decimals: 3 })}
-        </span>
-        {row.changePct !== null && row.changePct !== 0 && (
-          <span className={clsx("block text-[11px]", up ? "text-success" : "text-danger")}>
-            {up ? "+" : "−"}
-            {Math.abs(row.changePct) >= 1000
-              ? `${(Math.abs(row.changePct) / 100).toFixed(0)}×`
-              : `${Math.abs(row.changePct).toFixed(1)}%`}
-          </span>
-        )}
+      <span className="text-right text-sm font-semibold text-white tabular-nums">
+        {format(row.volumeEth, { decimals: 3 })}
       </span>
     </Link>
   );
