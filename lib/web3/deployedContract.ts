@@ -22,13 +22,20 @@ export const DEFAULT_NFT1155_CHAIN_ID = Number(process.env.DURCHEX_NFT1155_CHAIN
  * DEFAULT_* constants above remain the answer for anything that predates
  * a caller knowing its chain.
  */
+// The Robinhood entries look like Ethereum's by coincidence, not by error:
+// a CREATE address is derived from (deployer, nonce), so the same deployer
+// starting from nonce 0 on a fresh chain reproduces the same addresses for
+// entirely different contracts. 0x35A25Cd3… is DurchexNFT on Ethereum and
+// DurchexMarketplace on Robinhood. Always resolve address *and* chain.
 export const NFT_ADDRESSES: Record<number, `0x${string}`> = {
   1: "0x35A25Cd37b62F7896263cf1bA27727b90bd0a3a1",
+  4663: "0xe353063FA269752F9487AF3E4af7800122a0b0a0",
   11155111: "0x20cA7ADa8b845EF77960D144bBaB7701a29Ade91",
 };
 
 export const NFT1155_ADDRESSES: Record<number, `0x${string}`> = {
   1: "0xe353063FA269752F9487AF3E4af7800122a0b0a0",
+  4663: "0x42C971DAab6942f80c531675BB4Bf1cF57d30d05",
   11155111: "0x4f8a0a7E7A706E9F3016b21b98f4aD489781D7fD",
 };
 

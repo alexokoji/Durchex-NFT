@@ -46,7 +46,7 @@ const DEPLOY_BLOCK: Record<number, bigint> = {
   // 0 they are harmless (nothing is deployed, so there is nothing to scan)
   // but a scan from genesis on a busy L2 would time out, so do not leave
   // them at 0 once a marketplace exists.
-  4663: BigInt(0), // Robinhood Chain — no deployment yet
+  4663: BigInt(45_790_715), // Robinhood Chain, the deploying block
   57073: BigInt(0), // Ink — no deployment yet
   11155111: BigInt(0), // Sepolia: no floor worth pinning for a testnet
 };

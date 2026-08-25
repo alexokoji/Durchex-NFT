@@ -17,6 +17,8 @@ export const OFFERS_ESCROW_ADDRESSES: Record<number, `0x${string}`> = {
   // does. The old escrow held no deposits at the time, so nobody's ETH was
   // stranded by the move; withdrawOffer on it stays available regardless.
   1: "0xf0cC2e562FaF58B52ab6cd3650B3B4fA06230ef2",
+  // Robinhood Chain, deployed 2026-08-25 alongside its marketplace.
+  4663: "0x6c25bdD92906eb97601410198D398526bA792468",
 };
 
 export function offersEscrowAddressFor(chainId: number | undefined): `0x${string}` | undefined {

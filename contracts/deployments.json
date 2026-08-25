@@ -33,5 +33,19 @@
     "DurchexOffersEscrow": "0xf0cC2e562FaF58B52ab6cd3650B3B4fA06230ef2",
     "previousDurchexMarketplace": "0x42C971DAab6942f80c531675BB4Bf1cF57d30d05",
     "previousDurchexOffersEscrow": "0xA3fe086985201dea514D7E4656519Bed605A9d7E"
+  },
+  "robinhood": {
+    "chainId": 4663,
+    "DurchexMarketplace": "0x35A25Cd37b62F7896263cf1bA27727b90bd0a3a1",
+    "DurchexNFT": "0xe353063FA269752F9487AF3E4af7800122a0b0a0",
+    "DurchexNFT1155": "0x42C971DAab6942f80c531675BB4Bf1cF57d30d05",
+    "DurchexOffersEscrow": "0x6c25bdD92906eb97601410198D398526bA792468",
+    "DurchexCollectionFactory": "0x52BFD9db105EA95d24E2Ff1dee83A0f3C6C50AFf",
+    "DurchexCollectionImplementation": "0x8b04B3994C3606Df61fdE79ebEF7EaA5c61304d2",
+    "DurchexCollection1155Factory": "0xc1132f2F4358dcDD1f000aE54051936Cf83896aa",
+    "DurchexCollection1155Implementation": "0x19c989c0AC71d04CFa770b064968B0f2B5c04515",
+    "feeRecipient": "0xf1b1f1410D82Bb5e4bc775a6DdFba895E396314d",
+    "deployedAtBlock": 45790715,
+    "deployedAt": "2026-08-25T14:12:56.187Z"
   }
 }

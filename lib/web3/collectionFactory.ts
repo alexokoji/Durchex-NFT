@@ -23,9 +23,11 @@ import { concat, getContractAddress, keccak256, stringToHex, type Address, type 
 // existed.
 export const COLLECTION_FACTORY_ADDRESSES: Record<number, Address> = {
   1: "0xc4cbC3A2f1ef10F5A4eD6651314812C3c7f09f76", // Ethereum mainnet
+  4663: "0x52BFD9db105EA95d24E2Ff1dee83A0f3C6C50AFf", // Robinhood Chain
 };
 export const COLLECTION_IMPLEMENTATION_ADDRESSES: Record<number, Address> = {
   1: "0x60AcD2CF1700490bA19645721f588420c2F4d0a0", // Ethereum mainnet
+  4663: "0x8b04B3994C3606Df61fdE79ebEF7EaA5c61304d2", // Robinhood Chain
 };
 
 export function collectionFactoryAddressFor(chainId: number | undefined): Address | undefined {
@@ -48,9 +50,11 @@ export function collectionImplementationAddressFor(chainId: number | undefined):
 // deliberately identical, so both standards share the code below.
 export const COLLECTION_1155_FACTORY_ADDRESSES: Record<number, Address> = {
   1: "0x8Ca02Cda6E7AED9152c822a0A0Df1a91220768b2", // Ethereum mainnet
+  4663: "0xc1132f2F4358dcDD1f000aE54051936Cf83896aa", // Robinhood Chain
 };
 export const COLLECTION_1155_IMPLEMENTATION_ADDRESSES: Record<number, Address> = {
   1: "0x9E1845f1da9D7F918539Bc72cC56d4Bb5EA3f38a", // Ethereum mainnet
+  4663: "0x19c989c0AC71d04CFa770b064968B0f2B5c04515", // Robinhood Chain
 };
 
 export function collection1155FactoryAddressFor(chainId: number | undefined): Address | undefined {

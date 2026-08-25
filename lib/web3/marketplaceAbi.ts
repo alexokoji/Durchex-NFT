@@ -150,6 +150,14 @@ export const MARKETPLACE_ADDRESSES: Record<number, `0x${string}`> = {
   // Listing signatures are bound to this address, so every listing signed
   // against the old one is dead and has to be re-signed.
   1: "0x2Cd081112d1e2f5eE033D7D3Ee313D9Ff5ADdF56",
+  // Robinhood Chain, deployed 2026-08-25 at block 45790715.
+  //
+  // Beware: this address is DurchexNFT on Ethereum. Contract addresses come
+  // from (deployer, nonce), and the same deployer starting fresh on a new
+  // chain replays the same nonces — so the whole Robinhood set collides
+  // with Ethereum's early addresses while being entirely different
+  // contracts. Never resolve an address without its chain.
+  4663: "0x35A25Cd37b62F7896263cf1bA27727b90bd0a3a1",
   11155111: "0x3f1Ef15a97BB939D4132339becD9305e3D7e011F", // Sepolia
 };
 
