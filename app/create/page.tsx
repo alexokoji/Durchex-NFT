@@ -13,6 +13,7 @@ import { CollectionPicker, CollectionOption } from "@/components/create/Collecti
 import { TraitsEditor, TraitInput } from "@/components/create/TraitsEditor";
 import { PricingForm, PricingMode } from "@/components/create/PricingForm";
 import { AssetUploader, UploadedAsset } from "@/components/create/AssetUploader";
+import { BulkImport } from "@/components/create/BulkImport";
 import { ConnectWalletButton } from "@/components/wallet/ConnectWalletButton";
 import { useSession } from "@/hooks/useSession";
 import { buildVoucherTypedData } from "@/lib/web3/voucher";
@@ -28,6 +29,7 @@ export default function CreatePage() {
 
   const [creationClosed, setCreationClosed] = useState<string | null>(null);
   const [step, setStep] = useState(0);
+  const [bulkMode, setBulkMode] = useState(false);
   const [collection, setCollection] = useState<CollectionOption | null>(null);
   const [name, setName] = useState("");
   const [asset, setAsset] = useState<UploadedAsset | null>(null);
@@ -219,8 +221,43 @@ export default function CreatePage() {
         <Sparkles className="w-3.5 h-3.5" />
         Free to list — mints on first sale
       </div>
-      <h1 className="font-display text-3xl font-semibold text-white mt-3 mb-8">Create an item</h1>
+      <h1 className="font-display text-3xl font-semibold text-white mt-3 mb-6">Create an item</h1>
 
+      {/* Bulk is a mode, not a fifth step: it replaces the whole wizard
+          rather than extending it, since a spreadsheet already carries the
+          name, traits and price the steps exist to collect. */}
+      <div className="inline-flex items-center gap-1 rounded-lg border border-white/10 p-1 mb-6">
+        {(["single", "bulk"] as const).map((m) => (
+          <button
+            key={m}
+            type="button"
+            onClick={() => setBulkMode(m === "bulk")}
+            className={`rounded-md px-3 py-1.5 text-xs font-medium transition ${
+              (m === "bulk") === bulkMode ? "bg-white/10 text-white" : "text-white/45 hover:text-white/80"
+            }`}
+          >
+            {m === "single" ? "One item" : "Bulk import"}
+          </button>
+        ))}
+      </div>
+
+      {bulkMode ? (
+        <div className="surface-card p-6 sm:p-8">
+          <h2 className="text-lg font-semibold text-white mb-1">Bulk import</h2>
+          <p className="text-sm text-white/45 mb-5">
+            Create many items at once from a CSV or JSON file plus their images.
+          </p>
+          <div className="mb-6">
+            <CollectionPicker selected={collection} onSelect={setCollection} />
+          </div>
+          {collection ? (
+            <BulkImport collection={collection} />
+          ) : (
+            <p className="text-sm text-white/40">Pick a collection above to continue.</p>
+          )}
+        </div>
+      ) : (
+      <>
       <StepIndicator step={step} />
 
       <div className="surface-card p-6 sm:p-8 min-h-[22rem]">
@@ -399,6 +436,8 @@ export default function CreatePage() {
           </div>
         )}
       </div>
+      </>
+      )}
     </div>
   );
 }

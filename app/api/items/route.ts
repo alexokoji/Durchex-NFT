@@ -14,7 +14,11 @@ interface CreateItemBody {
   name: string;
   description?: string;
   media?: { url: string; type: string; name: string; size: number };
-  traits?: { traitType: string; value: string }[];
+  // `trait_type` is accepted alongside `traitType` because bulk import
+  // reads files written to the ERC-721 metadata standard, which uses the
+  // snake_case spelling — converting it on the way in would mean the
+  // format creators already have could not be posted as-is.
+  traits?: { traitType?: string; trait_type?: string; value: string; rarity?: number | null }[];
   pricingMode: "fixed_price" | "auction" | "not_listed";
   priceEth: number;
   auctionDurationHours?: number;
@@ -42,6 +46,23 @@ interface CreateItemBody {
   };
   totalSupply?: number;
   signature?: string;
+}
+
+
+/**
+ * Accepts either spelling of the trait key and keeps rarity when it is
+ * known. Rarity is only computable across a whole batch — the share of the
+ * collection carrying that value — so it arrives from bulk import and is
+ * absent when items are made one at a time.
+ */
+function normalizeTraits(traits: CreateItemBody["traits"]) {
+  return (traits ?? [])
+    .map((t) => ({
+      trait_type: String(t.trait_type ?? t.traitType ?? "").trim(),
+      value: String(t.value ?? "").trim(),
+      rarity: typeof t.rarity === "number" ? t.rarity : null,
+    }))
+    .filter((t) => t.trait_type && t.value);
 }
 
 export async function POST(req: NextRequest) {
@@ -139,9 +160,7 @@ export async function POST(req: NextRequest) {
     mediaName: body.media?.name ?? "",
     mediaSize: body.media?.size ?? 0,
     metadataUri: body.metadataUri,
-    traits: (body.traits ?? [])
-      .filter((t) => t.traitType.trim() && t.value.trim())
-      .map((t) => ({ trait_type: t.traitType.trim(), value: t.value.trim() })),
+    traits: normalizeTraits(body.traits),
     status,
     priceEth: status === "not_listed" ? 0 : body.priceEth,
     highestBidEth: 0,
@@ -206,9 +225,7 @@ async function createEdition(
     mediaName: body.media?.name ?? "",
     mediaSize: body.media?.size ?? 0,
     metadataUri: body.metadataUri,
-    traits: (body.traits ?? [])
-      .filter((t) => t.traitType.trim() && t.value.trim())
-      .map((t) => ({ trait_type: t.traitType.trim(), value: t.value.trim() })),
+    traits: normalizeTraits(body.traits),
     status: "fixed_price",
     priceEth: body.priceEth, // per unit
     favoriteCount: 0,
