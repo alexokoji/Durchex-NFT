@@ -20,6 +20,7 @@ import { useTxSuccess } from "@/components/tx/TxSuccess";
 import { CountdownTimer } from "@/components/nft/CountdownTimer";
 import { useFavorite } from "@/hooks/useFavorite";
 import { useSession } from "@/hooks/useSession";
+import { useOnChainCancel } from "@/hooks/useOnChainCancel";
 import { BuyLazyButton } from "@/components/item/BuyLazyButton";
 import { BuyListedButton } from "@/components/item/BuyListedButton";
 import { ListForSaleForm } from "@/components/item/ListForSaleForm";
@@ -40,6 +41,8 @@ export function PricePanel({ item }: { item: ItemDetailView }) {
 
 function ClassicPricePanel({ item }: { item: ItemDetailView }) {
   const router = useRouter();
+  const { cancelOnChain, cancelling } = useOnChainCancel();
+  const [unlistNote, setUnlistNote] = useState<string | null>(null);
   const { user } = useSession();
   const { openConnectModal } = useConnectModal();
   const [notice, setNotice] = useState<string | null>(null);
@@ -206,21 +209,39 @@ function ClassicPricePanel({ item }: { item: ItemDetailView }) {
       {!isSold && isOwner && item.isMinted && (
         <div className="flex flex-col gap-2.5">
           {item.status === "fixed_price" ? (
-            <div className="surface-card p-4 flex items-center justify-between">
-              <span className="text-sm text-white/70">Listed for {item.priceEth} ETH</span>
-              <button
-                onClick={async () => {
-                  await fetch(`/api/items/${item.id}`, {
-                    method: "PATCH",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ action: "unlist" }),
-                  });
-                  router.refresh();
-                }}
-                className="text-xs font-medium text-white/50 hover:text-white transition"
-              >
-                Unlist
-              </button>
+            <div className="surface-card p-4">
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-white/70">Listed for {item.priceEth} ETH</span>
+                <button
+                  disabled={cancelling}
+                  onClick={async () => {
+                    setUnlistNote(null);
+                    // Revoke on-chain first: that is what actually makes the
+                    // signature unfillable. The local removal happens either
+                    // way, so declining still delists on Durchex.
+                    const outcome = await cancelOnChain({
+                      chainId: item.chainId,
+                      nonce: item.listing?.nonce,
+                      standard: "ERC721",
+                    });
+                    await fetch(`/api/items/${item.id}`, {
+                      method: "PATCH",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({ action: "unlist" }),
+                    });
+                    setUnlistNote(
+                      outcome.cancelled
+                        ? null
+                        : `Removed from Durchex, but the signed order is still valid on-chain until its deadline — ${outcome.reason} Cancel it on-chain to revoke it fully.`
+                    );
+                    router.refresh();
+                  }}
+                  className="text-xs font-medium text-white/50 hover:text-white transition disabled:opacity-50"
+                >
+                  {cancelling ? "Cancelling…" : "Unlist"}
+                </button>
+              </div>
+              {unlistNote && <p className="text-[11px] text-amber-300/90 mt-2 leading-relaxed">{unlistNote}</p>}
             </div>
           ) : (
             <ListForSaleForm item={item} />

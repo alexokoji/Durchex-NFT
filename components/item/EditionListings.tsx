@@ -8,6 +8,7 @@ import { useConnectModal } from "@rainbow-me/rainbowkit";
 import { Button } from "@/components/ui/Button";
 import { CountdownTimer } from "@/components/nft/CountdownTimer";
 import { useSession } from "@/hooks/useSession";
+import { useOnChainCancel } from "@/hooks/useOnChainCancel";
 import { onLiveRefresh } from "@/components/providers/LiveRefresh";
 import { MARKETPLACE_ABI, marketplaceAddressFor } from "@/lib/web3/marketplaceAbi";
 import { buildListing1155TypedData } from "@/lib/web3/listing1155";
@@ -40,6 +41,7 @@ type ResaleListing = {
 export function EditionListings({ item }: { item: ItemDetailView }) {
   const { format } = useCurrency();
   const router = useRouter();
+  const { cancelOnChain } = useOnChainCancel();
   const { user } = useSession();
   const { address, chainId: connectedChainId } = useAccount();
   const { openConnectModal } = useConnectModal();
@@ -80,10 +82,26 @@ export function EditionListings({ item }: { item: ItemDetailView }) {
     setCancelling(listingId);
     setError(null);
     try {
+      const listing = listings?.find((l) => l.id === listingId);
+      // Marking the nonce used on-chain is the only thing that makes the
+      // seller's signature unfillable — deleting the row just stops Durchex
+      // handing it out. Withdrawal proceeds either way, so declining still
+      // takes it off the marketplace.
+      const outcome = await cancelOnChain({
+        chainId: item.chainId,
+        nonce: listing?.nonce,
+        standard: "ERC1155",
+      });
+
       const res = await fetch(`/api/items/${item.id}/listings/${listingId}`, { method: "DELETE" });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Couldn't withdraw the listing");
       setListings((all) => (all ? all.filter((l) => l.id !== listingId) : all));
+      if (!outcome.cancelled) {
+        setError(
+          `Withdrawn from Durchex, but the signed order stays valid on-chain until its deadline — ${outcome.reason}`
+        );
+      }
       router.refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Couldn't withdraw the listing");
