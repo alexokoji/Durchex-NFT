@@ -1,5 +1,15 @@
-import { defineChain } from "viem";
-import { ink } from "viem/chains";
+import { defineChain, type Chain } from "viem";
+import {
+  ink,
+  mainnet,
+  sepolia,
+  polygon,
+  polygonAmoy,
+  base,
+  arbitrum,
+  optimism,
+  hardhat,
+} from "viem/chains";
 
 /**
  * Chains Durchex knows about that viem does not ship a definition for.
@@ -41,3 +51,20 @@ export const robinhoodTestnet = defineChain({
 
 /** Ink — Kraken's OP Stack L2, ETH for gas. viem already defines it. */
 export { ink };
+
+/**
+ * Every chain the server may need a viem client for, by id.
+ *
+ * There were three copies of this list — the wagmi config, the reconciler,
+ * and the voucher-nonce reader — and adding Robinhood Chain to two of them
+ * left the third silently wrong: an unrecognised chain there falls back to
+ * counting local pending vouchers instead of asking the contract, which
+ * agrees with the chain only until the first redemption and then hands out
+ * a nonce that is already spent. Every voucher signed afterwards reverts.
+ *
+ * A missing entry causes no error, which is exactly why the list belongs
+ * in one place.
+ */
+export const EVM_CHAINS: Record<number, Chain> = Object.fromEntries(
+  [mainnet, sepolia, polygon, polygonAmoy, base, arbitrum, optimism, hardhat, robinhood, ink].map((c) => [c.id, c])
+);

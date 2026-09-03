@@ -1,12 +1,12 @@
-import { createPublicClient, http, type Chain } from "viem";
-import { mainnet, sepolia, polygon, polygonAmoy, base, arbitrum, optimism, hardhat } from "viem/chains";
+import { createPublicClient, http } from "viem";
+import { hardhat } from "viem/chains";
 import { Item } from "@/lib/models/Item";
 import { Collection } from "@/lib/models/Collection";
 import { Types } from "mongoose";
-
-const CHAINS: Record<number, Chain> = Object.fromEntries(
-  [mainnet, sepolia, polygon, polygonAmoy, base, arbitrum, optimism, hardhat].map((c) => [c.id, c])
-);
+// One shared list. A chain missing from here does not error — it quietly
+// falls back to counting local vouchers, which drifts from the contract
+// after the first redemption — so it must never be maintained separately.
+import { EVM_CHAINS as CHAINS } from "@/lib/web3/chains";
 
 const NONCES_ABI = [
   {
