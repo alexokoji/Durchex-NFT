@@ -66,5 +66,37 @@ check("dispatch: sniffs unlabelled json", parseBulkFile("meta.txt", json).drafts
 const rarity = computeTraitRarity(jsonResult.drafts);
 check("rarity: shared trait across both items is 100%", rarity.get("Fur:Gold"), 100);
 
+// ERC-1155: the contract rejects a zero supply or a zero price outright,
+// so both must fail parsing rather than one signature into the batch.
+const editionCsv = [
+  'name,price,image,supply,trait:Metal',
+  'Silver Sword,0.05,silver.png,500,Silver',
+  'Gold Sword,0.10,gold.png,,Gold',
+  'Free Sword,0,free.png,100,Iron',
+].join("\n");
+
+const asEdition = parseBulkCsv(editionCsv, "ERC1155");
+check("1155: reads the supply column", asEdition.drafts[0].supply, 500);
+check("1155: only the valid row survives", asEdition.drafts.length, 1);
+check("1155: missing supply and zero price both rejected", asEdition.errors.map((e) => e.row), [3, 4]);
+
+// The same file under ERC-721 is entirely valid: supply is meaningless
+// there and a zero price just means "created but not listed".
+const as721 = parseBulkCsv(editionCsv, "ERC721");
+check("721: same file passes, supply ignored", as721.drafts.length, 3);
+check("721: zero price allowed", as721.drafts[2].priceEth, 0);
+
+check(
+  "1155: json supply via totalSupply alias",
+  parseBulkJson('[{"name":"Ape","image":"a.png","price":0.1,"totalSupply":25}]', "ERC1155").drafts[0].supply,
+  25
+);
+check(
+  "1155: json missing supply rejected",
+  parseBulkJson('[{"name":"Ape","image":"a.png","price":0.1}]', "ERC1155").errors.length,
+  1
+);
+check("dispatch: standard is forwarded", parseBulkFile("m.csv", editionCsv, "ERC1155").drafts.length, 1);
+
 console.log(failures === 0 ? "\nAll checks passed." : `\n${failures} FAILED`);
 process.exit(failures === 0 ? 0 : 1);

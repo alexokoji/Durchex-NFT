@@ -23,8 +23,15 @@ export interface BulkDraft {
   priceEth: number;
   /** The filename to match against an uploaded image. */
   image: string;
+  /**
+   * How many editions exist of this item. ERC-1155 only — an ERC-721 item
+   * is one of one by construction, and the column is ignored there.
+   */
+  supply: number;
   traits: { trait_type: string; value: string }[];
 }
+
+export type TokenStandard = "ERC721" | "ERC1155";
 
 export interface BulkParseResult {
   drafts: BulkDraft[];
@@ -91,6 +98,7 @@ const NAME_KEYS = ["name", "title"];
 const DESCRIPTION_KEYS = ["description", "desc"];
 const PRICE_KEYS = ["price", "priceeth", "price_eth", "price (eth)"];
 const IMAGE_KEYS = ["image", "file", "filename", "image_file", "asset"];
+const SUPPLY_KEYS = ["supply", "totalsupply", "total_supply", "total supply", "editions", "quantity", "amount"];
 
 function pick(record: Record<string, string>, keys: string[]): string {
   for (const key of keys) {
@@ -109,7 +117,7 @@ function pick(record: Record<string, string>, keys: string[]): string {
  * empty trait cell means that item simply does not have the trait, rather
  * than having it set to blank — a distinction that matters for rarity.
  */
-export function parseBulkCsv(text: string): BulkParseResult {
+export function parseBulkCsv(text: string, standard: TokenStandard = "ERC721"): BulkParseResult {
   const rows = parseCsvRows(text);
   if (rows.length === 0) return { drafts: [], errors: [{ row: 0, message: "The file is empty." }] };
 
@@ -135,12 +143,13 @@ export function parseBulkCsv(text: string): BulkParseResult {
       description: pick(record, DESCRIPTION_KEYS),
       priceEth: Number(pick(record, PRICE_KEYS) || 0),
       image: pick(record, IMAGE_KEYS),
+      supply: Math.floor(Number(pick(record, SUPPLY_KEYS) || 0)),
       traits: traitColumns
         .map((c) => ({ trait_type: c.label, value: (cells[c.index] ?? "").trim() }))
         .filter((t) => t.trait_type !== "" && t.value !== ""),
     };
 
-    const problem = validate(draft);
+    const problem = validate(draft, standard);
     if (problem) errors.push({ row, message: problem });
     else drafts.push(draft);
   });
@@ -153,7 +162,7 @@ export function parseBulkCsv(text: string): BulkParseResult {
  * standard `attributes` array so a metadata file written for IPFS imports
  * as-is.
  */
-export function parseBulkJson(text: string): BulkParseResult {
+export function parseBulkJson(text: string, standard: TokenStandard = "ERC721"): BulkParseResult {
   let parsed: unknown;
   try {
     parsed = JSON.parse(text);
@@ -193,6 +202,7 @@ export function parseBulkJson(text: string): BulkParseResult {
         .trim()
         .split("/")
         .pop() ?? "",
+      supply: Math.floor(Number(entry.supply ?? entry.totalSupply ?? entry.editions ?? entry.amount ?? 0)),
       traits: (attributes as Record<string, unknown>[])
         .map((a) => ({
           trait_type: String(a?.trait_type ?? a?.traitType ?? a?.type ?? "").trim(),
@@ -201,7 +211,7 @@ export function parseBulkJson(text: string): BulkParseResult {
         .filter((t) => t.trait_type !== "" && t.value !== ""),
     };
 
-    const problem = validate(draft);
+    const problem = validate(draft, standard);
     if (problem) errors.push({ row, message: problem });
     else drafts.push(draft);
   });
@@ -209,20 +219,35 @@ export function parseBulkJson(text: string): BulkParseResult {
   return { drafts, errors };
 }
 
-function validate(draft: BulkDraft): string | null {
+function validate(draft: BulkDraft, standard: TokenStandard): string | null {
   if (draft.name.length < 2) return "Needs a name of at least 2 characters.";
   if (!draft.image) return "Needs an image filename to match against your uploads.";
   if (!Number.isFinite(draft.priceEth) || draft.priceEth < 0) return "Price must be a number of 0 or more.";
+  // An edition is defined by having more than one of it, and the contract
+  // rejects a zero supply or a zero price outright — so both are required
+  // here rather than being discovered one signature into the batch. An
+  // ERC-721 item has no supply to state and a price of 0 simply means it
+  // is created without being listed.
+  if (standard === "ERC1155") {
+    if (!Number.isFinite(draft.supply) || draft.supply < 1) {
+      return "Needs a supply of at least 1 (add a `supply` column for ERC-1155 collections).";
+    }
+    if (draft.priceEth <= 0) return "Editions need a per-unit price greater than 0.";
+  }
   return null;
 }
 
 /** Dispatches on the file's extension, falling back to sniffing content. */
-export function parseBulkFile(filename: string, text: string): BulkParseResult {
-  if (/\.json$/i.test(filename)) return parseBulkJson(text);
-  if (/\.csv$/i.test(filename)) return parseBulkCsv(text);
+export function parseBulkFile(
+  filename: string,
+  text: string,
+  standard: TokenStandard = "ERC721"
+): BulkParseResult {
+  if (/\.json$/i.test(filename)) return parseBulkJson(text, standard);
+  if (/\.csv$/i.test(filename)) return parseBulkCsv(text, standard);
   return text.trim().startsWith("[") || text.trim().startsWith("{")
-    ? parseBulkJson(text)
-    : parseBulkCsv(text);
+    ? parseBulkJson(text, standard)
+    : parseBulkCsv(text, standard);
 }
 
 /**

@@ -9,6 +9,7 @@ import { AlertTriangle, CheckCircle2, FileSpreadsheet, ImagePlus, Loader2 } from
 import { Button } from "@/components/ui/Button";
 import { CollectionOption } from "@/components/create/CollectionPicker";
 import { buildVoucherTypedData } from "@/lib/web3/voucher";
+import { buildEditionVoucherTypedData } from "@/lib/web3/editionVoucher";
 import { parseBulkFile, computeTraitRarity, type BulkDraft, type BulkParseResult } from "@/lib/bulkImport";
 
 type Uploaded = { url: string; type: string; name: string; size: number };
@@ -53,7 +54,11 @@ export function BulkImport({ collection }: { collection: CollectionOption }) {
   async function readMetadata(file: File) {
     setError(null);
     const text = await file.text();
-    const result = parseBulkFile(file.name, text);
+    // The standard changes what a valid row is — an edition must state a
+    // supply and a price, an ERC-721 item may state neither — so it is
+    // passed in rather than validated later, keeping every complaint
+    // attached to the row that caused it.
+    const result = parseBulkFile(file.name, text, isEdition ? "ERC1155" : "ERC721");
     setParsed(result);
     setCreated(0);
     setFinished(false);
@@ -87,7 +92,6 @@ export function BulkImport({ collection }: { collection: CollectionOption }) {
 
   async function createAll() {
     if (!address) return setError("Connect your wallet first.");
-    if (isEdition) return setError("Bulk import currently handles ERC-721 collections.");
     setRunning(true);
     setError(null);
 
@@ -105,50 +109,77 @@ export function BulkImport({ collection }: { collection: CollectionOption }) {
         const draft = matched[i];
         const media = images[draft.image.toLowerCase()];
 
-        // Re-read the nonce each time rather than predicting the sequence.
-        // The API compares it for exact equality against a freshly derived
-        // value, so a prediction that drifts by one fails every remaining
-        // item; asking costs a round trip and cannot drift.
-        const nonceRes = await fetch(`/api/collections/${collection.id}/voucher-nonce`);
-        const nonceData = await nonceRes.json();
-        if (!nonceRes.ok) throw new Error(nonceData.error ?? "Couldn't read the voucher nonce");
-
         // Millisecond timestamps collide when a loop runs faster than the
         // clock ticks, and tokenId must be unique across every collection
         // on the shared contract — so the index is folded in.
         const tokenId = Date.now() * 1000 + i;
         const metadataUri = `${window.location.origin}/api/metadata/${collection.slug}/${tokenId}`;
+        const traits = draft.traits.map((t) => ({
+          ...t,
+          // Rarity can only be known across a whole batch, which is why
+          // the one-at-a-time flow never filled this in.
+          rarity: rarity.get(`${t.trait_type}:${t.value}`) ?? null,
+        }));
 
-        const typedData = buildVoucherTypedData({
-          chainId: collection.chainId,
-          verifyingContract: collection.contractAddress,
-          tokenId,
-          uri: metadataUri,
-          priceEth: draft.priceEth,
-          creator: address,
-          royaltyBps: collection.royaltyBps,
-          nonce: nonceData.nonce,
-        });
-        const signature = await signTypedDataAsync(typedData);
+        let payload: Record<string, unknown>;
 
-        const res = await fetch("/api/items", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            collectionId: collection.id,
-            name: draft.name,
-            description: draft.description,
-            media,
-            // Rarity can only be known across a whole batch, which is why
-            // the one-at-a-time flow never filled this in.
-            traits: draft.traits.map((t) => ({
-              ...t,
-              rarity: rarity.get(`${t.trait_type}:${t.value}`) ?? null,
-            })),
+        if (isEdition) {
+          // An EditionVoucher's nonce identifies the edition rather than
+          // ordering it — DurchexNFT1155 never increments one, because the
+          // same voucher is redeemed by many buyers. So it only has to be
+          // unique, and there is no sequence to stay in step with.
+          const nonce = Date.now() * 1000 + i;
+          const typedData = buildEditionVoucherTypedData({
+            chainId: collection.chainId,
+            verifyingContract: collection.contractAddress,
+            tokenId,
+            uri: metadataUri,
+            pricePerUnitEth: draft.priceEth,
+            creator: address,
+            royaltyBps: collection.royaltyBps,
+            maxSupply: draft.supply,
+            nonce,
+          });
+          const signature = await signTypedDataAsync(typedData);
+          payload = {
+            priceEth: draft.priceEth,
+            totalSupply: draft.supply,
+            editionVoucher: {
+              tokenId: String(tokenId),
+              uri: metadataUri,
+              minPrice: typedData.message.minPrice.toString(),
+              creator: address,
+              royaltyBps: collection.royaltyBps,
+              maxSupply: draft.supply,
+              nonce: typedData.message.nonce.toString(),
+              deadline: typedData.message.deadline.toString(),
+            },
+            signature,
+          };
+        } else {
+          // An ERC-721 voucher nonce *is* a sequence the contract enforces,
+          // and the API compares it for exact equality against a freshly
+          // derived value — so it is re-read each time rather than
+          // predicted, since a prediction that drifts by one would fail
+          // every remaining item.
+          const nonceRes = await fetch(`/api/collections/${collection.id}/voucher-nonce`);
+          const nonceData = await nonceRes.json();
+          if (!nonceRes.ok) throw new Error(nonceData.error ?? "Couldn't read the voucher nonce");
+
+          const typedData = buildVoucherTypedData({
+            chainId: collection.chainId,
+            verifyingContract: collection.contractAddress,
+            tokenId,
+            uri: metadataUri,
+            priceEth: draft.priceEth,
+            creator: address,
+            royaltyBps: collection.royaltyBps,
+            nonce: nonceData.nonce,
+          });
+          const signature = await signTypedDataAsync(typedData);
+          payload = {
             pricingMode: draft.priceEth > 0 ? "fixed_price" : "not_listed",
             priceEth: draft.priceEth,
-            tokenId: String(tokenId),
-            metadataUri,
             voucher: {
               tokenId: String(tokenId),
               uri: metadataUri,
@@ -159,6 +190,21 @@ export function BulkImport({ collection }: { collection: CollectionOption }) {
               deadline: typedData.message.deadline.toString(),
             },
             signature,
+          };
+        }
+
+        const res = await fetch("/api/items", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            collectionId: collection.id,
+            name: draft.name,
+            description: draft.description,
+            media,
+            traits,
+            tokenId: String(tokenId),
+            metadataUri,
+            ...payload,
           }),
         });
         const data = await res.json();
@@ -188,7 +234,7 @@ export function BulkImport({ collection }: { collection: CollectionOption }) {
         </p>
       </div>
 
-      <Formats />
+      <Formats isEdition={isEdition} />
 
       <div className="grid sm:grid-cols-2 gap-3">
         <button
@@ -260,7 +306,7 @@ export function BulkImport({ collection }: { collection: CollectionOption }) {
         </Notice>
       )}
 
-      {matched.length > 0 && <Preview drafts={matched} images={images} />}
+      {matched.length > 0 && <Preview drafts={matched} images={images} isEdition={isEdition} />}
 
       {error && <Notice tone="danger" icon={AlertTriangle} title="Import stopped">{error}</Notice>}
 
@@ -291,7 +337,15 @@ export function BulkImport({ collection }: { collection: CollectionOption }) {
   );
 }
 
-function Preview({ drafts, images }: { drafts: BulkDraft[]; images: Record<string, Uploaded> }) {
+function Preview({
+  drafts,
+  images,
+  isEdition,
+}: {
+  drafts: BulkDraft[];
+  images: Record<string, Uploaded>;
+  isEdition: boolean;
+}) {
   return (
     <div className="surface-card overflow-hidden">
       <div className="px-4 py-2.5 border-b border-white/8 text-[11px] uppercase tracking-wide text-white/35">
@@ -311,8 +365,15 @@ function Preview({ drafts, images }: { drafts: BulkDraft[]; images: Record<strin
                 {d.traits.length > 0 ? d.traits.map((t) => `${t.trait_type}: ${t.value}`).join(" · ") : "No traits"}
               </p>
             </div>
-            <span className="text-sm tabular-nums text-white/70 shrink-0">
-              {d.priceEth > 0 ? `${d.priceEth} ETH` : "Not listed"}
+            <span className="text-right tabular-nums shrink-0">
+              <span className="block text-sm text-white/70">
+                {d.priceEth > 0 ? `${d.priceEth} ETH` : "Not listed"}
+              </span>
+              {isEdition && (
+                <span className="block text-[11px] text-white/40">
+                  {d.supply.toLocaleString()} editions
+                </span>
+              )}
             </span>
           </div>
         ))}
@@ -321,7 +382,7 @@ function Preview({ drafts, images }: { drafts: BulkDraft[]; images: Record<strin
   );
 }
 
-function Formats() {
+function Formats({ isEdition }: { isEdition: boolean }) {
   const [open, setOpen] = useState(false);
   return (
     <div className="rounded-xl border border-white/10 overflow-hidden">
@@ -337,23 +398,45 @@ function Formats() {
         <div className="px-4 pb-4 space-y-3 text-[11px]">
           <div>
             <p className="text-white/50 mb-1">CSV — one row per item, trait columns named <code>trait:Name</code>:</p>
-            <pre className="overflow-x-auto rounded-lg bg-black/40 p-3 text-white/70">{`name,description,price,image,trait:Background,trait:Eyes
+            <pre className="overflow-x-auto rounded-lg bg-black/40 p-3 text-white/70">
+              {isEdition
+                ? `name,description,price,image,supply,trait:Metal
+Silver Sword,"A sharp, curved blade",0.05,silver.png,500,Silver
+Gold Sword,A blunt one,0.10,gold.png,250,Gold`
+                : `name,description,price,image,trait:Background,trait:Eyes
 Sword #1,"A sharp, curved blade",0.05,sword1.png,Blue,Green
-Sword #2,A blunt one,0.05,sword2.png,Red,Gold`}</pre>
+Sword #2,A blunt one,0.05,sword2.png,Red,Gold`}
+            </pre>
           </div>
           <div>
             <p className="text-white/50 mb-1">
               JSON — the standard metadata shape, so a generator&apos;s output works unchanged:
             </p>
-            <pre className="overflow-x-auto rounded-lg bg-black/40 p-3 text-white/70">{`[
+            <pre className="overflow-x-auto rounded-lg bg-black/40 p-3 text-white/70">
+              {isEdition
+                ? `[
+  { "name": "Silver Sword", "image": "silver.png",
+    "price": 0.05, "supply": 500,
+    "attributes": [{ "trait_type": "Metal", "value": "Silver" }] }
+]`
+                : `[
   { "name": "Sword #1", "description": "A sharp one",
     "image": "sword1.png", "price": 0.05,
     "attributes": [{ "trait_type": "Background", "value": "Blue" }] }
-]`}</pre>
+]`}
+            </pre>
           </div>
           <p className="text-white/40">
-            <code>image</code> is matched to your uploaded files by filename. A price of 0 creates the
-            item without listing it. Trait rarity is worked out across the whole batch.
+            <code>image</code> is matched to your uploaded files by filename. Trait rarity is worked
+            out across the whole batch.{" "}
+            {isEdition ? (
+              <>
+                This is an ERC-1155 collection, so every row needs a <code>supply</code> and a
+                per-unit price above 0 — an edition with neither is something the contract refuses.
+              </>
+            ) : (
+              <>A price of 0 creates the item without listing it.</>
+            )}
           </p>
         </div>
       )}
