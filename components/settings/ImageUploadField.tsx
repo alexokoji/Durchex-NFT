@@ -3,6 +3,7 @@
 import { useRef, useState } from "react";
 import { upload } from "@vercel/blob/client";
 import { ImagePlus, Loader2, X } from "lucide-react";
+import { IMAGE_BUDGETS, shrinkImage, type ImageBudget } from "@/lib/imageResize";
 
 const ACCEPT = "image/jpeg,image/png,image/webp,image/gif,image/avif";
 const MAX_BYTES = 10 * 1024 * 1024;
@@ -20,16 +21,25 @@ export function ImageUploadField({
   value,
   onChange,
   aspect = "square",
+  budget = "avatar",
 }: {
   label: string;
   hint?: string;
   value: string;
   onChange: (url: string) => void;
   aspect?: "square" | "wide";
+  /**
+   * Which size budget applies. Defaults to avatar; pass "idDocument" for
+   * anything a human has to read, which is exempt from optimisation —
+   * compression artefacts across a document number are the one place
+   * where saving bytes costs more than it is worth.
+   */
+  budget?: ImageBudget;
 }) {
   const input = useRef<HTMLInputElement>(null);
   const [progress, setProgress] = useState(0);
   const [error, setError] = useState<string | null>(null);
+  const [optimising, setOptimising] = useState(false);
   const uploading = progress > 0 && progress < 100;
 
   async function selectFile(file: File) {
@@ -38,10 +48,15 @@ export function ImageUploadField({
     }
     if (file.size > MAX_BYTES) return setError("Images must be 10 MB or smaller.");
     setError(null);
+    setOptimising(true);
+    // An avatar renders at 36 pixels; there is no reason to store, serve
+    // and re-serve the 4000-pixel original behind it.
+    const { file: asset } = await shrinkImage(file, IMAGE_BUDGETS[budget]);
+    setOptimising(false);
     setProgress(1);
     try {
-      const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "-");
-      const blob = await upload(`profile-assets/${safeName}`, file, {
+      const safeName = asset.name.replace(/[^a-zA-Z0-9._-]/g, "-");
+      const blob = await upload(`profile-assets/${safeName}`, asset, {
         access: "public",
         handleUploadUrl: "/api/uploads",
         onUploadProgress: ({ percentage }) => setProgress(Math.max(1, Math.round(percentage))),
@@ -93,19 +108,23 @@ export function ImageUploadField({
         <button
           type="button"
           onClick={() => input.current?.click()}
-          disabled={uploading}
+          disabled={uploading || optimising}
           className={`w-full rounded-xl border-2 border-dashed border-white/15 hover:border-purple-500/60 bg-white/[0.02] transition grid place-items-center text-center p-5 ${
             aspect === "wide" ? "h-28" : "h-36"
           }`}
         >
           <span>
-            {uploading ? (
+            {uploading || optimising ? (
               <Loader2 className="w-6 h-6 text-purple-300 animate-spin mx-auto mb-2" />
             ) : (
               <ImagePlus className="w-6 h-6 text-purple-300 mx-auto mb-2" />
             )}
             <span className="block text-xs font-medium text-white">
-              {uploading ? `Uploading ${progress}%` : `Upload ${label.toLowerCase()}`}
+              {optimising
+                ? "Optimising…"
+                : uploading
+                  ? `Uploading ${progress}%`
+                  : `Upload ${label.toLowerCase()}`}
             </span>
             {hint && <span className="block text-[11px] text-white/35 mt-0.5">{hint}</span>}
           </span>

@@ -248,11 +248,11 @@ export function CollectionPicker({
           <div className="grid sm:grid-cols-2 gap-4">
             <div>
               <label className="text-xs font-medium text-white/50 mb-1.5 block">Collection image</label>
-              <AssetUploader value={form.logo} onChange={(logo) => setForm((current) => ({ ...current, logo }))} imageOnly label="Upload collection image" />
+              <AssetUploader value={form.logo} onChange={(logo) => setForm((current) => ({ ...current, logo }))} imageOnly budget="logo" label="Upload collection image" />
             </div>
             <div>
               <label className="text-xs font-medium text-white/50 mb-1.5 block">Collection cover image</label>
-              <AssetUploader value={form.banner} onChange={(banner) => setForm((current) => ({ ...current, banner }))} imageOnly label="Upload cover image" />
+              <AssetUploader value={form.banner} onChange={(banner) => setForm((current) => ({ ...current, banner }))} imageOnly budget="banner" label="Upload cover image" />
             </div>
           </div>
 

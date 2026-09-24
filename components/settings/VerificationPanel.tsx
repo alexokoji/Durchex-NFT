@@ -204,6 +204,9 @@ function TierCard({
                 value={idDocumentUrl}
                 onChange={setIdDocumentUrl}
                 aspect="wide"
+                // Uploaded untouched: a reviewer has to read a document
+                // number off this, and that is worth more than the bytes.
+                budget="idDocument"
               />
             </div>
           )}

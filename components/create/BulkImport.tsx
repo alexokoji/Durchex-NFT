@@ -11,6 +11,7 @@ import { CollectionOption } from "@/components/create/CollectionPicker";
 import { buildVoucherTypedData } from "@/lib/web3/voucher";
 import { buildEditionVoucherTypedData } from "@/lib/web3/editionVoucher";
 import { parseBulkFile, computeTraitRarity, type BulkDraft, type BulkParseResult } from "@/lib/bulkImport";
+import { IMAGE_BUDGETS, shrinkImage } from "@/lib/imageResize";
 
 type Uploaded = { url: string; type: string; name: string; size: number };
 
@@ -44,6 +45,7 @@ export function BulkImport({ collection }: { collection: CollectionOption }) {
   const [running, setRunning] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [finished, setFinished] = useState(false);
+  const [savedBytes, setSavedBytes] = useState(0);
 
   const isEdition = collection.standard === "ERC1155";
   const drafts = parsed?.drafts ?? [];
@@ -69,17 +71,24 @@ export function BulkImport({ collection }: { collection: CollectionOption }) {
     setUploading({ done: 0, total: files.length });
     const next: Record<string, Uploaded> = { ...images };
     let done = 0;
+    let saved = 0;
     for (const file of Array.from(files)) {
       try {
-        const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "-");
-        const blob = await upload(`nft-assets/${Date.now()}-${safeName}`, file, {
+        // Shrunk first: a batch is where oversized originals hurt most,
+        // since every one of them crosses the network before anything is
+        // created.
+        const shrunk = await shrinkImage(file, IMAGE_BUDGETS.artwork);
+        saved += shrunk.savedBytes;
+        const asset = shrunk.file;
+        const safeName = asset.name.replace(/[^a-zA-Z0-9._-]/g, "-");
+        const blob = await upload(`nft-assets/${Date.now()}-${safeName}`, asset, {
           access: "public",
           handleUploadUrl: "/api/uploads",
-          multipart: file.size > 4 * 1024 * 1024,
+          multipart: asset.size > 4 * 1024 * 1024,
         });
-        // Matched on filename, case-insensitively — a metadata file written
-        // by hand rarely agrees with the filesystem on capitalisation.
-        next[file.name.toLowerCase()] = { url: blob.url, type: file.type, name: file.name, size: file.size };
+        // Keyed on the ORIGINAL filename, case-insensitively: that is what
+        // the metadata file refers to, and optimising renames to .webp.
+        next[file.name.toLowerCase()] = { url: blob.url, type: asset.type, name: asset.name, size: asset.size };
       } catch {
         setError(`Couldn't upload ${file.name}. The rest were kept — try that one again.`);
       }
@@ -88,6 +97,7 @@ export function BulkImport({ collection }: { collection: CollectionOption }) {
     }
     setImages(next);
     setUploading(null);
+    if (saved > 0) setSavedBytes((total) => total + saved);
   }
 
   async function createAll() {
@@ -274,7 +284,11 @@ export function BulkImport({ collection }: { collection: CollectionOption }) {
                 ? `${Object.keys(images).length} images ready`
                 : "Choose images"}
           </span>
-          <span className="block text-xs text-white/40 mt-1">Select all of them at once</span>
+          <span className="block text-xs text-white/40 mt-1">
+            {savedBytes > 0
+              ? `Select all at once · ${(savedBytes / 1024 / 1024).toFixed(1)} MB saved by resizing`
+              : "Select all of them at once"}
+          </span>
         </button>
         <input
           ref={imageInput}
